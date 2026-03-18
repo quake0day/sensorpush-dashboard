@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Home Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+    .header { background: #1e293b; padding: 20px 32px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; }
+    .header h1 { font-size: 22px; font-weight: 600; }
+    .header h1 span { color: #38bdf8; }
+    .status { font-size: 13px; color: #94a3b8; }
+    .status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #22c55e; }
+    .status.error .dot { background: #ef4444; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+    .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin: 24px 0 12px; padding-left: 4px; }
+    .section-title:first-child { margin-top: 0; }
+
+    /* Sensor cards */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 8px; }
+    .card { background: #1e293b; border-radius: 12px; padding: 20px 24px; border: 1px solid #334155; }
+    .card .sensor-name { font-size: 14px; color: #94a3b8; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .card .readings { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card .reading .value { font-size: 32px; font-weight: 700; line-height: 1.1; }
+    .card .reading .label { font-size: 11px; color: #64748b; margin-top: 4px; }
+    .temp-value { color: #f97316; }
+    .humidity-value { color: #38bdf8; }
+    .dewpoint-value { color: #a78bfa; }
+    .vpd-value { color: #34d399; }
+    .pressure-value { color: #fb7185; }
+    .card .meta { font-size: 11px; color: #64748b; margin-top: 14px; padding-top: 10px; border-top: 1px solid #334155; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
+
+    /* Tuya device cards */
+    .tuya-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 8px; }
+    .tuya-card { background: #1e293b; border-radius: 12px; padding: 20px 24px; border: 1px solid #334155; position: relative; }
+    .tuya-card .device-name { font-size: 14px; color: #94a3b8; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .tuya-card .device-icon { font-size: 40px; margin-bottom: 8px; }
+    .tuya-card .device-status { font-size: 28px; font-weight: 700; line-height: 1.2; }
+    .tuya-card .device-detail { font-size: 13px; color: #94a3b8; margin-top: 8px; }
+    .tuya-card .online-dot { position: absolute; top: 20px; right: 24px; width: 10px; height: 10px; border-radius: 50%; }
+    .tuya-card .online-dot.on { background: #22c55e; box-shadow: 0 0 8px #22c55e88; }
+    .tuya-card .online-dot.off { background: #64748b; }
+
+    .water-normal { color: #22c55e; }
+    .water-alarm { color: #ef4444; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    .garage-open { color: #f59e0b; }
+    .garage-closed { color: #22c55e; }
+
+    /* Charts */
+    .chart-section { background: #1e293b; border-radius: 12px; padding: 24px; border: 1px solid #334155; margin-bottom: 20px; }
+    .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+    .chart-header h2 { font-size: 16px; font-weight: 600; }
+    .time-btns { display: flex; gap: 6px; }
+    .time-btns button { background: #334155; border: none; color: #94a3b8; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.15s; }
+    .time-btns button.active { background: #38bdf8; color: #0f172a; font-weight: 600; }
+    .time-btns button:hover { background: #475569; }
+    .time-btns button.active:hover { background: #38bdf8; }
+    .chart-wrapper { position: relative; height: 320px; }
+    .loading { text-align: center; padding: 60px; color: #64748b; font-size: 16px; }
+    .gateway-info { background: #1e293b; border-radius: 12px; padding: 16px 24px; border: 1px solid #334155; margin-bottom: 8px; font-size: 13px; color: #64748b; display: flex; gap: 24px; flex-wrap: wrap; }
+    .gateway-info span { color: #94a3b8; }
+
+    /* Water alarm log */
+    .alarm-log { background: #1e293b; border-radius: 12px; padding: 20px 24px; border: 1px solid #334155; margin-bottom: 20px; }
+    .alarm-log h3 { font-size: 14px; color: #94a3b8; margin-bottom: 12px; }
+    .alarm-log .log-list { max-height: 200px; overflow-y: auto; }
+    .alarm-log .log-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #334155; font-size: 13px; }
+    .alarm-log .log-item:last-child { border-bottom: none; }
+    .alarm-log .log-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .alarm-log .log-dot.alarm { background: #ef4444; }
+    .alarm-log .log-dot.normal { background: #22c55e; }
+    .alarm-log .log-time { color: #64748b; min-width: 160px; }
+    .alarm-log .log-state { font-weight: 500; }
+    .alarm-log .empty { color: #475569; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1><span>Smart Home</span> Dashboard</h1>
+    <div class="status" id="status"><span class="dot"></span>Connecting...</div>
+  </div>
+  <div class="container">
+    <!-- SensorPush Section -->
+    <div class="section-title">SensorPush</div>
+    <div class="gateway-info" id="gatewayInfo">Loading gateway...</div>
+    <div class="cards" id="sensorCards"><div class="loading">Loading sensors...</div></div>
+
+    <!-- Tuya Section -->
+    <div class="section-title">Tuya Smart Devices</div>
+    <div class="tuya-cards" id="tuyaCards"><div class="loading">Loading devices...</div></div>
+
+    <!-- Water Alarm Log -->
+    <div class="alarm-log" id="alarmLogSection" style="display:none;">
+      <h3>Water Sensor Alarm History (24h)</h3>
+      <div class="log-list" id="alarmLog"></div>
+    </div>
+
+    <!-- Charts -->
+    <div class="section-title">SensorPush History</div>
+    <div class="chart-section">
+      <div class="chart-header">
+        <h2>Temperature</h2>
+        <div class="time-btns" id="tempTimeBtns">
+          <button data-hours="1">1H</button>
+          <button data-hours="6">6H</button>
+          <button data-hours="24" class="active">24H</button>
+          <button data-hours="72">3D</button>
+          <button data-hours="168">7D</button>
+        </div>
+      </div>
+      <div class="chart-wrapper"><canvas id="tempChart"></canvas></div>
+    </div>
+    <div class="chart-section">
+      <div class="chart-header">
+        <h2>Humidity</h2>
+        <div class="time-btns" id="humTimeBtns">
+          <button data-hours="1">1H</button>
+          <button data-hours="6">6H</button>
+          <button data-hours="24" class="active">24H</button>
+          <button data-hours="72">3D</button>
+          <button data-hours="168">7D</button>
+        </div>
+      </div>
+      <div class="chart-wrapper"><canvas id="humChart"></canvas></div>
+    </div>
+    <div class="chart-section">
+      <div class="chart-header">
+        <h2>Barometric Pressure</h2>
+        <div class="time-btns" id="pressTimeBtns">
+          <button data-hours="1">1H</button>
+          <button data-hours="6">6H</button>
+          <button data-hours="24" class="active">24H</button>
+          <button data-hours="72">3D</button>
+          <button data-hours="168">7D</button>
+        </div>
+      </div>
+      <div class="chart-wrapper"><canvas id="pressChart"></canvas></div>
+    </div>
+  </div>
+<script>
+const COLORS = ["#f97316","#38bdf8","#a78bfa","#34d399","#fb7185","#facc15","#818cf8","#2dd4bf"];
+let sensorsData = {};
+let tempChart, humChart, pressChart;
+let currentTempHours = 24, currentHumHours = 24, currentPressHours = 24;
+
+async function api(method, path, body) {
+  const opts = { method, headers: { "Content-Type": "application/json" } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+}
+
+function setStatus(ok, msg) {
+  const el = document.getElementById("status");
+  el.className = ok ? "status" : "status error";
+  el.innerHTML = `<span class="dot"></span>${msg}`;
+}
+
+function tempF2C(f) { return (f - 32) * 5 / 9; }
+function inHgToHPa(inHg) { return inHg * 33.8639; }
+
+// ============ SensorPush ============
+function renderCards(sensors) {
+  const container = document.getElementById("sensorCards");
+  const ids = Object.keys(sensors);
+  if (!ids.length) { container.innerHTML = '<div class="loading">No sensors found</div>'; return; }
+  container.innerHTML = ids.map(id => {
+    const s = sensors[id];
+    const tempC = s.temperature !== undefined ? tempF2C(s.temperature).toFixed(1) : "--";
+    const hum = s.humidity !== undefined ? s.humidity.toFixed(1) : "--";
+    const dp = s.dewpoint !== undefined ? tempF2C(s.dewpoint).toFixed(1) : "--";
+    const vpd = s.vpd !== undefined ? s.vpd.toFixed(2) : "--";
+    const press = s.barometric_pressure !== undefined ? inHgToHPa(s.barometric_pressure).toFixed(1) : "--";
+    const batt = s.battery_voltage ? `${s.battery_voltage}V` : "--";
+    const updated = s.last_update ? new Date(s.last_update).toLocaleString("zh-CN") : "--";
+    return `<div class="card">
+      <div class="sensor-name">${s.name || id}</div>
+      <div class="readings">
+        <div class="reading"><div class="value temp-value">${tempC}<small>&deg;C</small></div><div class="label">Temperature</div></div>
+        <div class="reading"><div class="value humidity-value">${hum}<small>%</small></div><div class="label">Humidity</div></div>
+        <div class="reading"><div class="value dewpoint-value">${dp}<small>&deg;C</small></div><div class="label">Dew Point</div></div>
+        <div class="reading"><div class="value vpd-value">${vpd}<small> kPa</small></div><div class="label">VPD</div></div>
+        <div class="reading"><div class="value pressure-value">${press}<small> hPa</small></div><div class="label">Pressure</div></div>
+      </div>
+      <div class="meta">
+        <span>Battery: ${batt}</span>
+        <span>Signal: ${s.rssi || "--"} dBm</span>
+        <span>Type: ${s.type || "--"}</span>
+        <span>Updated: ${updated}</span>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ============ Tuya ============
+function renderTuyaDevices(devices) {
+  const container = document.getElementById("tuyaCards");
+  if (!devices.length) { container.innerHTML = '<div class="loading">No Tuya devices</div>'; return; }
+  container.innerHTML = devices.map(d => {
+    const online = d.online;
+    const statusMap = {};
+    (d.status || []).forEach(s => statusMap[s.code] = s.value);
+    const updated = d.update_time ? new Date(d.update_time * 1000).toLocaleString("zh-CN") : "--";
+
+    if (d.type === "water_sensor") {
+      const isAlarm = statusMap.watersensor_state === "alarm";
+      const battery = statusMap.battery_percentage;
+      return `<div class="tuya-card">
+        <span class="online-dot ${online ? 'on' : 'off'}"></span>
+        <div class="device-name">${d.name || "Water Sensor"}</div>
+        <div class="device-icon">${isAlarm ? '🚨' : '💧'}</div>
+        <div class="device-status ${isAlarm ? 'water-alarm' : 'water-normal'}">
+          ${isAlarm ? 'WATER DETECTED' : 'Normal'}
+        </div>
+        <div class="device-detail">Battery: ${battery !== undefined ? battery + '%' : '--'}</div>
+        <div class="device-detail" style="font-size:11px;color:#475569;">Updated: ${updated}</div>
+      </div>`;
+    }
+
+    if (d.type === "garage_door") {
+      const isOn = statusMap.switch_1 === true;
+      const countdown = statusMap.countdown_1 || 0;
+      return `<div class="tuya-card">
+        <span class="online-dot ${online ? 'on' : 'off'}"></span>
+        <div class="device-name">${d.name || "Garage Door"}</div>
+        <div class="device-icon">${isOn ? '🔓' : '🔒'}</div>
+        <div class="device-status ${isOn ? 'garage-open' : 'garage-closed'}">
+          ${isOn ? 'Open' : 'Closed'}
+        </div>
+        ${countdown > 0 ? `<div class="device-detail">Countdown: ${countdown}s</div>` : ''}
+        <div class="device-detail" style="font-size:11px;color:#475569;">Updated: ${updated}</div>
+      </div>`;
+    }
+
+    return `<div class="tuya-card">
+      <span class="online-dot ${online ? 'on' : 'off'}"></span>
+      <div class="device-name">${d.name || d.id}</div>
+      <div class="device-status" style="color:#94a3b8;font-size:16px;">${online ? 'Online' : 'Offline'}</div>
+    </div>`;
+  }).join("");
+}
+
+async function loadAlarmLog() {
+  try {
+    const data = await api("GET", "/api/tuya/device/eb4b975ccbbe3fb9dc98n2/logs?hours=24&codes=watersensor_state");
+    const logs = data.logs || [];
+    const section = document.getElementById("alarmLogSection");
+    const container = document.getElementById("alarmLog");
+    section.style.display = "block";
+    if (!logs.length) { container.innerHTML = '<div class="empty">No events in the last 24 hours</div>'; return; }
+    container.innerHTML = logs.map(log => {
+      const isAlarm = log.value === "alarm";
+      const time = new Date(parseInt(log.event_time)).toLocaleString("zh-CN");
+      return `<div class="log-item">
+        <span class="log-dot ${isAlarm ? 'alarm' : 'normal'}"></span>
+        <span class="log-time">${time}</span>
+        <span class="log-state" style="color:${isAlarm ? '#ef4444' : '#22c55e'}">${isAlarm ? 'Water Detected' : 'Normal'}</span>
+      </div>`;
+    }).join("");
+  } catch (e) { console.error("alarm log:", e); }
+}
+
+// ============ Charts ============
+function createChart(canvasId, yLabel) {
+  const ctx = document.getElementById(canvasId).getContext("2d");
+  return new Chart(ctx, {
+    type: "line",
+    data: { datasets: [] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: { type: "time", time: { tooltipFormat: "MM/dd HH:mm" }, ticks: { color: "#64748b", maxTicksLimit: 12 }, grid: { color: "#1e293b" } },
+        y: { ticks: { color: "#64748b" }, grid: { color: "#334155" }, title: { display: true, text: yLabel, color: "#94a3b8" } }
+      },
+      plugins: {
+        legend: { labels: { color: "#e2e8f0", usePointStyle: true, pointStyle: "circle" } },
+        tooltip: { backgroundColor: "#1e293b", titleColor: "#e2e8f0", bodyColor: "#94a3b8", borderColor: "#334155", borderWidth: 1 }
+      }
+    }
+  });
+}
+
+async function loadSamples(hours) {
+  const sensorIds = Object.keys(sensorsData);
+  if (!sensorIds.length) return {};
+  const startTime = new Date(Date.now() - hours * 3600000).toISOString();
+  const limit = Math.min(Math.max(hours * 60, 100), 2000);
+  const data = await api("POST", "/api/samples", { sensors: sensorIds, startTime, limit });
+  return data.sensors || data;
+}
+
+function updateChart(chart, samplesMap, valueKey, transform) {
+  const datasets = [];
+  let i = 0;
+  for (const [sensorId, samples] of Object.entries(samplesMap)) {
+    const name = sensorsData[sensorId]?.name || sensorId;
+    const color = COLORS[i % COLORS.length];
+    const sorted = [...samples].sort((a, b) => new Date(a.observed) - new Date(b.observed));
+    const points = sorted
+      .filter(s => s[valueKey] !== undefined)
+      .map(s => ({ x: new Date(s.observed), y: transform ? transform(s[valueKey]) : s[valueKey] }));
+    datasets.push({
+      label: name, data: points, borderColor: color, backgroundColor: color + "20",
+      borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true
+    });
+    i++;
+  }
+  chart.data.datasets = datasets;
+  chart.update();
+}
+
+async function refreshCharts() {
+  try {
+    const tempSamples = await loadSamples(currentTempHours);
+    updateChart(tempChart, tempSamples, "temperature", tempF2C);
+  } catch (e) { console.error("temp chart:", e); }
+  try {
+    const humSamples = await loadSamples(currentHumHours);
+    updateChart(humChart, humSamples, "humidity", null);
+  } catch (e) { console.error("hum chart:", e); }
+  try {
+    const pressSamples = await loadSamples(currentPressHours);
+    updateChart(pressChart, pressSamples, "barometric_pressure", inHgToHPa);
+  } catch (e) { console.error("press chart:", e); }
+}
+
+function setupTimeButtons(containerId, setHours, refreshFn) {
+  document.getElementById(containerId).addEventListener("click", async (e) => {
+    if (e.target.tagName !== "BUTTON") return;
+    document.querySelectorAll(`#${containerId} button`).forEach(b => b.classList.remove("active"));
+    e.target.classList.add("active");
+    setHours(parseInt(e.target.dataset.hours));
+    await refreshFn();
+  });
+}
+
+async function loadGateways() {
+  try {
+    const gw = await api("GET", "/api/gateways");
+    const ids = Object.keys(gw);
+    if (!ids.length) { document.getElementById("gatewayInfo").textContent = "No gateways found"; return; }
+    document.getElementById("gatewayInfo").innerHTML = ids.map(id => {
+      const g = gw[id];
+      const lastSeen = g.last_seen ? new Date(g.last_seen).toLocaleString("zh-CN") : "--";
+      return `Gateway: <span>${g.name || id}</span> &nbsp;|&nbsp; Last seen: <span>${lastSeen}</span> &nbsp;|&nbsp; Version: <span>${g.version || "--"}</span>`;
+    }).join("<br>");
+  } catch (e) { document.getElementById("gatewayInfo").textContent = "Gateway info unavailable"; }
+}
+
+// ============ Init ============
+async function init() {
+  // Load SensorPush
+  try {
+    sensorsData = await api("GET", "/api/sensors");
+    renderCards(sensorsData);
+    setStatus(true, "Connected");
+  } catch (e) {
+    setStatus(false, "SensorPush error: " + e.message);
+    document.getElementById("sensorCards").innerHTML = '<div class="loading">Failed to load sensors</div>';
+  }
+
+  // Load Tuya devices
+  try {
+    const tuyaDevices = await api("GET", "/api/tuya/devices");
+    renderTuyaDevices(tuyaDevices);
+    await loadAlarmLog();
+  } catch (e) {
+    console.error("tuya init:", e);
+    document.getElementById("tuyaCards").innerHTML = '<div class="loading">Failed to load Tuya devices</div>';
+  }
+
+  await loadGateways();
+
+  tempChart = createChart("tempChart", "Temperature (\u00B0C)");
+  humChart = createChart("humChart", "Humidity (%)");
+  pressChart = createChart("pressChart", "Pressure (hPa)");
+
+  setupTimeButtons("tempTimeBtns", v => currentTempHours = v, async () => {
+    const s = await loadSamples(currentTempHours); updateChart(tempChart, s, "temperature", tempF2C);
+  });
+  setupTimeButtons("humTimeBtns", v => currentHumHours = v, async () => {
+    const s = await loadSamples(currentHumHours); updateChart(humChart, s, "humidity", null);
+  });
+  setupTimeButtons("pressTimeBtns", v => currentPressHours = v, async () => {
+    const s = await loadSamples(currentPressHours); updateChart(pressChart, s, "barometric_pressure", inHgToHPa);
+  });
+
+  await refreshCharts();
+
+  // Auto-refresh every 2 minutes
+  setInterval(async () => {
+    try {
+      sensorsData = await api("GET", "/api/sensors");
+      renderCards(sensorsData);
+      const tuyaDevices = await api("GET", "/api/tuya/devices");
+      renderTuyaDevices(tuyaDevices);
+      await refreshCharts();
+      setStatus(true, "Connected - " + new Date().toLocaleTimeString("zh-CN"));
+    } catch (e) { setStatus(false, "Refresh failed"); }
+  }, 120000);
+}
+
+init();
+</script>
+</body>
+</html>
