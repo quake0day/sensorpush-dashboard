@@ -96,13 +96,16 @@
     .sensor-meta { font-size: 11px; color: var(--text3); padding: 10px 22px 16px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
 
     /* Water Sensor */
-    .water-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px 26px; display: flex; align-items: center; gap: 20px; }
-    .water-icon { font-size: 44px; }
+    .water-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px 26px; display: flex; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
     .water-info .water-status { font-size: 22px; font-weight: 700; }
     .water-info .water-detail { font-size: 12px; color: var(--text3); margin-top: 4px; }
     .water-normal { color: var(--green); }
     .water-alarm { color: var(--red); animation: pulse 1.5s infinite; }
     @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
+    .pond-diagram { flex-shrink: 0; }
+    @keyframes water-wave { 0%,100%{d:path('M0,0 Q30,-3 60,0 Q90,3 120,0 Q150,-3 180,0 L180,5 L0,5 Z')} 50%{d:path('M0,0 Q30,3 60,0 Q90,-3 120,0 Q150,3 180,0 L180,5 L0,5 Z')} }
+    @keyframes fish-swim { 0%{transform:translateX(0)} 50%{transform:translateX(12px)} 100%{transform:translateX(0)} }
+    .pond-fish { animation: fish-swim 4s ease-in-out infinite; }
     .alarm-log { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 22px; margin-top: 12px; }
     .alarm-log h3 { font-size: 13px; color: var(--text2); margin-bottom: 10px; }
     .alarm-log .log-list { max-height: 180px; overflow-y: auto; }
@@ -816,54 +819,136 @@ function renderWaterSensor(devices) {
   (ws.status || []).forEach(s => statusMap[s.code] = s.value);
 
   // Dual probe mapping (from v2 thing model):
-  //   watersensor_state (DP1) = "水浸（右）" = right probe
-  //   tamper_alarm (DP5)      = "水浸（左）" = left probe
-  // Probe assignment:
-  //   Left  = white probe = shallow position (warns early)
-  //   Right = black probe = deep position (critical low)
-  // alarm/true = probe NOT in water (water dropped below that level)
-  const leftAlarm = statusMap.tamper_alarm === true;       // white/shallow
+  //   watersensor_state (DP1) = right probe = black = deep position
+  //   tamper_alarm (DP5)      = left probe  = white = shallow position
+  const leftAlarm = statusMap.tamper_alarm === true;          // white/shallow
   const rightAlarm = statusMap.watersensor_state === 'alarm'; // black/deep
   const battery = statusMap.battery_percentage;
   const online = ws.online;
   const updated = ws.update_time ? new Date(ws.update_time * 1000).toLocaleString(locale) : '--';
 
-  let icon, statusText, statusClass;
+  let statusText, statusClass;
   if (rightAlarm && leftAlarm) {
-    // Both probes out of water - critically low
-    icon = '🚨🐟';
-    statusText = T.pondCritical;
-    statusClass = 'water-alarm';
+    statusText = T.pondCritical; statusClass = 'water-alarm';
   } else if (rightAlarm || leftAlarm) {
-    // One probe out - water is getting low
-    icon = '⚠️🐟';
-    statusText = T.pondLow;
-    statusClass = 'water-alarm';
+    statusText = T.pondLow; statusClass = 'water-alarm';
   } else {
-    // Both probes in water - all good
-    icon = '🐟💧';
-    statusText = T.pondNormal;
-    statusClass = 'water-normal';
+    statusText = T.pondNormal; statusClass = 'water-normal';
   }
 
   const probeWhiteOk = !leftAlarm;
   const probeBlackOk = !rightAlarm;
-  const probeWhiteLabel = LANG === 'cn' ? '白色探头（浅水位）' : 'White probe (shallow)';
-  const probeBlackLabel = LANG === 'cn' ? '黑色探头（深水位）' : 'Black probe (deep)';
-  const okText = LANG === 'cn' ? '在水中' : 'In water';
-  const dryText = LANG === 'cn' ? '离开水面' : 'Out of water';
+
+  // Water level Y positions in SVG (pond area 40-190)
+  // White probe at y=85, Black probe at y=140
+  // Water level depends on probe states
+  let waterY;
+  if (!rightAlarm && !leftAlarm) waterY = 58;   // above both → high
+  else if (!rightAlarm && leftAlarm) waterY = 108; // between probes → medium
+  else waterY = 165;                               // below both → critical
+
+  const waterColor = waterY < 80 ? '#1e6091' : waterY < 130 ? '#b45309' : '#991b1b';
+  const waterColorLight = waterY < 80 ? '#2980b9' : waterY < 130 ? '#d97706' : '#dc2626';
+  const levelLabel = LANG === 'cn'
+    ? (waterY < 80 ? '水位正常' : waterY < 130 ? '水位偏低' : '水位极低')
+    : (waterY < 80 ? 'Normal' : waterY < 130 ? 'Low' : 'Critical');
+
+  const whiteLabel = LANG === 'cn' ? '白' : 'W';
+  const blackLabel = LANG === 'cn' ? '黑' : 'B';
+  const shallowTxt = LANG === 'cn' ? '浅水位' : 'Shallow';
+  const deepTxt = LANG === 'cn' ? '深水位' : 'Deep';
+
+  // SVG pond diagram
+  const svg = `<svg class="pond-diagram" viewBox="0 0 240 220" width="240" height="220" xmlns="http://www.w3.org/2000/svg">
+    <!-- Pond background -->
+    <defs>
+      <linearGradient id="pondBg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#0c2d1a"/>
+        <stop offset="100%" stop-color="#071a0e"/>
+      </linearGradient>
+      <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${waterColorLight}" stop-opacity="0.5"/>
+        <stop offset="100%" stop-color="${waterColor}" stop-opacity="0.8"/>
+      </linearGradient>
+      <clipPath id="pondClip"><rect x="30" y="40" width="180" height="155" rx="10"/></clipPath>
+    </defs>
+
+    <!-- Pond container -->
+    <rect x="30" y="40" width="180" height="155" rx="10" fill="url(#pondBg)" stroke="#24432e" stroke-width="2"/>
+
+    <!-- Water fill -->
+    <g clip-path="url(#pondClip)">
+      <rect x="30" y="${waterY}" width="180" height="${195 - waterY}" fill="url(#waterGrad)"/>
+      <!-- Water surface wave -->
+      <g transform="translate(30,${waterY - 2})">
+        <path d="M0,0 Q30,-3 60,0 Q90,3 120,0 Q150,-3 180,0 L180,5 L0,5 Z" fill="${waterColorLight}" opacity="0.3">
+          <animate attributeName="d" dur="3s" repeatCount="indefinite"
+            values="M0,0 Q30,-3 60,0 Q90,3 120,0 Q150,-3 180,0 L180,5 L0,5 Z;
+                    M0,0 Q30,3 60,0 Q90,-3 120,0 Q150,3 180,0 L180,5 L0,5 Z;
+                    M0,0 Q30,-3 60,0 Q90,3 120,0 Q150,-3 180,0 L180,5 L0,5 Z"/>
+        </path>
+      </g>
+
+      <!-- Koi fish (only if water exists) -->
+      ${waterY < 160 ? `
+      <g class="pond-fish" transform="translate(${waterY < 100 ? 70 : 80},${Math.max(waterY + 25, 120)})">
+        <ellipse cx="0" cy="0" rx="14" ry="6" fill="#e8945a"/>
+        <ellipse cx="-3" cy="-1" rx="5" ry="3" fill="#fff" opacity="0.4"/>
+        <polygon points="14,-1 20,-6 20,4" fill="#d97730"/>
+        <circle cx="-8" cy="-2" r="1.5" fill="#1a1a1a"/>
+      </g>
+      <g class="pond-fish" style="animation-delay:-2s;animation-direction:reverse" transform="translate(${waterY < 100 ? 140 : 120},${Math.max(waterY + 45, 150)})">
+        <ellipse cx="0" cy="0" rx="11" ry="5" fill="#f0f0f0"/>
+        <ellipse cx="2" cy="0" rx="5" ry="3" fill="#dc2626" opacity="0.6"/>
+        <polygon points="-11,0 -17,-5 -17,4" fill="#e8e8e8"/>
+        <circle cx="6" cy="-2" r="1.2" fill="#1a1a1a"/>
+      </g>` : ''}
+    </g>
+
+    <!-- Sensor pole -->
+    <rect x="90" y="22" width="4" height="178" rx="2" fill="#6b7280"/>
+    <!-- Pole base/mount -->
+    <rect x="82" y="18" width="20" height="8" rx="3" fill="#9ca3af"/>
+
+    <!-- White probe (shallow) at y=85 -->
+    <circle cx="92" cy="85" r="9" fill="${probeWhiteOk ? '#f0f0f0' : '#f0f0f0'}" stroke="${probeWhiteOk ? '#22c55e' : '#ef4444'}" stroke-width="2.5"/>
+    <text x="92" y="89" text-anchor="middle" fill="#333" font-size="10" font-weight="bold">${whiteLabel}</text>
+    <!-- White probe label -->
+    <line x1="101" y1="85" x2="122" y2="85" stroke="${probeWhiteOk ? '#22c55e80' : '#ef444480'}" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="125" y="82" fill="#8aaa96" font-size="8">${shallowTxt}</text>
+    <text x="125" y="92" fill="${probeWhiteOk ? '#22c55e' : '#ef4444'}" font-size="8" font-weight="600">${probeWhiteOk ? (LANG==='cn'?'●水中':'●OK') : (LANG==='cn'?'◉离水':'◉DRY')}</text>
+
+    <!-- Black probe (deep) at y=140 -->
+    <circle cx="92" cy="140" r="9" fill="#374151" stroke="${probeBlackOk ? '#22c55e' : '#ef4444'}" stroke-width="2.5"/>
+    <text x="92" y="144" text-anchor="middle" fill="#e0e0e0" font-size="10" font-weight="bold">${blackLabel}</text>
+    <!-- Black probe label -->
+    <line x1="101" y1="140" x2="122" y2="140" stroke="${probeBlackOk ? '#22c55e80' : '#ef444480'}" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="125" y="137" fill="#8aaa96" font-size="8">${deepTxt}</text>
+    <text x="125" y="147" fill="${probeBlackOk ? '#22c55e' : '#ef4444'}" font-size="8" font-weight="600">${probeBlackOk ? (LANG==='cn'?'●水中':'●OK') : (LANG==='cn'?'◉离水':'◉DRY')}</text>
+
+    <!-- Water level indicator arrow -->
+    <polygon points="34,${waterY} 26,${waterY-5} 26,${waterY+5}" fill="${waterColorLight}"/>
+    <text x="8" y="${waterY+4}" fill="${waterColorLight}" font-size="9" font-weight="600">${levelLabel}</text>
+
+    <!-- Pond bottom -->
+    <g transform="translate(30,185)">
+      <ellipse cx="40" cy="5" rx="12" ry="3" fill="#374151" opacity="0.4"/>
+      <ellipse cx="100" cy="3" rx="8" ry="2" fill="#374151" opacity="0.3"/>
+      <ellipse cx="150" cy="5" rx="10" ry="3" fill="#374151" opacity="0.35"/>
+    </g>
+  </svg>`;
 
   document.getElementById('waterCard').innerHTML = `<div class="water-card">
-    <div class="water-icon">${icon}</div>
+    ${svg}
     <div class="water-info">
       <div class="water-status ${statusClass}">${statusText}</div>
       <div class="water-detail" style="margin-top:8px;">
-        <span style="color:${probeWhiteOk ? 'var(--green)' : 'var(--red)'}">${probeWhiteOk ? '●' : '◉'} ${probeWhiteLabel}: ${probeWhiteOk ? okText : dryText}</span>
+        <span style="color:${probeWhiteOk ? 'var(--green)' : 'var(--red)'}">${probeWhiteOk ? '●' : '◉'} ${LANG==='cn'?'白色探头（浅水位）':'White probe (shallow)'}: ${probeWhiteOk ? (LANG==='cn'?'在水中':'In water') : (LANG==='cn'?'离开水面':'Out of water')}</span>
       </div>
       <div class="water-detail">
-        <span style="color:${probeBlackOk ? 'var(--green)' : 'var(--red)'}">${probeBlackOk ? '●' : '◉'} ${probeBlackLabel}: ${probeBlackOk ? okText : dryText}</span>
+        <span style="color:${probeBlackOk ? 'var(--green)' : 'var(--red)'}">${probeBlackOk ? '●' : '◉'} ${LANG==='cn'?'黑色探头（深水位）':'Black probe (deep)'}: ${probeBlackOk ? (LANG==='cn'?'在水中':'In water') : (LANG==='cn'?'离开水面':'Out of water')}</span>
       </div>
-      <div class="water-detail" style="margin-top:6px;">${T.battery}: ${battery !== undefined ? battery + '%' : '--'} &nbsp; ${online ? '🟢' : '⚫'} ${online ? 'Online' : 'Offline'}</div>
+      <div class="water-detail" style="margin-top:8px;">${T.battery}: ${battery !== undefined ? battery + '%' : '--'} &nbsp; ${online ? '🟢' : '⚫'} ${online ? 'Online' : 'Offline'}</div>
       <div class="water-detail">${T.updated}: ${updated}</div>
     </div>
   </div>`;
