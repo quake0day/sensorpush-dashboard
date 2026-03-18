@@ -219,7 +219,7 @@ const T = {
     weather: 'Weather Forecast',
     location: 'West Chester, PA',
     sensors: 'Garden Sensors',
-    water: 'Water Leak Detection',
+    water: 'Koi Pond Water Level',
     charts: 'Historical Trends',
     temperature: 'Temperature',
     humidity: 'Humidity',
@@ -235,9 +235,11 @@ const T = {
     loadingWeather: 'Loading weather...',
     noSensors: 'No sensors found',
     noEvents: 'No events in the last 24 hours',
-    waterDetected: 'WATER DETECTED',
-    normal: 'Normal',
-    alarmHistory: 'Water Alarm History (24h)',
+    pondLow: 'LOW - Refill needed',
+    pondCritical: 'CRITICAL - Refill immediately!',
+    pondNormal: 'Water level OK',
+    pondDesc: 'Dual-probe sensor: white probe (shallow) & black probe (deep)',
+    alarmHistory: 'Pond Level Alert History (24h)',
     switchLang: '中文',
     switchUrl: '/cn',
     wind: 'Wind',
@@ -287,7 +289,7 @@ const T = {
     weather: '天气预报',
     location: '宾州 西切斯特',
     sensors: '花园传感器',
-    water: '漏水检测',
+    water: '锦鲤鱼塘水位',
     charts: '历史趋势',
     temperature: '温度',
     humidity: '湿度',
@@ -303,9 +305,11 @@ const T = {
     loadingWeather: '加载天气中...',
     noSensors: '未找到传感器',
     noEvents: '过去24小时无事件',
-    waterDetected: '检测到漏水！',
-    normal: '正常',
-    alarmHistory: '漏水报警记录（24小时）',
+    pondLow: '偏低 - 需要加水',
+    pondCritical: '严重偏低 - 必须立即加水！',
+    pondNormal: '水位正常',
+    pondDesc: '双探头传感器：白色探头（浅水位）& 黑色探头（深水位）',
+    alarmHistory: '鱼塘水位报警记录（24小时）',
     switchLang: 'EN',
     switchUrl: '/',
     wind: '风速',
@@ -704,7 +708,7 @@ function renderSensors(sensors) {
   }).join('');
 }
 
-// ============ Tuya / Water Sensor ============
+// ============ Tuya / Koi Pond Water Level ============
 function renderWaterSensor(devices) {
   const ws = devices.find(d => d.type === 'water_sensor');
   if (!ws) return;
@@ -716,10 +720,26 @@ function renderWaterSensor(devices) {
   const online = ws.online;
   const updated = ws.update_time ? new Date(ws.update_time * 1000).toLocaleString(locale) : '--';
 
+  // Pond level: alarm = water below probe level
+  // White probe (shallow): alarm means water is getting low, refill needed
+  // Black probe (deep): alarm means water is critically low, urgent refill
+  // Since the API only reports one combined state, alarm = low water
+  let icon, statusText, statusClass;
+  if (isAlarm) {
+    icon = '🚨🐟';
+    statusText = T.pondLow;
+    statusClass = 'water-alarm';
+  } else {
+    icon = '🐟💧';
+    statusText = T.pondNormal;
+    statusClass = 'water-normal';
+  }
+
   document.getElementById('waterCard').innerHTML = `<div class="water-card">
-    <div class="water-icon">${isAlarm ? '🚨' : '💧'}</div>
+    <div class="water-icon">${icon}</div>
     <div class="water-info">
-      <div class="water-status ${isAlarm ? 'water-alarm' : 'water-normal'}">${isAlarm ? T.waterDetected : T.normal}</div>
+      <div class="water-status ${statusClass}">${statusText}</div>
+      <div class="water-detail" style="color:var(--text2);margin-top:6px;">${T.pondDesc}</div>
       <div class="water-detail">${T.battery}: ${battery !== undefined ? battery + '%' : '--'} &nbsp; ${online ? '🟢' : '⚫'} ${online ? 'Online' : 'Offline'}</div>
       <div class="water-detail">${T.updated}: ${updated}</div>
     </div>
@@ -740,7 +760,7 @@ async function loadAlarmLog() {
       return `<div class="log-item">
         <span class="log-dot ${isAlarm ? 'alarm' : 'normal'}"></span>
         <span class="log-time">${time}</span>
-        <span class="log-state" style="color:${isAlarm ? 'var(--red)' : 'var(--green)'}">${isAlarm ? T.waterDetected : T.normal}</span>
+        <span class="log-state" style="color:${isAlarm ? 'var(--red)' : 'var(--green)'}">${isAlarm ? T.pondLow : T.pondNormal}</span>
       </div>`;
     }).join('');
   } catch (e) { console.error('alarm log:', e); }
