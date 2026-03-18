@@ -7,227 +7,128 @@
 <style>
   :root { --bg:#0a1a10; --s1:#12261a; --s2:#1a3326; --bd:#24432e; --t1:#e8f0e8; --t2:#8aaa96; --t3:#5a7a66; --acc:#4ade80; --red:#ef4444; }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--t1); display:flex; flex-direction:column; height:100vh; }
-  .toolbar { background:var(--s1); border-bottom:1px solid var(--bd); padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  .toolbar h1 { font-size:16px; color:var(--acc); }
-  .toolbar input { background:var(--s2); border:1px solid var(--bd); color:var(--t1); padding:5px 10px; border-radius:6px; font-size:13px; width:200px; }
-  .toolbar button, .tb { background:var(--s2); border:1px solid var(--bd); color:var(--t2); padding:5px 14px; border-radius:6px; cursor:pointer; font-size:12px; }
-  .toolbar button:hover, .tb:hover { background:var(--bd); color:var(--t1); }
-  .toolbar .btn-save { background:#166534; border-color:#22c55e; color:#22c55e; }
-  .toolbar .btn-save:hover { background:#22c55e; color:#000; }
-  .toolbar .btn-back { text-decoration:none; color:var(--t2); }
-  .toolbar .sep { width:1px; height:20px; background:var(--bd); }
-  .toolbar select { background:var(--s2); border:1px solid var(--bd); color:var(--t1); padding:5px 8px; border-radius:6px; font-size:12px; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--t1); display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+
+  .toolbar { background:var(--s1); border-bottom:1px solid var(--bd); padding:8px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; }
+  .toolbar h1 { font-size:16px; color:var(--acc); margin-right:8px; }
+  .toolbar input { background:var(--s2); border:1px solid var(--bd); color:var(--t1); padding:4px 8px; border-radius:5px; font-size:12px; width:180px; }
+  .toolbar button, .toolbar a { background:var(--s2); border:1px solid var(--bd); color:var(--t2); padding:4px 12px; border-radius:5px; cursor:pointer; font-size:12px; text-decoration:none; }
+  .toolbar button:hover, .toolbar a:hover { background:var(--bd); color:var(--t1); }
+  .btn-save { background:#166534!important; border-color:#22c55e!important; color:#22c55e!important; }
+  .sep { width:1px; height:20px; background:var(--bd); }
 
   .main { display:flex; flex:1; overflow:hidden; }
 
-  /* Left panel - sprites */
-  .panel-left { width:220px; background:var(--s1); border-right:1px solid var(--bd); display:flex; flex-direction:column; overflow:hidden; }
-  .tabs { display:flex; border-bottom:1px solid var(--bd); }
-  .tab { flex:1; padding:8px; text-align:center; font-size:12px; cursor:pointer; color:var(--t3); border-bottom:2px solid transparent; }
-  .tab.active { color:var(--acc); border-color:var(--acc); background:var(--s2); }
-  .sprite-list { flex:1; overflow-y:auto; padding:8px; }
-  .sprite-item { display:inline-flex; flex-direction:column; align-items:center; padding:4px; margin:2px; border:2px solid transparent; border-radius:6px; cursor:pointer; }
-  .sprite-item:hover { border-color:var(--bd); background:var(--s2); }
-  .sprite-item.selected { border-color:var(--acc); background:rgba(74,222,128,0.1); }
-  .sprite-item canvas { image-rendering:pixelated; }
-  .sprite-item .sp-label { font-size:9px; color:var(--t3); margin-top:2px; max-width:60px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-  /* Center - canvas */
-  .panel-center { flex:1; display:flex; align-items:center; justify-content:center; overflow:auto; background:#060e08; position:relative; }
-  .panel-center canvas { image-rendering:pixelated; cursor:crosshair; }
-
-  /* Right panel - saved gardens */
-  .panel-right { width:200px; background:var(--s1); border-left:1px solid var(--bd); display:flex; flex-direction:column; }
-  .panel-right h3 { font-size:12px; color:var(--t3); padding:10px 12px 6px; text-transform:uppercase; letter-spacing:1px; }
-  .saved-list { flex:1; overflow-y:auto; padding:4px 8px; }
-  .saved-item { display:flex; justify-content:space-between; align-items:center; padding:6px 8px; border-radius:6px; font-size:12px; cursor:pointer; margin-bottom:2px; }
-  .saved-item:hover { background:var(--s2); }
-  .saved-item .del { color:var(--t3); font-size:10px; cursor:pointer; padding:2px 6px; border-radius:4px; }
-  .saved-item .del:hover { background:var(--red); color:#fff; }
-
-  /* Tools section */
-  .tools-section { padding:10px 12px; border-top:1px solid var(--bd); }
-  .tool-row { margin-bottom:6px; }
-  .tool-row label { font-size:11px; color:var(--t3); display:block; margin-bottom:3px; }
-  .tool-btn { display:inline-block; padding:4px 10px; margin:2px; border-radius:4px; font-size:11px; cursor:pointer; background:var(--s2); border:1px solid var(--bd); color:var(--t2); }
+  /* Left: Sprite Sheet Viewer */
+  .panel-left { width:260px; background:var(--s1); border-right:1px solid var(--bd); display:flex; flex-direction:column; overflow:hidden; }
+  .sheet-tabs { display:flex; border-bottom:1px solid var(--bd); }
+  .sheet-tab { flex:1; padding:7px; text-align:center; font-size:12px; cursor:pointer; color:var(--t3); border-bottom:2px solid transparent; }
+  .sheet-tab.active { color:var(--acc); border-color:var(--acc); }
+  .sheet-controls { padding:6px 10px; border-bottom:1px solid var(--bd); font-size:11px; color:var(--t3); display:flex; gap:8px; align-items:center; }
+  .sheet-controls input { width:40px; background:var(--s2); border:1px solid var(--bd); color:var(--t1); padding:2px 4px; border-radius:3px; font-size:11px; text-align:center; }
+  .sheet-view { flex:1; overflow:auto; padding:8px; position:relative; cursor:crosshair; }
+  .sheet-view canvas { image-rendering:pixelated; display:block; }
+  .selected-preview { padding:8px 10px; border-top:1px solid var(--bd); display:flex; align-items:center; gap:8px; min-height:50px; }
+  .selected-preview canvas { image-rendering:pixelated; border:1px solid var(--bd); }
+  .selected-preview .info { font-size:11px; color:var(--t2); }
+  .tool-bar { padding:6px 10px; border-top:1px solid var(--bd); display:flex; gap:4px; }
+  .tool-btn { padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer; background:var(--s2); border:1px solid var(--bd); color:var(--t2); }
   .tool-btn:hover { background:var(--bd); }
   .tool-btn.active { background:var(--acc); color:#000; border-color:var(--acc); }
-  .info-bar { background:var(--s1); border-top:1px solid var(--bd); padding:6px 16px; font-size:11px; color:var(--t3); display:flex; gap:20px; }
+
+  /* Center: Isometric Canvas */
+  .panel-center { flex:1; overflow:auto; background:#060e08; display:flex; align-items:center; justify-content:center; }
+  .panel-center canvas { image-rendering:pixelated; cursor:crosshair; }
+
+  /* Right: Saved */
+  .panel-right { width:180px; background:var(--s1); border-left:1px solid var(--bd); display:flex; flex-direction:column; font-size:12px; }
+  .panel-right h3 { font-size:11px; color:var(--t3); padding:8px 10px 4px; text-transform:uppercase; letter-spacing:1px; }
+  .saved-list { flex:1; overflow-y:auto; padding:4px 8px; }
+  .saved-item { display:flex; justify-content:space-between; align-items:center; padding:5px 6px; border-radius:5px; cursor:pointer; margin-bottom:1px; }
+  .saved-item:hover { background:var(--s2); }
+  .saved-item .del { color:var(--t3); cursor:pointer; padding:1px 5px; border-radius:3px; font-size:10px; }
+  .saved-item .del:hover { background:var(--red); color:#fff; }
+  .layer-ctrl { padding:8px 10px; border-top:1px solid var(--bd); }
+  .layer-ctrl label { font-size:10px; color:var(--t3); display:block; margin-bottom:3px; }
+
+  .info-bar { background:var(--s1); border-top:1px solid var(--bd); padding:5px 16px; font-size:11px; color:var(--t3); display:flex; gap:16px; }
 </style>
 </head>
 <body>
 <div class="toolbar">
-  <a href="/" class="btn-back toolbar">← Back</a>
+  <a href="/">← Back</a>
   <div class="sep"></div>
   <h1>Garden Editor</h1>
   <div class="sep"></div>
-  <label style="font-size:12px;color:var(--t3)">Name:</label>
-  <input id="gardenName" placeholder="e.g. garden_winter_day" />
+  <span style="color:var(--t3)">Name:</span>
+  <input id="gardenName" placeholder="garden_winter_day" />
   <button class="btn-save" onclick="saveGarden()">Save</button>
   <div class="sep"></div>
-  <label style="font-size:12px;color:var(--t3)">Grid:</label>
-  <select id="gridCols" onchange="resizeGrid()">
-    <option value="5">5</option><option value="7" selected>7</option><option value="9">9</option><option value="11">11</option>
-  </select>
-  <span style="font-size:12px;color:var(--t3)">x</span>
-  <select id="gridRows" onchange="resizeGrid()">
-    <option value="3">3</option><option value="5" selected>5</option><option value="7">7</option><option value="9">9</option>
-  </select>
-  <button onclick="clearAll()">Clear All</button>
+  <span style="color:var(--t3)">Grid:</span>
+  <select id="gridCols" onchange="resizeGrid()"><option value="5">5</option><option value="7" selected>7</option><option value="9">9</option><option value="11">11</option></select>
+  <span style="color:var(--t3)">x</span>
+  <select id="gridRows" onchange="resizeGrid()"><option value="3">3</option><option value="5" selected>5</option><option value="7">7</option><option value="9">9</option></select>
+  <button onclick="if(confirm('Clear?')){initGrid();redraw()}">Clear</button>
 </div>
 
 <div class="main">
-  <!-- Left: Sprite Palette -->
   <div class="panel-left">
-    <div class="tabs">
-      <div class="tab active" data-tab="blocks" onclick="switchTab('blocks')">Blocks</div>
-      <div class="tab" data-tab="misc" onclick="switchTab('misc')">Misc</div>
+    <div class="sheet-tabs">
+      <div class="sheet-tab active" onclick="switchSheet('blocks')">Blocks</div>
+      <div class="sheet-tab" onclick="switchSheet('misc')">Misc</div>
     </div>
-    <div style="padding:6px 8px;">
-      <div class="tool-btn" id="eraserBtn" onclick="selectEraser()" style="width:100%;text-align:center">Eraser</div>
+    <div class="sheet-controls">
+      <span>Cell W:</span><input id="cellW" type="number" value="36" min="8" max="128" onchange="renderSheet()">
+      <span>H:</span><input id="cellH" type="number" value="34" min="8" max="128" onchange="renderSheet()">
+      <span>Zoom:</span><input id="sheetZoom" type="number" value="2" min="1" max="5" onchange="renderSheet()">
     </div>
-    <div class="sprite-list" id="spriteList"></div>
+    <div class="sheet-view" id="sheetView">
+      <canvas id="sheetCanvas"></canvas>
+    </div>
+    <div class="selected-preview" id="selPreview">
+      <span class="info">Click sprite sheet to select a tile</span>
+    </div>
+    <div class="tool-bar">
+      <div class="tool-btn active" id="toolGround" onclick="setTool('ground')">Ground</div>
+      <div class="tool-btn" id="toolDeco" onclick="setTool('deco')">Decor</div>
+      <div class="tool-btn" id="toolEraser" onclick="setTool('eraser')">Eraser</div>
+    </div>
   </div>
 
-  <!-- Center: Canvas -->
   <div class="panel-center">
-    <canvas id="editorCanvas" width="600" height="450"></canvas>
+    <canvas id="editorCanvas"></canvas>
   </div>
 
-  <!-- Right: Saved Gardens -->
   <div class="panel-right">
     <h3>Saved Gardens</h3>
     <div class="saved-list" id="savedList"></div>
-    <div class="tools-section">
-      <div class="tool-row">
-        <label>Current Tool</label>
-        <div id="currentTool" style="font-size:13px;color:var(--acc)">None</div>
-      </div>
-      <div class="tool-row">
-        <label>Layer</label>
-        <div class="tool-btn active" id="layerGround" onclick="setLayer('ground')">Ground</div>
-        <div class="tool-btn" id="layerDeco" onclick="setLayer('deco')">Decor</div>
-      </div>
-      <div class="tool-row" id="decoOffsetRow" style="display:none">
-        <label>Decor Offset Y</label>
-        <input type="range" id="decoOffsetY" min="-120" max="20" value="-20" style="width:100%" oninput="redraw()">
-      </div>
+    <div class="layer-ctrl">
+      <label>Decor Y Offset</label>
+      <input type="range" id="decoOffY" min="-140" max="10" value="-30" style="width:100%" oninput="document.getElementById('offYVal').textContent=this.value+'px'">
+      <span id="offYVal" style="font-size:10px;color:var(--t3)">-30px</span>
     </div>
   </div>
 </div>
 
 <div class="info-bar">
-  <span id="infoPos">Hover over grid</span>
-  <span id="infoTile">-</span>
-  <span>Left click: place | Right click: erase | Scroll: zoom</span>
+  <span id="infoCell">-</span>
+  <span id="infoSprite">-</span>
+  <span>Left: place | Right: erase | Sheet: click to pick</span>
 </div>
 
 <script>
-// ============ Sprite Definitions ============
-const TW = 36, TH = 38;
-
-// blocks.png: 6 cols × 7 rows
-const BLOCK_SPRITES = [];
-const BLOCK_LABELS = [
-  ['Grass','Grass+Flower','Grass+Tuft','Grass+Sprout','Grass+Mush','Grass+Weed'],
-  ['Dirt1','Dirt2','Dirt+Grass','Dirt+Plant','Dirt+Rock','Dirt+Moss'],
-  ['DirtDark1','DirtDark2','DirtDark3','DirtDark4','DirtDark5','DirtDark6'],
-  ['Water1','Water2','Water3','Water+Rip1','Water+Rip2','Water+Rip3'],
-  ['Water+Rock','Water+Lily','Water+Log','Water+Pad','Water+Stone','Water+Deep'],
-  ['Stone1','Stone2','Stone3','Stone+Moss','Stone+Crack','Stone+Grass'],
-  ['Path1','Path2','Path3','Path+Grass1','Path+Grass2','Path+Edge'],
-];
-for (let row = 0; row < 7; row++) {
-  for (let col = 0; col < 6; col++) {
-    BLOCK_SPRITES.push({
-      id: `b_${row}_${col}`,
-      sheet: 'blocks',
-      sx: col * TW, sy: row * TH, sw: TW, sh: TH,
-      label: BLOCK_LABELS[row]?.[col] || `Block ${row},${col}`,
-      type: 'ground'
-    });
-  }
-}
-
-// misc.png: manually defined sprites
-const MISC_SPRITES = [
-  { id:'m_fence1',     sx:2,   sy:2,   sw:18, sh:54,  label:'Fence Tall' },
-  { id:'m_fence2',     sx:24,  sy:10,  sw:18, sh:46,  label:'Fence Short' },
-  { id:'m_rock_big',   sx:2,   sy:60,  sw:42, sh:24,  label:'Rock Big' },
-  { id:'m_rock_slab',  sx:46,  sy:68,  sw:24, sh:14,  label:'Rock Slab' },
-  { id:'m_pebbles',    sx:0,   sy:86,  sw:35, sh:16,  label:'Pebbles' },
-  { id:'m_bench',      sx:4,   sy:78,  sw:60, sh:34,  label:'Bench' },
-  { id:'m_log',        sx:0,   sy:112, sw:32, sh:16,  label:'Log' },
-  { id:'m_stones1',    sx:2,   sy:130, sw:22, sh:12,  label:'Stones S' },
-  { id:'m_stones2',    sx:28,  sy:128, sw:20, sh:14,  label:'Stones M' },
-  { id:'m_stepping',   sx:0,   sy:146, sw:80, sh:22,  label:'Step Stones' },
-  { id:'m_brick1',     sx:2,   sy:170, sw:14, sh:18,  label:'Brick' },
-  { id:'m_brick2',     sx:18,  sy:170, sw:14, sh:14,  label:'Brick S' },
-  // Flowers (top right area)
-  { id:'m_fl_red',     sx:92,  sy:2,   sw:12, sh:18,  label:'Flower Red' },
-  { id:'m_fl_yellow',  sx:106, sy:2,   sw:12, sh:18,  label:'Flower Yellow' },
-  { id:'m_fl_orange',  sx:120, sy:2,   sw:14, sh:18,  label:'Flower Orange' },
-  { id:'m_fl_pink',    sx:135, sy:2,   sw:12, sh:18,  label:'Flower Pink' },
-  { id:'m_fl_blue',    sx:149, sy:2,   sw:12, sh:18,  label:'Flower Blue' },
-  { id:'m_fl_purple',  sx:163, sy:2,   sw:12, sh:18,  label:'Flower Purple' },
-  { id:'m_fl_white',   sx:177, sy:2,   sw:12, sh:18,  label:'Flower White' },
-  { id:'m_fl_daisy',   sx:192, sy:2,   sw:12, sh:18,  label:'Flower Daisy' },
-  // Second row flowers
-  { id:'m_fl2_red',    sx:92,  sy:22,  sw:12, sh:16,  label:'Tulip Red' },
-  { id:'m_fl2_pink',   sx:106, sy:22,  sw:12, sh:16,  label:'Tulip Pink' },
-  { id:'m_fl2_yel',    sx:120, sy:22,  sw:12, sh:16,  label:'Tulip Yellow' },
-  { id:'m_fl2_lav',    sx:135, sy:22,  sw:12, sh:16,  label:'Tulip Lavender' },
-  { id:'m_fl2_blue',   sx:149, sy:22,  sw:12, sh:16,  label:'Tulip Blue' },
-  { id:'m_fl2_org',    sx:163, sy:22,  sw:14, sh:16,  label:'Tulip Orange' },
-  // Third row - bushflowers
-  { id:'m_fl3_a',      sx:92,  sy:40,  sw:14, sh:14,  label:'Bush Flower A' },
-  { id:'m_fl3_b',      sx:108, sy:40,  sw:14, sh:14,  label:'Bush Flower B' },
-  { id:'m_fl3_c',      sx:124, sy:40,  sw:14, sh:14,  label:'Bush Flower C' },
-  { id:'m_fl3_d',      sx:140, sy:40,  sw:14, sh:14,  label:'Bush Flower D' },
-  { id:'m_fl3_e',      sx:156, sy:40,  sw:14, sh:14,  label:'Bush Flower E' },
-  { id:'m_fl3_f',      sx:172, sy:40,  sw:14, sh:14,  label:'Bush Flower F' },
-  // Fourth row
-  { id:'m_fl4_a',      sx:92,  sy:56,  sw:16, sh:16,  label:'Cluster A' },
-  { id:'m_fl4_b',      sx:110, sy:56,  sw:16, sh:16,  label:'Cluster B' },
-  { id:'m_fl4_c',      sx:128, sy:56,  sw:16, sh:16,  label:'Cluster C' },
-  { id:'m_fl4_d',      sx:146, sy:56,  sw:16, sh:16,  label:'Cluster D' },
-  { id:'m_fl4_e',      sx:164, sy:56,  sw:16, sh:16,  label:'Cluster E' },
-  // Bushes
-  { id:'m_bush_l',     sx:238, sy:84,  sw:48, sh:38,  label:'Bush Large' },
-  { id:'m_bush_m',     sx:288, sy:96,  sw:34, sh:28,  label:'Bush Medium' },
-  { id:'m_bush_s',     sx:250, sy:130, sw:26, sh:22,  label:'Bush Small' },
-  { id:'m_bush_s2',    sx:278, sy:132, sw:22, sh:18,  label:'Bush Tiny' },
-  // Raised beds / planters
-  { id:'m_bed1',       sx:96,  sy:104, sw:44, sh:32,  label:'Raised Bed 1' },
-  { id:'m_bed2',       sx:142, sy:104, sw:44, sh:32,  label:'Raised Bed 2' },
-  { id:'m_pot',        sx:72,  sy:62,  sw:16, sh:16,  label:'Pot' },
-  // Trees
-  { id:'m_tree_green', sx:86,  sy:176, sw:122,sh:134, label:'Tree Green' },
-  { id:'m_tree_autumn',sx:212, sy:186, sw:54, sh:114, label:'Tree Autumn' },
-  { id:'m_tree_bare',  sx:268, sy:186, sw:48, sh:118, label:'Tree Bare' },
-  { id:'m_stump',      sx:296, sy:278, sw:24, sh:28,  label:'Stump' },
-  // Mushrooms & small items
-  { id:'m_mush_pair',  sx:196, sy:148, sw:28, sh:20,  label:'Mushrooms' },
-  { id:'m_mush_red',   sx:200, sy:148, sw:12, sh:16,  label:'Mushroom Red' },
-  { id:'m_leaf_g',     sx:252, sy:158, sw:12, sh:10,  label:'Leaf Green' },
-  { id:'m_leaf_br',    sx:266, sy:158, sw:12, sh:10,  label:'Leaf Brown' },
-  { id:'m_grass_t',    sx:280, sy:156, sw:10, sh:12,  label:'Grass Tuft' },
-  { id:'m_sprout',     sx:292, sy:156, sw:10, sh:14,  label:'Sprout' },
-].map(s => ({ ...s, sheet: 'misc', type: 'deco' }));
-
 // ============ State ============
 let gridCols = 7, gridRows = 5;
-let groundLayer = []; // [row][col] = sprite id or null
-let decoLayer = [];   // [row][col] = { spriteId, offsetY } or null
-let selectedSprite = null;
-let currentLayer = 'ground';
-let isEraser = false;
-let zoom = 2;
+let groundLayer = [];  // [row][col] = {sheet, sx, sy, sw, sh} or null
+let decoLayer = [];    // [row][col] = {sheet, sx, sy, sw, sh, offsetY} or null
+let currentSheet = 'blocks';
+let currentTool = 'ground';  // 'ground' | 'deco' | 'eraser'
+let selectedTile = null;     // {sheet, sx, sy, sw, sh}
+let hoverCell = null;
 
-const HALF = 18, VSTEP = 10;
-let blocksImg = new Image(), miscImg = new Image();
-let imagesLoaded = 0;
+const HALF_W = 18;   // half tile width for isometric
+const HALF_H = 9;    // half diamond height (2:1 ratio)
+const CANVAS_ZOOM = 2;
 
 function initGrid() {
   groundLayer = Array.from({length: gridRows}, () => Array(gridCols).fill(null));
@@ -235,295 +136,298 @@ function initGrid() {
 }
 initGrid();
 
-// ============ Image Loading ============
-function onImgLoad() {
-  imagesLoaded++;
-  if (imagesLoaded >= 2) {
-    renderSpritePalette('blocks');
-    redraw();
-    loadGardenList();
+// ============ Images ============
+const imgs = { blocks: new Image(), misc: new Image() };
+let loadCount = 0;
+function onLoad() {
+  loadCount++;
+  if (loadCount >= 2) { renderSheet(); redraw(); loadGardenList(); }
+}
+imgs.blocks.onload = onLoad;
+imgs.misc.onload = onLoad;
+imgs.blocks.src = '/garden/blocks.png';
+imgs.misc.src = '/garden/misc.png';
+
+// ============ Sheet Viewer ============
+function switchSheet(name) {
+  currentSheet = name;
+  document.querySelectorAll('.sheet-tab').forEach(t => t.classList.toggle('active', t.textContent.toLowerCase() === name));
+  // Set default cell sizes
+  if (name === 'blocks') {
+    document.getElementById('cellW').value = 36;
+    document.getElementById('cellH').value = 34;
+  } else {
+    document.getElementById('cellW').value = 20;
+    document.getElementById('cellH').value = 20;
+  }
+  renderSheet();
+}
+
+function renderSheet() {
+  const cvs = document.getElementById('sheetCanvas');
+  const ctx = cvs.getContext('2d');
+  const img = imgs[currentSheet];
+  const z = parseInt(document.getElementById('sheetZoom').value) || 2;
+  const cw = parseInt(document.getElementById('cellW').value) || 36;
+  const ch = parseInt(document.getElementById('cellH').value) || 34;
+
+  cvs.width = img.width * z;
+  cvs.height = img.height * z;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
+
+  // Draw grid overlay
+  ctx.strokeStyle = 'rgba(74,222,128,0.4)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= img.width; x += cw) {
+    ctx.beginPath(); ctx.moveTo(x * z, 0); ctx.lineTo(x * z, cvs.height); ctx.stroke();
+  }
+  for (let y = 0; y <= img.height; y += ch) {
+    ctx.beginPath(); ctx.moveTo(0, y * z); ctx.lineTo(cvs.width, y * z); ctx.stroke();
+  }
+
+  // Highlight selected tile
+  if (selectedTile && selectedTile.sheet === currentSheet) {
+    ctx.strokeStyle = '#4ade80';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(selectedTile.sx * z, selectedTile.sy * z, selectedTile.sw * z, selectedTile.sh * z);
   }
 }
-blocksImg.onload = onImgLoad;
-miscImg.onload = onImgLoad;
-blocksImg.src = '/garden/blocks.png';
-miscImg.src = '/garden/misc.png';
 
-// ============ Sprite Palette ============
-function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  renderSpritePalette(tab);
+// Click on sprite sheet to select
+document.getElementById('sheetCanvas').addEventListener('click', (e) => {
+  const cvs = e.target;
+  const rect = cvs.getBoundingClientRect();
+  const z = parseInt(document.getElementById('sheetZoom').value) || 2;
+  const cw = parseInt(document.getElementById('cellW').value) || 36;
+  const ch = parseInt(document.getElementById('cellH').value) || 34;
+
+  const px = (e.clientX - rect.left) / z;
+  const py = (e.clientY - rect.top) / z;
+  const col = Math.floor(px / cw);
+  const row = Math.floor(py / ch);
+  const sx = col * cw;
+  const sy = row * ch;
+  const img = imgs[currentSheet];
+  if (sx + cw > img.width + 2 || sy + ch > img.height + 2) return;
+
+  selectedTile = { sheet: currentSheet, sx, sy, sw: cw, sh: ch };
+  if (currentTool === 'eraser') setTool('ground');
+  renderSheet();
+  updatePreview();
+});
+
+function updatePreview() {
+  const el = document.getElementById('selPreview');
+  if (!selectedTile) {
+    el.innerHTML = '<span class="info">Click sprite sheet to select</span>';
+    return;
+  }
+  const s = selectedTile;
+  const scale = 3;
+  const pvs = document.createElement('canvas');
+  pvs.width = s.sw * scale; pvs.height = s.sh * scale;
+  const ctx = pvs.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(imgs[s.sheet], s.sx, s.sy, s.sw, s.sh, 0, 0, pvs.width, pvs.height);
+  el.innerHTML = '';
+  el.appendChild(pvs);
+  const info = document.createElement('div');
+  info.className = 'info';
+  info.innerHTML = `${s.sheet}<br>${s.sx},${s.sy} ${s.sw}x${s.sh}`;
+  el.appendChild(info);
 }
 
-function renderSpritePalette(tab) {
-  const list = document.getElementById('spriteList');
-  const sprites = tab === 'blocks' ? BLOCK_SPRITES : MISC_SPRITES;
-  const img = tab === 'blocks' ? blocksImg : miscImg;
-  list.innerHTML = '';
-  sprites.forEach(sp => {
-    const div = document.createElement('div');
-    div.className = 'sprite-item' + (selectedSprite?.id === sp.id ? ' selected' : '');
-    div.onclick = () => selectSprite(sp);
-    // Draw sprite preview
-    const scale = Math.min(56 / sp.sw, 56 / sp.sh, 3);
-    const cvs = document.createElement('canvas');
-    cvs.width = Math.ceil(sp.sw * scale);
-    cvs.height = Math.ceil(sp.sh * scale);
-    const cx = cvs.getContext('2d');
-    cx.imageSmoothingEnabled = false;
-    cx.drawImage(img, sp.sx, sp.sy, sp.sw, sp.sh, 0, 0, cvs.width, cvs.height);
-    div.appendChild(cvs);
-    const lbl = document.createElement('div');
-    lbl.className = 'sp-label';
-    lbl.textContent = sp.label;
-    div.appendChild(lbl);
-    list.appendChild(div);
-  });
+function setTool(tool) {
+  currentTool = tool;
+  document.getElementById('toolGround').classList.toggle('active', tool === 'ground');
+  document.getElementById('toolDeco').classList.toggle('active', tool === 'deco');
+  document.getElementById('toolEraser').classList.toggle('active', tool === 'eraser');
 }
 
-function selectSprite(sp) {
-  selectedSprite = sp;
-  isEraser = false;
-  document.getElementById('eraserBtn').classList.remove('active');
-  document.getElementById('currentTool').textContent = sp.label;
-  // Highlight
-  document.querySelectorAll('.sprite-item').forEach(el => el.classList.remove('selected'));
-  event.currentTarget.classList.add('selected');
-  // Auto-switch layer
-  if (sp.type === 'ground') setLayer('ground');
-  else setLayer('deco');
-}
-
-function selectEraser() {
-  isEraser = true;
-  selectedSprite = null;
-  document.getElementById('eraserBtn').classList.toggle('active', true);
-  document.getElementById('currentTool').textContent = 'Eraser';
-  document.querySelectorAll('.sprite-item').forEach(el => el.classList.remove('selected'));
-}
-
-function setLayer(layer) {
-  currentLayer = layer;
-  document.getElementById('layerGround').classList.toggle('active', layer === 'ground');
-  document.getElementById('layerDeco').classList.toggle('active', layer === 'deco');
-  document.getElementById('decoOffsetRow').style.display = layer === 'deco' ? '' : 'none';
-}
-
-// ============ Canvas Drawing ============
+// ============ Isometric Canvas ============
 function getOrigin() {
-  const canvas = document.getElementById('editorCanvas');
-  return { x: canvas.width / (2 * zoom), y: 60 };
+  return {
+    x: (gridCols + gridRows) * HALF_W / 2 + 40,
+    y: 50
+  };
 }
 
 function gridToScreen(col, row) {
   const o = getOrigin();
   return {
-    x: o.x + (col - row) * HALF,
-    y: o.y + (col + row) * VSTEP
+    x: o.x + (col - row) * HALF_W,
+    y: o.y + (col + row) * HALF_H
   };
 }
 
-function screenToGrid(sx, sy) {
+function screenToGrid(canvasX, canvasY) {
   const o = getOrigin();
-  const rx = sx / zoom, ry = sy / zoom;
-  // Reverse isometric
-  const fx = ((rx - o.x) / HALF + (ry - o.y) / VSTEP) / 2;
-  const fy = ((ry - o.y) / VSTEP - (rx - o.x) / HALF) / 2;
-  const col = Math.round(fx);
-  const row = Math.round(fy);
+  const lx = canvasX / CANVAS_ZOOM;
+  const ly = canvasY / CANVAS_ZOOM;
+  // Inverse isometric
+  const fCol = ((lx - o.x) / HALF_W + (ly - o.y) / HALF_H) / 2;
+  const fRow = ((ly - o.y) / HALF_H - (lx - o.x) / HALF_W) / 2;
+  const col = Math.round(fCol);
+  const row = Math.round(fRow);
   if (col >= 0 && col < gridCols && row >= 0 && row < gridRows) return { col, row };
   return null;
 }
 
+function drawDiamond(ctx, cx, cy, hw, hh, fill, stroke) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - hh);       // top
+  ctx.lineTo(cx + hw, cy);       // right
+  ctx.lineTo(cx, cy + hh);       // bottom
+  ctx.lineTo(cx - hw, cy);       // left
+  ctx.closePath();
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 0.5; ctx.stroke(); }
+}
+
 function redraw() {
-  const canvas = document.getElementById('editorCanvas');
-  const ctx = canvas.getContext('2d');
+  const cvs = document.getElementById('editorCanvas');
+  const ctx = cvs.getContext('2d');
   ctx.imageSmoothingEnabled = false;
 
-  // Resize canvas
-  const neededW = (gridCols + gridRows) * HALF + TW + 40;
-  const neededH = (gridCols + gridRows) * VSTEP + TH + 140;
-  canvas.width = neededW * zoom;
-  canvas.height = neededH * zoom;
-  ctx.scale(zoom, zoom);
+  const padW = (gridCols + gridRows) * HALF_W + 80;
+  const padH = (gridCols + gridRows) * HALF_H + 200;
+  cvs.width = padW * CANVAS_ZOOM;
+  cvs.height = padH * CANVAS_ZOOM;
+  ctx.scale(CANVAS_ZOOM, CANVAS_ZOOM);
 
   // Background
   ctx.fillStyle = '#060e08';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, padW, padH);
 
-  const o = getOrigin();
-
-  // Draw grid cells (back to front)
+  // Draw back-to-front (row by row)
   for (let row = 0; row < gridRows; row++) {
     for (let col = 0; col < gridCols; col++) {
       const { x, y } = gridToScreen(col, row);
-
-      // Draw ground tile or empty outline
       const gnd = groundLayer[row][col];
+
       if (gnd) {
-        const sp = BLOCK_SPRITES.find(s => s.id === gnd) || MISC_SPRITES.find(s => s.id === gnd);
-        if (sp) {
-          const img = sp.sheet === 'blocks' ? blocksImg : miscImg;
-          ctx.drawImage(img, sp.sx, sp.sy, sp.sw, sp.sh, x - HALF, y, sp.sw, sp.sh);
-        }
-      } else {
-        // Draw empty cell outline
-        ctx.strokeStyle = '#1a3326';
-        ctx.lineWidth = 0.5;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x + HALF, y + VSTEP);
-        ctx.lineTo(x, y + VSTEP * 2);
-        ctx.lineTo(x - HALF, y + VSTEP);
-        ctx.closePath();
-        ctx.stroke();
+        // Draw ground tile centered on cell
+        const img = imgs[gnd.sheet];
+        // The tile's top-center diamond point should align with (x, y - HALF_H)
+        // Draw so the tile fills the cell area
+        ctx.drawImage(img, gnd.sx, gnd.sy, gnd.sw, gnd.sh,
+          x - gnd.sw / 2, y - HALF_H, gnd.sw, gnd.sh);
       }
+
+      // Grid cell outline (diamond shape)
+      const isHover = hoverCell && hoverCell.col === col && hoverCell.row === row;
+      drawDiamond(ctx, x, y, HALF_W, HALF_H,
+        isHover ? 'rgba(74,222,128,0.15)' : null,
+        isHover ? '#4ade80' : '#1e3a2c');
+
+      // Cell coordinate label
+      ctx.font = '6px monospace';
+      ctx.fillStyle = '#2a4a36';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${col},${row}`, x, y + 3);
     }
   }
 
-  // Draw decorations (back to front)
+  // Draw decorations (second pass, back-to-front)
   for (let row = 0; row < gridRows; row++) {
     for (let col = 0; col < gridCols; col++) {
       const deco = decoLayer[row][col];
-      if (deco) {
-        const sp = MISC_SPRITES.find(s => s.id === deco.spriteId) || BLOCK_SPRITES.find(s => s.id === deco.spriteId);
-        if (sp) {
-          const { x, y } = gridToScreen(col, row);
-          const img = sp.sheet === 'blocks' ? blocksImg : miscImg;
-          ctx.drawImage(img, sp.sx, sp.sy, sp.sw, sp.sh,
-            x - sp.sw / 2, y + (deco.offsetY || -20), sp.sw, sp.sh);
-        }
-      }
-    }
-  }
-
-  // Draw grid coordinates
-  ctx.font = '7px monospace';
-  ctx.fillStyle = '#3a5a46';
-  for (let row = 0; row < gridRows; row++) {
-    for (let col = 0; col < gridCols; col++) {
+      if (!deco) continue;
       const { x, y } = gridToScreen(col, row);
-      ctx.fillText(`${col},${row}`, x - 7, y + VSTEP + 4);
+      const img = imgs[deco.sheet];
+      const offY = deco.offsetY || -30;
+      ctx.drawImage(img, deco.sx, deco.sy, deco.sw, deco.sh,
+        x - deco.sw / 2, y + offY, deco.sw, deco.sh);
     }
   }
 }
 
 // ============ Canvas Interaction ============
-const canvas = document.getElementById('editorCanvas');
+const editorCvs = document.getElementById('editorCanvas');
 
-canvas.addEventListener('click', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  const sx = e.clientX - rect.left;
-  const sy = e.clientY - rect.top;
-  const cell = screenToGrid(sx, sy);
+editorCvs.addEventListener('click', (e) => {
+  const rect = editorCvs.getBoundingClientRect();
+  const cell = screenToGrid(e.clientX - rect.left, e.clientY - rect.top);
   if (!cell) return;
+  const { col, row } = cell;
 
-  if (isEraser) {
-    if (currentLayer === 'ground') groundLayer[cell.row][cell.col] = null;
-    else decoLayer[cell.row][cell.col] = null;
-    redraw();
-    return;
-  }
-  if (!selectedSprite) return;
-
-  if (currentLayer === 'ground') {
-    groundLayer[cell.row][cell.col] = selectedSprite.id;
-  } else {
-    const offsetY = parseInt(document.getElementById('decoOffsetY').value) || -20;
-    decoLayer[cell.row][cell.col] = { spriteId: selectedSprite.id, offsetY };
+  if (currentTool === 'eraser') {
+    groundLayer[row][col] = null;
+    decoLayer[row][col] = null;
+  } else if (currentTool === 'ground' && selectedTile) {
+    groundLayer[row][col] = { ...selectedTile };
+  } else if (currentTool === 'deco' && selectedTile) {
+    const offY = parseInt(document.getElementById('decoOffY').value) || -30;
+    decoLayer[row][col] = { ...selectedTile, offsetY: offY };
   }
   redraw();
 });
 
-canvas.addEventListener('contextmenu', (e) => {
+editorCvs.addEventListener('contextmenu', (e) => {
   e.preventDefault();
-  const rect = canvas.getBoundingClientRect();
+  const rect = editorCvs.getBoundingClientRect();
   const cell = screenToGrid(e.clientX - rect.left, e.clientY - rect.top);
   if (!cell) return;
-  if (currentLayer === 'ground') groundLayer[cell.row][cell.col] = null;
-  else decoLayer[cell.row][cell.col] = null;
+  if (currentTool === 'deco') decoLayer[cell.row][cell.col] = null;
+  else groundLayer[cell.row][cell.col] = null;
   redraw();
 });
 
-canvas.addEventListener('mousemove', (e) => {
-  const rect = canvas.getBoundingClientRect();
+editorCvs.addEventListener('mousemove', (e) => {
+  const rect = editorCvs.getBoundingClientRect();
   const cell = screenToGrid(e.clientX - rect.left, e.clientY - rect.top);
+  const prev = hoverCell;
+  hoverCell = cell;
   if (cell) {
-    document.getElementById('infoPos').textContent = `Cell: ${cell.col}, ${cell.row}`;
-    const gnd = groundLayer[cell.row]?.[cell.col];
-    const deco = decoLayer[cell.row]?.[cell.col];
+    document.getElementById('infoCell').textContent = `Cell: ${cell.col}, ${cell.row}`;
+    const g = groundLayer[cell.row][cell.col];
+    const d = decoLayer[cell.row][cell.col];
     const parts = [];
-    if (gnd) { const sp = BLOCK_SPRITES.find(s=>s.id===gnd)||MISC_SPRITES.find(s=>s.id===gnd); parts.push('Ground: '+(sp?.label||gnd)); }
-    if (deco) { const sp = MISC_SPRITES.find(s=>s.id===deco.spriteId)||BLOCK_SPRITES.find(s=>s.id===deco.spriteId); parts.push('Deco: '+(sp?.label||deco.spriteId)); }
-    document.getElementById('infoTile').textContent = parts.join(' | ') || '-';
+    if (g) parts.push(`Ground: ${g.sheet}[${g.sx},${g.sy}]`);
+    if (d) parts.push(`Deco: ${d.sheet}[${d.sx},${d.sy}]`);
+    document.getElementById('infoSprite').textContent = parts.join(' | ') || '-';
   } else {
-    document.getElementById('infoPos').textContent = 'Hover over grid';
-    document.getElementById('infoTile').textContent = '-';
+    document.getElementById('infoCell').textContent = '-';
+    document.getElementById('infoSprite').textContent = '-';
   }
+  // Only redraw if hover changed
+  if ((prev?.col !== cell?.col) || (prev?.row !== cell?.row)) redraw();
 });
 
-canvas.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  zoom = Math.max(1, Math.min(4, zoom + (e.deltaY > 0 ? -0.5 : 0.5)));
-  redraw();
-});
+editorCvs.addEventListener('mouseleave', () => { hoverCell = null; redraw(); });
 
 // ============ Grid Resize ============
 function resizeGrid() {
-  const newCols = parseInt(document.getElementById('gridCols').value);
-  const newRows = parseInt(document.getElementById('gridRows').value);
-  // Preserve existing data
-  const newGround = Array.from({length: newRows}, (_, r) =>
-    Array.from({length: newCols}, (_, c) => groundLayer[r]?.[c] || null));
-  const newDeco = Array.from({length: newRows}, (_, r) =>
-    Array.from({length: newCols}, (_, c) => decoLayer[r]?.[c] || null));
-  gridCols = newCols;
-  gridRows = newRows;
-  groundLayer = newGround;
-  decoLayer = newDeco;
-  redraw();
-}
-
-function clearAll() {
-  if (!confirm('Clear entire canvas?')) return;
-  initGrid();
+  const nc = parseInt(document.getElementById('gridCols').value);
+  const nr = parseInt(document.getElementById('gridRows').value);
+  const ng = Array.from({length: nr}, (_, r) => Array.from({length: nc}, (_, c) => groundLayer[r]?.[c] || null));
+  const nd = Array.from({length: nr}, (_, r) => Array.from({length: nc}, (_, c) => decoLayer[r]?.[c] || null));
+  gridCols = nc; gridRows = nr;
+  groundLayer = ng; decoLayer = nd;
   redraw();
 }
 
 // ============ Save / Load ============
 async function saveGarden() {
   const name = document.getElementById('gardenName').value.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
-  if (!name) { alert('Please enter a name'); return; }
-  const data = {
-    label: name,
-    gridCols, gridRows,
-    ground: groundLayer,
-    deco: decoLayer,
-  };
+  if (!name) return alert('Enter a name');
   const res = await fetch(`/api/garden/${name}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ label: name, gridCols, gridRows, ground: groundLayer, deco: decoLayer })
   });
-  const result = await res.json();
-  if (result.ok) {
-    loadGardenList();
-    alert('Saved: ' + name);
-  }
+  if ((await res.json()).ok) { loadGardenList(); alert('Saved: ' + name); }
 }
 
 async function loadGarden(name) {
-  const res = await fetch(`/api/garden/${name}`);
-  const data = await res.json();
-  if (data.error) { alert('Load failed'); return; }
+  const data = await (await fetch(`/api/garden/${name}`)).json();
+  if (data.error) return;
   document.getElementById('gardenName').value = data.label || name;
-  gridCols = data.gridCols || 7;
-  gridRows = data.gridRows || 5;
+  gridCols = data.gridCols || 7; gridRows = data.gridRows || 5;
   document.getElementById('gridCols').value = gridCols;
   document.getElementById('gridRows').value = gridRows;
   groundLayer = data.ground || [];
   decoLayer = data.deco || [];
-  // Ensure correct dimensions
   while (groundLayer.length < gridRows) groundLayer.push(Array(gridCols).fill(null));
   while (decoLayer.length < gridRows) decoLayer.push(Array(gridCols).fill(null));
   redraw();
@@ -536,21 +440,14 @@ async function deleteGarden(name) {
 }
 
 async function loadGardenList() {
-  try {
-    const res = await fetch('/api/gardens');
-    const list = await res.json();
-    const el = document.getElementById('savedList');
-    if (!list.length) { el.innerHTML = '<div style="padding:12px;font-size:11px;color:var(--t3)">No saved gardens yet</div>'; return; }
-    el.innerHTML = list.map(g => `<div class="saved-item">
-      <span onclick="loadGarden('${g.name}')">${g.label || g.name}</span>
-      <span class="del" onclick="event.stopPropagation();deleteGarden('${g.name}')">x</span>
-    </div>`).join('');
-  } catch (e) { console.error('load gardens:', e); }
+  const list = await (await fetch('/api/gardens')).json();
+  const el = document.getElementById('savedList');
+  if (!list.length) { el.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--t3)">No saved gardens</div>'; return; }
+  el.innerHTML = list.map(g => `<div class="saved-item">
+    <span onclick="loadGarden('${g.name}')">${g.label||g.name}</span>
+    <span class="del" onclick="event.stopPropagation();deleteGarden('${g.name}')">x</span>
+  </div>`).join('');
 }
-
-// ============ Export for main page ============
-// The main dashboard can load a saved garden via /api/garden/:name
-// and render it using the same sprite definitions.
 </script>
 </body>
 </html>
