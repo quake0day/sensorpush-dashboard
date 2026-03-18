@@ -73,6 +73,11 @@
     .fc-card .fc-desc { font-size: 10px; color: var(--text3); margin-top: 4px; line-height: 1.3; }
     .fc-card.is-night { opacity: 0.65; }
     .weather-loading { color: var(--text3); font-size: 14px; padding: 20px; text-align: center; }
+    .wx-summary { background: var(--surface2); border-radius: 10px; padding: 14px 18px; margin-top: 14px; font-size: 13px; color: var(--text2); line-height: 1.7; }
+    .wx-extra { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .wx-extra-item { text-align: center; min-width: 70px; }
+    .wx-extra-item .val { font-size: 15px; font-weight: 600; }
+    .wx-extra-item .lbl { font-size: 10px; color: var(--text3); margin-top: 1px; }
 
     /* Sensor Cards */
     .sensor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
@@ -284,6 +289,32 @@ const T = {
       if (d < 21) return 'Humid and uncomfortable';
       return 'Oppressive humidity';
     },
+    gardenSummary(tc, hum, dp, vpd, press, wxDesc) {
+      const parts = [];
+      // Temperature
+      if (tc < 0) parts.push('freezing conditions with frost risk');
+      else if (tc < 10) parts.push('cold weather, most plants are dormant');
+      else if (tc < 18) parts.push('cool temperatures, favorable for cool-season crops');
+      else if (tc < 26) parts.push('ideal growing temperatures for most plants');
+      else if (tc < 32) parts.push('warm conditions, remember to water more frequently');
+      else parts.push('hot weather, plants need shade and extra water');
+      // Humidity + dew point combined
+      if (hum < 40) parts.push('The air is dry' + (dp < 10 ? ' and comfortable' : '') + ', keep an eye on soil moisture.');
+      else if (hum < 60) parts.push('Humidity is in the comfortable range for most plants.');
+      else parts.push('It\'s quite humid' + (dp > 18 ? ' and muggy' : '') + ', watch for fungal issues.');
+      // VPD
+      if (vpd < 0.4) parts.push('VPD is low, which could promote mold on foliage.');
+      else if (vpd < 0.8) parts.push('VPD is good for seedlings, cuttings, and propagation.');
+      else if (vpd < 1.2) parts.push('VPD is in the ideal range for healthy vegetative growth.');
+      else if (vpd < 1.6) parts.push('VPD is well-suited for flowering and fruiting plants.');
+      else parts.push('VPD is high, plants may show signs of water stress.');
+      // Pressure
+      if (press < 1000) parts.push('Low barometric pressure suggests storms may be approaching.');
+      else if (press < 1013) parts.push('Pressure is below normal, the weather may be changing.');
+      else if (press < 1023) parts.push('Atmospheric pressure is stable.');
+      else parts.push('High pressure indicates clear skies ahead.');
+      return 'Currently ' + wxDesc.toLowerCase() + ' with ' + parts[0] + ' ' + parts.slice(1).join(' ');
+    },
   },
   cn: {
     title: '智慧花园',
@@ -355,6 +386,32 @@ const T = {
       if (d < 18) return '略微闷热';
       if (d < 21) return '潮湿不适';
       return '闷热难耐';
+    },
+    gardenSummary(tc, hum, dp, vpd, press, wxDesc) {
+      const parts = [];
+      // 温度
+      if (tc < 0) parts.push('气温在冰点以下，注意防冻');
+      else if (tc < 10) parts.push('天气寒冷，大多数植物处于休眠状态');
+      else if (tc < 18) parts.push('气温凉爽，适合冷季作物生长');
+      else if (tc < 26) parts.push('气温适宜，是大多数植物的理想生长温度');
+      else if (tc < 32) parts.push('天气温暖，需要适当增加浇水频率');
+      else parts.push('天气炎热，植物需要遮阳和充足水分');
+      // 湿度+露点
+      if (hum < 40) parts.push('空气' + (dp < 10 ? '干燥舒适' : '偏干') + '，需关注土壤湿度');
+      else if (hum < 60) parts.push('空气湿度适中，对大多数植物比较友好');
+      else parts.push('空气' + (dp > 18 ? '潮湿闷热' : '湿度偏高') + '，注意预防真菌病害');
+      // VPD
+      if (vpd < 0.4) parts.push('蒸气压差偏低，叶面容易滋生霉菌');
+      else if (vpd < 0.8) parts.push('蒸气压差适合扦插育苗');
+      else if (vpd < 1.2) parts.push('蒸气压差处于植物营养生长的理想区间');
+      else if (vpd < 1.6) parts.push('蒸气压差适合开花结果期植物');
+      else parts.push('蒸气压差偏高，植物可能出现缺水胁迫');
+      // 气压
+      if (press < 1000) parts.push('气压偏低，可能有暴风雨来临。');
+      else if (press < 1013) parts.push('气压略低于正常值，天气可能有变化。');
+      else if (press < 1023) parts.push('气压稳定正常。');
+      else parts.push('高气压，预计天气晴朗。');
+      return '当前' + wxDesc + '。' + parts.join('，').replace(/，([^，]*)$/, '。$1');
     },
   }
 }[LANG];
@@ -591,30 +648,44 @@ async function loadWeather() {
 
     // Get sensor readings for main display
     const sensorIds = Object.keys(sensorsData);
-    let sensorTempC = '--', sensorHum = '--';
+    let sensorTempC = null, sensorHum = null, sensorDp = null, sensorVpd = null, sensorPress = null;
     if (sensorIds.length) {
       const s = sensorsData[sensorIds[0]];
-      if (s.temperature !== undefined) sensorTempC = tempF2C(s.temperature).toFixed(1);
-      if (s.humidity !== undefined) sensorHum = s.humidity.toFixed(1);
+      if (s.temperature !== undefined) sensorTempC = tempF2C(s.temperature);
+      if (s.humidity !== undefined) sensorHum = s.humidity;
+      if (s.dewpoint !== undefined) sensorDp = tempF2C(s.dewpoint);
+      if (s.vpd !== undefined) sensorVpd = s.vpd;
+      if (s.barometric_pressure !== undefined) sensorPress = inHgToHPa(s.barometric_pressure);
+    }
+    const stc = sensorTempC !== null ? sensorTempC.toFixed(1) : '--';
+    const shum = sensorHum !== null ? sensorHum.toFixed(1) : '--';
+    const sdp = sensorDp !== null ? sensorDp.toFixed(1) : '--';
+    const svpd = sensorVpd !== null ? sensorVpd.toFixed(2) : '--';
+    const spress = sensorPress !== null ? sensorPress.toFixed(0) : '--';
+
+    // Generate natural language summary
+    let summaryHTML = '';
+    if (sensorTempC !== null && sensorHum !== null && sensorDp !== null && sensorVpd !== null && sensorPress !== null) {
+      summaryHTML = `<div class="wx-summary">${T.gardenSummary(sensorTempC, sensorHum, sensorDp, sensorVpd, sensorPress, desc)}</div>`;
     }
 
     // Header brief: sensor temp + weather icon
     document.getElementById('wxBrief').innerHTML =
-      `<span class="wx-emoji">${emoji}</span> <span class="wx-temp">${sensorTempC}°C</span>`;
+      `<span class="wx-emoji">${emoji}</span> <span class="wx-temp">${stc}°C</span>`;
 
-    // Current weather card: sensor readings big, forecast small below
+    // Current weather card
     document.getElementById('weatherNow').innerHTML = `
       <div class="weather-now">
         <div class="wx-icon">${emoji}</div>
         <div class="wx-main">
-          <div class="wx-temp-lg">${sensorTempC}°C</div>
+          <div class="wx-temp-lg" style="color:var(--orange)">${stc}°C</div>
           <div class="wx-desc">${desc}</div>
           <div style="font-size:12px;color:var(--text3);margin-top:4px;">${T.forecastReading}: ${fxTempC}°C (${fxTempF}°F)</div>
         </div>
         <div class="wx-details">
           <div class="wx-detail">
-            <div class="val">${sensorHum}%</div>
-            <div class="lbl">${T.humLabel} (${T.sensorReading})</div>
+            <div class="val" style="color:var(--blue)">${shum}%</div>
+            <div class="lbl">${T.humLabel}</div>
             <div style="font-size:11px;color:var(--text3);margin-top:2px;">${T.forecastReading}: ${fxHum}%</div>
           </div>
           <div class="wx-detail">
@@ -622,7 +693,13 @@ async function loadWeather() {
             <div class="lbl">${T.wind}</div>
           </div>
         </div>
-      </div>`;
+        <div class="wx-extra">
+          <div class="wx-extra-item"><div class="val" style="color:var(--purple)">${sdp}°C</div><div class="lbl">${T.dewPoint}</div></div>
+          <div class="wx-extra-item"><div class="val" style="color:var(--emerald)">${svpd} kPa</div><div class="lbl">${T.vpd}</div></div>
+          <div class="wx-extra-item"><div class="val" style="color:var(--pink)">${spress} hPa</div><div class="lbl">${T.pressure}</div></div>
+        </div>
+      </div>
+      ${summaryHTML}`;
 
     // Forecast cards (show day periods, first 10)
     const periods = data.forecast.slice(0, 10);
