@@ -6,6 +6,7 @@ const path = require("path");
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
+app.use("/garden", express.static(path.join(__dirname, "garden")));
 
 // ============ SensorPush ============
 const SP_BASE = "https://api.sensorpush.com/api/v1";
@@ -71,11 +72,6 @@ async function getTuyaToken() {
   return tuyaToken;
 }
 
-async function getTuyaDeviceStatus(deviceId) {
-  const token = await getTuyaToken();
-  return tuyaRequest("GET", `/v1.0/iot-03/devices/${deviceId}/status`, token);
-}
-
 async function getTuyaDeviceInfo(deviceId) {
   const token = await getTuyaToken();
   return tuyaRequest("GET", `/v1.0/devices/${deviceId}`, token);
@@ -92,6 +88,50 @@ async function getTuyaDeviceLogs(deviceId, startTime, endTime, codes) {
   });
   return tuyaRequest("GET", `/v1.0/devices/${deviceId}/logs?${params}`, token);
 }
+
+// ============ Weather (NWS) ============
+const NWS_LAT = "39.957";
+const NWS_LON = "-75.603";
+const NWS_UA = "SmartGardenDashboard/1.0 (garden-monitor)";
+
+let weatherCache = null;
+let weatherCacheTime = 0;
+
+app.get("/api/weather", async (req, res) => {
+  try {
+    if (weatherCache && Date.now() - weatherCacheTime < 30 * 60 * 1000) {
+      return res.json(weatherCache);
+    }
+    const headers = { "User-Agent": NWS_UA };
+    const pointsRes = await fetch(
+      `https://api.weather.gov/points/${NWS_LAT},${NWS_LON}`,
+      { headers }
+    );
+    const points = await pointsRes.json();
+    const forecastUrl = points.properties.forecast;
+    const hourlyUrl = points.properties.forecastHourly;
+
+    const [forecastRes, hourlyRes] = await Promise.all([
+      fetch(forecastUrl, { headers }),
+      fetch(hourlyUrl, { headers }),
+    ]);
+    const forecast = await forecastRes.json();
+    const hourly = await hourlyRes.json();
+
+    weatherCache = {
+      location: points.properties.relativeLocation?.properties,
+      forecast: (forecast.properties.periods || []).slice(0, 14),
+      hourly: (hourly.properties.periods || []).slice(0, 24),
+      updated: new Date().toISOString(),
+    };
+    weatherCacheTime = Date.now();
+    res.json(weatherCache);
+  } catch (err) {
+    console.error("weather error:", err.message);
+    if (weatherCache) return res.json(weatherCache);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ============ SensorPush Routes ============
 app.get("/api/sensors", async (req, res) => {
@@ -148,12 +188,11 @@ app.post("/api/samples", async (req, res) => {
   }
 });
 
-// ============ Tuya Routes ============
+// ============ Tuya Routes (water sensor only) ============
 app.get("/api/tuya/devices", async (req, res) => {
   try {
     const devices = [
       { id: "eb4b975ccbbe3fb9dc98n2", type: "water_sensor" },
-      { id: "02133168d8f15b852ef8", type: "garage_door" },
     ];
     const results = await Promise.all(
       devices.map(async (d) => {
@@ -164,16 +203,6 @@ app.get("/api/tuya/devices", async (req, res) => {
     res.json(results);
   } catch (err) {
     console.error("tuya devices error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/api/tuya/device/:id/status", async (req, res) => {
-  try {
-    const data = await getTuyaDeviceStatus(req.params.id);
-    res.json(data.result || []);
-  } catch (err) {
-    console.error("tuya status error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -192,7 +221,12 @@ app.get("/api/tuya/device/:id/logs", async (req, res) => {
   }
 });
 
+// ============ Page Routes ============
+app.get("/cn", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Smart Home Dashboard running at http://localhost:${PORT}`);
+  console.log(`Smart Garden Dashboard running at http://localhost:${PORT}`);
 });
