@@ -37,8 +37,9 @@
     .weather-brief { font-size: 13px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
     .weather-brief .wx-emoji { font-size: 20px; }
     .weather-brief .wx-temp { color: var(--text); font-weight: 600; font-size: 15px; }
-    .lang-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; text-decoration: none; transition: all 0.15s; }
-    .lang-btn:hover { background: var(--border); color: var(--text); }
+    .lang-btn, .unit-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; text-decoration: none; transition: all 0.15s; }
+    .lang-btn:hover, .unit-btn:hover { background: var(--border); color: var(--text); }
+    .unit-btn.active-f .f-label, .unit-btn.active-c .c-label { color: var(--accent); font-weight: 600; }
     .status { font-size: 12px; color: var(--text3); display: flex; align-items: center; gap: 5px; }
     .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; }
     .status.error .dot { background: var(--red); }
@@ -151,6 +152,7 @@
     </div>
     <div class="header-right">
       <div class="weather-brief" id="wxBrief"></div>
+      <button class="unit-btn active-c" id="unitBtn" onclick="toggleUnit()"><span class="f-label">°F</span> / <span class="c-label">°C</span></button>
       <a class="lang-btn" id="langBtn"></a>
       <div class="status" id="status"><span class="dot"></span> <span id="statusText"></span></div>
     </div>
@@ -449,10 +451,30 @@ const timeVals = [1,6,24,72,168];
 
 // ============ Helpers ============
 const COLORS = ["#f97316","#38bdf8","#a78bfa","#34d399","#fb7185","#facc15","#818cf8","#2dd4bf"];
+let useF = false; // default Celsius
 function tempF2C(f) { return (f - 32) * 5 / 9; }
 function inHgToHPa(inHg) { return inHg * 33.8639; }
 function fToC(f) { return ((f - 32) * 5 / 9).toFixed(0); }
+function displayTemp(cVal, fVal) {
+  // cVal = celsius number, fVal = fahrenheit number (optional)
+  if (useF) return fVal !== undefined ? Math.round(fVal) + '°F' : ((cVal * 9/5) + 32).toFixed(0) + '°F';
+  return (typeof cVal === 'number' ? cVal.toFixed(1) : cVal) + '°C';
+}
+function displayTempShort(fVal) {
+  // For forecast cards (NWS gives F)
+  if (useF) return Math.round(fVal) + '°';
+  return fToC(fVal) + '°';
+}
 function clamp(v, min=0, max=100) { return Math.max(min, Math.min(max, v)); }
+
+function toggleUnit() {
+  useF = !useF;
+  const btn = document.getElementById('unitBtn');
+  btn.className = 'unit-btn ' + (useF ? 'active-f' : 'active-c');
+  // Re-render everything with new unit
+  if (Object.keys(sensorsData).length) renderSensors(sensorsData);
+  loadWeather();
+}
 
 async function api(method, path, body) {
   const opts = { method, headers: { "Content-Type": "application/json" } };
@@ -480,6 +502,54 @@ function wxEmoji(text) {
   if (t.includes('cloudy') || t.includes('overcast')) return '☁';
   if (t.includes('sunny') || t.includes('clear')) return '☀';
   return '🌤';
+
+// Translate NWS weather text to Chinese
+const WX_CN = {
+  'Sunny': '晴', 'Clear': '晴朗', 'Mostly Clear': '大部晴朗', 'Mostly Sunny': '大部晴天',
+  'Partly Cloudy': '局部多云', 'Partly Sunny': '局部晴天', 'Mostly Cloudy': '大部多云',
+  'Cloudy': '多云', 'Overcast': '阴天',
+  'Light Rain': '小雨', 'Rain': '雨', 'Heavy Rain': '大雨', 'Showers': '阵雨',
+  'Rain Showers': '阵雨', 'Slight Chance Light Rain': '可能有小雨',
+  'Chance Light Rain': '可能有小雨', 'Light Rain Likely': '很可能有小雨',
+  'Rain Likely': '很可能下雨', 'Chance Rain Showers': '可能有阵雨',
+  'Slight Chance Rain Showers': '可能有阵雨',
+  'Thunderstorms': '雷暴', 'Chance Thunderstorms': '可能有雷暴',
+  'Snow': '雪', 'Light Snow': '小雪', 'Heavy Snow': '大雪', 'Flurries': '飘雪',
+  'Chance Snow': '可能有雪', 'Slight Chance Snow': '可能有雪',
+  'Fog': '雾', 'Haze': '霾', 'Mist': '薄雾',
+  'Windy': '大风', 'Breezy': '微风',
+  'Hot': '酷热', 'Cold': '寒冷',
+};
+// Day names
+const DAY_CN = {
+  'Today': '今天', 'Tonight': '今晚', 'This Afternoon': '今天下午',
+  'Monday': '周一', 'Tuesday': '周二', 'Wednesday': '周三', 'Thursday': '周四',
+  'Friday': '周五', 'Saturday': '周六', 'Sunday': '周日',
+  'Monday Night': '周一夜', 'Tuesday Night': '周二夜', 'Wednesday Night': '周三夜',
+  'Thursday Night': '周四夜', 'Friday Night': '周五夜', 'Saturday Night': '周六夜',
+  'Sunday Night': '周日夜', 'Overnight': '夜间',
+};
+function translateWx(text) {
+  if (LANG !== 'cn' || !text) return text;
+  // Try exact match first
+  if (WX_CN[text]) return WX_CN[text];
+  // Try composite: "Partly Sunny then Slight Chance Light Rain"
+  if (text.includes(' then ')) {
+    const parts = text.split(' then ');
+    return parts.map(p => WX_CN[p.trim()] || p).join('转');
+  }
+  // Partial match
+  let result = text;
+  const sorted = Object.keys(WX_CN).sort((a, b) => b.length - a.length);
+  for (const en of sorted) {
+    if (result.includes(en)) result = result.replace(en, WX_CN[en]);
+  }
+  return result;
+}
+function translateDay(name) {
+  if (LANG !== 'cn' || !name) return name;
+  return DAY_CN[name] || name;
+}
 }
 
 // ============ Pixel Garden ============
@@ -660,30 +730,36 @@ async function loadWeather() {
       if (s.vpd !== undefined) sensorVpd = s.vpd;
       if (s.barometric_pressure !== undefined) sensorPress = inHgToHPa(s.barometric_pressure);
     }
-    const stc = sensorTempC !== null ? sensorTempC.toFixed(1) : '--';
+    const sensorTempF = sensorTempC !== null ? sensorTempC * 9/5 + 32 : null;
+    const sensorDpF = sensorDp !== null ? sensorDp * 9/5 + 32 : null;
+    const stcDisp = sensorTempC !== null ? displayTemp(sensorTempC, sensorTempF) : '--';
     const shum = sensorHum !== null ? sensorHum.toFixed(1) : '--';
-    const sdp = sensorDp !== null ? sensorDp.toFixed(1) : '--';
+    const sdpDisp = sensorDp !== null ? displayTemp(sensorDp, sensorDpF) : '--';
     const svpd = sensorVpd !== null ? sensorVpd.toFixed(2) : '--';
     const spress = sensorPress !== null ? sensorPress.toFixed(0) : '--';
+    const descTr = translateWx(desc);
 
     // Generate natural language summary
     let summaryHTML = '';
     if (sensorTempC !== null && sensorHum !== null && sensorDp !== null && sensorVpd !== null && sensorPress !== null) {
-      summaryHTML = `<div class="wx-summary">${T.gardenSummary(sensorTempC, sensorHum, sensorDp, sensorVpd, sensorPress, desc)}</div>`;
+      summaryHTML = `<div class="wx-summary">${T.gardenSummary(sensorTempC, sensorHum, sensorDp, sensorVpd, sensorPress, descTr)}</div>`;
     }
+
+    const fxDisp = useF ? `${fxTempF}°F` : `${fxTempC}°C`;
+    const fxAlt = useF ? `(${fxTempC}°C)` : `(${fxTempF}°F)`;
 
     // Header brief: sensor temp + weather icon
     document.getElementById('wxBrief').innerHTML =
-      `<span class="wx-emoji">${emoji}</span> <span class="wx-temp">${stc}°C</span>`;
+      `<span class="wx-emoji">${emoji}</span> <span class="wx-temp">${stcDisp}</span>`;
 
     // Current weather card
     document.getElementById('weatherNow').innerHTML = `
       <div class="weather-now">
         <div class="wx-icon">${emoji}</div>
         <div class="wx-main">
-          <div class="wx-temp-lg" style="color:var(--orange)">${stc}°C</div>
-          <div class="wx-desc">${desc}</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:4px;">${T.forecastReading}: ${fxTempC}°C (${fxTempF}°F)</div>
+          <div class="wx-temp-lg" style="color:var(--orange)">${stcDisp}</div>
+          <div class="wx-desc">${descTr}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px;">${T.forecastReading}: ${fxDisp} ${fxAlt}</div>
         </div>
         <div class="wx-details">
           <div class="wx-detail">
@@ -697,7 +773,7 @@ async function loadWeather() {
           </div>
         </div>
         <div class="wx-extra">
-          <div class="wx-extra-item"><div class="val" style="color:var(--purple)">${sdp}°C</div><div class="lbl">${T.dewPoint}</div></div>
+          <div class="wx-extra-item"><div class="val" style="color:var(--purple)">${sdpDisp}</div><div class="lbl">${T.dewPoint}</div></div>
           <div class="wx-extra-item"><div class="val" style="color:var(--emerald)">${svpd} kPa</div><div class="lbl">${T.vpd}</div></div>
           <div class="wx-extra-item"><div class="val" style="color:var(--pink)">${spress} hPa</div><div class="lbl">${T.pressure}</div></div>
         </div>
@@ -708,12 +784,11 @@ async function loadWeather() {
     const periods = data.forecast.slice(0, 10);
     document.getElementById('forecastGrid').innerHTML = periods.map(p => {
       const isNight = p.isDaytime === false;
-      const tc = fToC(p.temperature);
       return `<div class="fc-card${isNight ? ' is-night' : ''}">
-        <div class="fc-day">${p.name}</div>
+        <div class="fc-day">${translateDay(p.name)}</div>
         <div class="fc-icon">${wxEmoji(p.shortForecast)}</div>
-        <div class="fc-temp">${tc}°</div>
-        <div class="fc-desc">${p.shortForecast}</div>
+        <div class="fc-temp">${displayTempShort(p.temperature)}</div>
+        <div class="fc-desc">${translateWx(p.shortForecast)}</div>
       </div>`;
     }).join('');
 
@@ -791,10 +866,14 @@ function renderSensors(sensors) {
     const press = s.barometric_pressure !== undefined ? inHgToHPa(s.barometric_pressure) : null;
     const updated = s.last_update ? new Date(s.last_update).toLocaleString(locale) : '--';
 
+    const tempUnit = useF ? '°F' : '°C';
+    const tempVal = useF ? (tc !== null ? (tc*9/5+32).toFixed(1) : null) : (tc !== null ? tc.toFixed(1) : null);
+    const dpVal = useF ? (dp !== null ? (dp*9/5+32).toFixed(1) : null) : (dp !== null ? dp.toFixed(1) : null);
+
     let readings = '';
-    if (tc !== null) readings += readingHTML(T.temperature, tc.toFixed(1), '°C', 'var(--orange)', 'temp', tc, T.tempInterp);
+    if (tc !== null) readings += readingHTML(T.temperature, tempVal, tempUnit, 'var(--orange)', 'temp', tc, T.tempInterp);
     if (hum !== undefined) readings += readingHTML(T.humidity, hum.toFixed(1), '%', 'var(--blue)', 'hum', hum, T.humInterp);
-    if (dp !== null) readings += readingHTML(T.dewPoint, dp.toFixed(1), '°C', 'var(--purple)', 'dp', dp, T.dpInterp);
+    if (dp !== null) readings += readingHTML(T.dewPoint, dpVal, tempUnit, 'var(--purple)', 'dp', dp, T.dpInterp);
     if (vpd !== undefined) readings += readingHTML(T.vpd, vpd.toFixed(2), ' kPa', 'var(--emerald)', 'vpd', vpd, T.vpdInterp);
     if (press !== null) readings += readingHTML(T.pressure, press.toFixed(1), ' hPa', 'var(--pink)', 'press', press, T.pressInterp);
 
@@ -956,21 +1035,19 @@ function renderWaterSensor(devices) {
 
 async function loadAlarmLog() {
   try {
-    const data = await api("GET", "/api/tuya/device/eb4b975ccbbe3fb9dc98n2/logs?hours=24&codes=watersensor_state,tamper_alarm");
+    // Use server-side pond log (tracks state changes locally)
+    const data = await api("GET", "/api/pond/logs?hours=24");
     const logs = data.logs || [];
     const section = document.getElementById("alarmLogSection");
     const container = document.getElementById("alarmLog");
     section.style.display = "";
     if (!logs.length) { container.innerHTML = `<div class="log-empty">${T.noEvents}</div>`; return; }
-    const probeLabel = (code) => {
-      if (code === 'watersensor_state') return LANG === 'cn' ? '黑色探头' : 'Black probe';
-      if (code === 'tamper_alarm') return LANG === 'cn' ? '白色探头' : 'White probe';
-      return '';
-    };
     container.innerHTML = logs.map(log => {
-      const isAlarm = log.value === "alarm" || log.value === "true" || log.value === true;
-      const time = new Date(parseInt(log.event_time)).toLocaleString(locale);
-      const probe = probeLabel(log.code);
+      const isAlarm = log.alarm;
+      const time = new Date(log.time).toLocaleString(locale);
+      const probe = log.probe === 'black'
+        ? (LANG === 'cn' ? '黑色探头(深)' : 'Black probe (deep)')
+        : (LANG === 'cn' ? '白色探头(浅)' : 'White probe (shallow)');
       const stateText = isAlarm
         ? (LANG === 'cn' ? '离开水面' : 'Out of water')
         : (LANG === 'cn' ? '回到水中' : 'Back in water');
@@ -978,7 +1055,7 @@ async function loadAlarmLog() {
         <span class="log-dot ${isAlarm ? 'alarm' : 'normal'}"></span>
         <span class="log-time">${time}</span>
         <span class="log-state" style="color:${isAlarm ? 'var(--red)' : 'var(--green)'}">
-          ${probe ? probe + ': ' : ''}${stateText}
+          ${probe}: ${stateText}
         </span>
       </div>`;
     }).join('');

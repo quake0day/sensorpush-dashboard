@@ -188,6 +188,47 @@ app.post("/api/samples", async (req, res) => {
   }
 });
 
+// ============ Pond Alarm Log (server-side tracking) ============
+const fs = require("fs");
+const POND_LOG_FILE = path.join(__dirname, "pond-alarm-log.json");
+let pondLog = [];
+let lastPondState = {};
+
+// Load saved log on startup
+try {
+  if (fs.existsSync(POND_LOG_FILE)) {
+    pondLog = JSON.parse(fs.readFileSync(POND_LOG_FILE, "utf8"));
+  }
+} catch (e) { console.error("Failed to load pond log:", e.message); }
+
+function savePondLog() {
+  // Keep only last 7 days
+  const cutoff = Date.now() - 7 * 24 * 3600000;
+  pondLog = pondLog.filter(e => e.time > cutoff);
+  try { fs.writeFileSync(POND_LOG_FILE, JSON.stringify(pondLog, null, 2)); } catch (e) {}
+}
+
+function trackPondState(statusArr) {
+  const statusMap = {};
+  (statusArr || []).forEach(s => statusMap[s.code] = s.value);
+  const rightAlarm = statusMap.watersensor_state === "alarm";
+  const leftAlarm = statusMap.tamper_alarm === true;
+
+  // Detect state changes
+  if (lastPondState.right !== undefined) {
+    if (rightAlarm !== lastPondState.right) {
+      pondLog.push({ time: Date.now(), probe: "black", code: "watersensor_state", alarm: rightAlarm });
+      console.log(`Pond: black probe ${rightAlarm ? "ALARM" : "normal"}`);
+    }
+    if (leftAlarm !== lastPondState.left) {
+      pondLog.push({ time: Date.now(), probe: "white", code: "tamper_alarm", alarm: leftAlarm });
+      console.log(`Pond: white probe ${leftAlarm ? "ALARM" : "normal"}`);
+    }
+    savePondLog();
+  }
+  lastPondState = { right: rightAlarm, left: leftAlarm };
+}
+
 // ============ Tuya Routes (water sensor only) ============
 app.get("/api/tuya/devices", async (req, res) => {
   try {
@@ -197,7 +238,12 @@ app.get("/api/tuya/devices", async (req, res) => {
     const results = await Promise.all(
       devices.map(async (d) => {
         const info = await getTuyaDeviceInfo(d.id);
-        return { ...d, ...info.result };
+        const device = { ...d, ...info.result };
+        // Track state changes for pond alarm log
+        if (d.type === "water_sensor" && device.status) {
+          trackPondState(device.status);
+        }
+        return device;
       })
     );
     res.json(results);
@@ -205,6 +251,13 @@ app.get("/api/tuya/devices", async (req, res) => {
     console.error("tuya devices error:", err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+app.get("/api/pond/logs", (req, res) => {
+  const hours = parseInt(req.query.hours) || 24;
+  const cutoff = Date.now() - hours * 3600000;
+  const logs = pondLog.filter(e => e.time > cutoff).sort((a, b) => b.time - a.time);
+  res.json({ logs });
 });
 
 app.get("/api/tuya/device/:id/logs", async (req, res) => {
