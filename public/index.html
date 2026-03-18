@@ -240,6 +240,8 @@ const T = {
     pondNormal: 'Water level OK',
     pondDesc: 'Dual-probe sensor: white probe (shallow) & black probe (deep)',
     alarmHistory: 'Pond Level Alert History (24h)',
+    sensorReading: 'Sensor',
+    forecastReading: 'Forecast',
     switchLang: '中文',
     switchUrl: '/cn',
     wind: 'Wind',
@@ -310,6 +312,8 @@ const T = {
     pondNormal: '水位正常',
     pondDesc: '双探头传感器：白色探头（浅水位）& 黑色探头（深水位）',
     alarmHistory: '鱼塘水位报警记录（24小时）',
+    sensorReading: '传感器',
+    forecastReading: '预报',
     switchLang: 'EN',
     switchUrl: '/',
     wind: '风速',
@@ -579,26 +583,44 @@ async function loadWeather() {
     }
 
     const current = data.hourly && data.hourly[0] ? data.hourly[0] : data.forecast[0];
-    const tempF = current.temperature;
-    const tempC = fToC(tempF);
+    const fxTempF = current.temperature;
+    const fxTempC = fToC(fxTempF);
+    const fxHum = current.relativeHumidity?.value || '--';
     const desc = current.shortForecast;
     const emoji = wxEmoji(desc);
 
-    // Header brief
-    document.getElementById('wxBrief').innerHTML =
-      `<span class="wx-emoji">${emoji}</span> <span class="wx-temp">${tempC}°C</span>`;
+    // Get sensor readings for main display
+    const sensorIds = Object.keys(sensorsData);
+    let sensorTempC = '--', sensorHum = '--';
+    if (sensorIds.length) {
+      const s = sensorsData[sensorIds[0]];
+      if (s.temperature !== undefined) sensorTempC = tempF2C(s.temperature).toFixed(1);
+      if (s.humidity !== undefined) sensorHum = s.humidity.toFixed(1);
+    }
 
-    // Current weather card
+    // Header brief: sensor temp + weather icon
+    document.getElementById('wxBrief').innerHTML =
+      `<span class="wx-emoji">${emoji}</span> <span class="wx-temp">${sensorTempC}°C</span>`;
+
+    // Current weather card: sensor readings big, forecast small below
     document.getElementById('weatherNow').innerHTML = `
       <div class="weather-now">
         <div class="wx-icon">${emoji}</div>
         <div class="wx-main">
-          <div class="wx-temp-lg">${tempC}°C <small style="font-size:16px;color:var(--text3)">(${tempF}°F)</small></div>
+          <div class="wx-temp-lg">${sensorTempC}°C</div>
           <div class="wx-desc">${desc}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px;">${T.forecastReading}: ${fxTempC}°C (${fxTempF}°F)</div>
         </div>
         <div class="wx-details">
-          <div class="wx-detail"><div class="val">${current.windSpeed || '--'}</div><div class="lbl">${T.wind}</div></div>
-          <div class="wx-detail"><div class="val">${current.relativeHumidity?.value || '--'}%</div><div class="lbl">${T.humLabel}</div></div>
+          <div class="wx-detail">
+            <div class="val">${sensorHum}%</div>
+            <div class="lbl">${T.humLabel} (${T.sensorReading})</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px;">${T.forecastReading}: ${fxHum}%</div>
+          </div>
+          <div class="wx-detail">
+            <div class="val">${current.windSpeed || '--'}</div>
+            <div class="lbl">${T.wind}</div>
+          </div>
         </div>
       </div>`;
 
@@ -860,7 +882,6 @@ async function loadGateways() {
 // ============ Init ============
 async function init() {
   renderGarden();
-  loadWeather();
 
   try {
     sensorsData = await api("GET", "/api/sensors");
@@ -870,6 +891,9 @@ async function init() {
     setStatus(false, "Error: " + e.message);
     document.getElementById("sensorCards").innerHTML = `<div class="loading-msg">${T.noSensors}</div>`;
   }
+
+  // Load weather after sensors so it can use sensor readings
+  loadWeather();
 
   try {
     const tuyaDevices = await api("GET", "/api/tuya/devices");
@@ -899,6 +923,7 @@ async function init() {
     try {
       sensorsData = await api("GET", "/api/sensors");
       renderSensors(sensorsData);
+      loadWeather();
       const tuyaDevices = await api("GET", "/api/tuya/devices");
       renderWaterSensor(tuyaDevices);
       await refreshCharts();
