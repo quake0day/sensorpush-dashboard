@@ -274,9 +274,46 @@ app.get("/api/tuya/device/:id/logs", async (req, res) => {
   }
 });
 
+// ============ Garden Editor API ============
+const GARDENS_DIR = path.join(__dirname, "data", "gardens");
+if (!fs.existsSync(GARDENS_DIR)) fs.mkdirSync(GARDENS_DIR, { recursive: true });
+
+app.get("/api/gardens", (req, res) => {
+  const files = fs.readdirSync(GARDENS_DIR).filter(f => f.endsWith(".json"));
+  const list = files.map(f => {
+    const data = JSON.parse(fs.readFileSync(path.join(GARDENS_DIR, f), "utf8"));
+    return { name: f.replace(".json", ""), label: data.label || f.replace(".json", ""), updated: data.updated };
+  });
+  res.json(list);
+});
+
+app.get("/api/garden/:name", (req, res) => {
+  const file = path.join(GARDENS_DIR, req.params.name + ".json");
+  if (!fs.existsSync(file)) return res.status(404).json({ error: "not found" });
+  res.json(JSON.parse(fs.readFileSync(file, "utf8")));
+});
+
+app.post("/api/garden/:name", (req, res) => {
+  const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!name) return res.status(400).json({ error: "invalid name" });
+  const data = { ...req.body, updated: new Date().toISOString() };
+  fs.writeFileSync(path.join(GARDENS_DIR, name + ".json"), JSON.stringify(data, null, 2));
+  res.json({ ok: true, name });
+});
+
+app.delete("/api/garden/:name", (req, res) => {
+  const file = path.join(GARDENS_DIR, req.params.name + ".json");
+  if (fs.existsSync(file)) fs.unlinkSync(file);
+  res.json({ ok: true });
+});
+
 // ============ Page Routes ============
 app.get("/cn", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.get("/edit", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "edit.html"));
 });
 
 const PORT = process.env.PORT || 3000;
