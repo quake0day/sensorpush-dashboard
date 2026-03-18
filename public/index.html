@@ -814,32 +814,56 @@ function renderWaterSensor(devices) {
   document.getElementById('waterSection').style.display = '';
   const statusMap = {};
   (ws.status || []).forEach(s => statusMap[s.code] = s.value);
-  const isAlarm = statusMap.watersensor_state === 'alarm';
+
+  // Dual probe mapping (from v2 thing model):
+  //   watersensor_state (DP1) = "水浸（右）" = right probe
+  //   tamper_alarm (DP5)      = "水浸（左）" = left probe
+  // Probe assignment:
+  //   Left  = white probe = shallow position (warns early)
+  //   Right = black probe = deep position (critical low)
+  // alarm/true = probe NOT in water (water dropped below that level)
+  const leftAlarm = statusMap.tamper_alarm === true;       // white/shallow
+  const rightAlarm = statusMap.watersensor_state === 'alarm'; // black/deep
   const battery = statusMap.battery_percentage;
   const online = ws.online;
   const updated = ws.update_time ? new Date(ws.update_time * 1000).toLocaleString(locale) : '--';
 
-  // Pond level: alarm = water below probe level
-  // White probe (shallow): alarm means water is getting low, refill needed
-  // Black probe (deep): alarm means water is critically low, urgent refill
-  // Since the API only reports one combined state, alarm = low water
   let icon, statusText, statusClass;
-  if (isAlarm) {
+  if (rightAlarm && leftAlarm) {
+    // Both probes out of water - critically low
     icon = '🚨🐟';
+    statusText = T.pondCritical;
+    statusClass = 'water-alarm';
+  } else if (rightAlarm || leftAlarm) {
+    // One probe out - water is getting low
+    icon = '⚠️🐟';
     statusText = T.pondLow;
     statusClass = 'water-alarm';
   } else {
+    // Both probes in water - all good
     icon = '🐟💧';
     statusText = T.pondNormal;
     statusClass = 'water-normal';
   }
 
+  const probeWhiteOk = !leftAlarm;
+  const probeBlackOk = !rightAlarm;
+  const probeWhiteLabel = LANG === 'cn' ? '白色探头（浅水位）' : 'White probe (shallow)';
+  const probeBlackLabel = LANG === 'cn' ? '黑色探头（深水位）' : 'Black probe (deep)';
+  const okText = LANG === 'cn' ? '在水中' : 'In water';
+  const dryText = LANG === 'cn' ? '离开水面' : 'Out of water';
+
   document.getElementById('waterCard').innerHTML = `<div class="water-card">
     <div class="water-icon">${icon}</div>
     <div class="water-info">
       <div class="water-status ${statusClass}">${statusText}</div>
-      <div class="water-detail" style="color:var(--text2);margin-top:6px;">${T.pondDesc}</div>
-      <div class="water-detail">${T.battery}: ${battery !== undefined ? battery + '%' : '--'} &nbsp; ${online ? '🟢' : '⚫'} ${online ? 'Online' : 'Offline'}</div>
+      <div class="water-detail" style="margin-top:8px;">
+        <span style="color:${probeWhiteOk ? 'var(--green)' : 'var(--red)'}">${probeWhiteOk ? '●' : '◉'} ${probeWhiteLabel}: ${probeWhiteOk ? okText : dryText}</span>
+      </div>
+      <div class="water-detail">
+        <span style="color:${probeBlackOk ? 'var(--green)' : 'var(--red)'}">${probeBlackOk ? '●' : '◉'} ${probeBlackLabel}: ${probeBlackOk ? okText : dryText}</span>
+      </div>
+      <div class="water-detail" style="margin-top:6px;">${T.battery}: ${battery !== undefined ? battery + '%' : '--'} &nbsp; ${online ? '🟢' : '⚫'} ${online ? 'Online' : 'Offline'}</div>
       <div class="water-detail">${T.updated}: ${updated}</div>
     </div>
   </div>`;
@@ -847,19 +871,30 @@ function renderWaterSensor(devices) {
 
 async function loadAlarmLog() {
   try {
-    const data = await api("GET", "/api/tuya/device/eb4b975ccbbe3fb9dc98n2/logs?hours=24&codes=watersensor_state");
+    const data = await api("GET", "/api/tuya/device/eb4b975ccbbe3fb9dc98n2/logs?hours=24&codes=watersensor_state,tamper_alarm");
     const logs = data.logs || [];
     const section = document.getElementById("alarmLogSection");
     const container = document.getElementById("alarmLog");
     section.style.display = "";
     if (!logs.length) { container.innerHTML = `<div class="log-empty">${T.noEvents}</div>`; return; }
+    const probeLabel = (code) => {
+      if (code === 'watersensor_state') return LANG === 'cn' ? '黑色探头' : 'Black probe';
+      if (code === 'tamper_alarm') return LANG === 'cn' ? '白色探头' : 'White probe';
+      return '';
+    };
     container.innerHTML = logs.map(log => {
-      const isAlarm = log.value === "alarm";
+      const isAlarm = log.value === "alarm" || log.value === "true" || log.value === true;
       const time = new Date(parseInt(log.event_time)).toLocaleString(locale);
+      const probe = probeLabel(log.code);
+      const stateText = isAlarm
+        ? (LANG === 'cn' ? '离开水面' : 'Out of water')
+        : (LANG === 'cn' ? '回到水中' : 'Back in water');
       return `<div class="log-item">
         <span class="log-dot ${isAlarm ? 'alarm' : 'normal'}"></span>
         <span class="log-time">${time}</span>
-        <span class="log-state" style="color:${isAlarm ? 'var(--red)' : 'var(--green)'}">${isAlarm ? T.pondLow : T.pondNormal}</span>
+        <span class="log-state" style="color:${isAlarm ? 'var(--red)' : 'var(--green)'}">
+          ${probe ? probe + ': ' : ''}${stateText}
+        </span>
       </div>`;
     }).join('');
   } catch (e) { console.error('alarm log:', e); }
