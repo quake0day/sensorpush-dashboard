@@ -557,234 +557,356 @@ function renderGarden() {
   const W = mount.clientWidth || 820;
   const H = Math.round(W * 40 / 82);
 
-  // Three.js scene
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(W, H);
-  renderer.setClearColor(0x060e08);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   mount.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x060e08, 0.06);
-
-  // Orthographic camera - isometric angle
-  const aspect = W / H;
   const frust = 5.5;
-  const camera = new THREE.OrthographicCamera(-frust*aspect, frust*aspect, frust, -frust, 0.1, 50);
-  camera.position.set(7, 8, 7);
-  camera.lookAt(0, -0.5, 0);
+  const aspect = W / H;
+  const camera = new THREE.OrthographicCamera(-frust*aspect, frust*aspect, frust, -frust, 0.1, 80);
 
-  // Lights
-  const ambient = new THREE.AmbientLight(0x6688aa, 0.5);
-  scene.add(ambient);
-  const dirLight = new THREE.DirectionalLight(0xfff4e0, 0.9);
-  dirLight.position.set(4, 8, 3);
-  scene.add(dirLight);
-  const fillLight = new THREE.DirectionalLight(0x4466aa, 0.3);
-  fillLight.position.set(-3, 4, -2);
-  scene.add(fillLight);
+  // ---- Season & time detection ----
+  const now = new Date();
+  const month = now.getMonth(); // 0-11
+  const hour = now.getHours();
+  const isNight = hour < 6 || hour >= 19;
+  const isDusk = (hour >= 17 && hour < 19) || (hour >= 6 && hour < 8);
+  let season;
+  if (month >= 2 && month <= 4) season = 'spring';
+  else if (month >= 5 && month <= 7) season = 'summer';
+  else if (month >= 8 && month <= 10) season = 'autumn';
+  else season = 'winter';
 
-  // Helper: extract sprite to texture
-  const blocksImg = new Image(), miscImg = new Image();
-  let loadCount = 0;
+  // ---- Theme config by season/time ----
+  const themes = {
+    spring: { sky: 0x87ceeb, fog: 0xc8e6c8, ground: 0x4a7a3a, grass: 0x5a9a45, flower: [0xff6b8a, 0xffb7d5, 0xffd700, 0xff69b4, 0x9370db], leaf: 0x3d8b37, trunk: 0x6b4226, water: 0x4a9aba, ambient: 0xddeeff, sun: 0xfff8e0, sunI: 1.0, ambI: 0.6, particle: 0xffaacc, pName: 'petals' },
+    summer: { sky: 0x5ba3d9, fog: 0x8fbc8f, ground: 0x3a6a2a, grass: 0x4a8a35, flower: [0xff4444, 0xff8c00, 0xffff00, 0xff1493, 0x00bfff], leaf: 0x2d7a27, trunk: 0x5a3a1a, water: 0x3a8aaa, ambient: 0xffeedd, sun: 0xfffae0, sunI: 1.2, ambI: 0.5, particle: 0xaaffaa, pName: 'fireflies' },
+    autumn: { sky: 0xc4956a, fog: 0xc4a882, ground: 0x6a5a3a, grass: 0x8a7a4a, flower: [0xff6600, 0xcc3300, 0xffcc00, 0x993300, 0xdd5500], leaf: 0xcc6622, trunk: 0x5a3820, water: 0x4a7a8a, ambient: 0xffe8cc, sun: 0xffcc88, sunI: 0.9, ambI: 0.5, particle: 0xcc8844, pName: 'leaves' },
+    winter: { sky: 0x3a4a6a, fog: 0x8a9aaa, ground: 0x6a7a6a, grass: 0x7a8a7a, flower: [0xccddee, 0xaabbcc], leaf: 0x556655, trunk: 0x4a3a2a, water: 0x5a7a9a, ambient: 0xccddee, sun: 0xeeeeff, sunI: 0.7, ambI: 0.6, particle: 0xffffff, pName: 'snow' },
+  };
+  const nightMod = { skyMul: 0.15, fogMul: 0.15, ambI: 0.2, sunI: 0.1, ambient: 0x223344, sun: 0x4466aa, particle: 0xaaffaa, pName: 'fireflies' };
+  const duskMod = { skyMul: 0.5, fogMul: 0.5, ambI: 0.4, sunI: 0.5, ambient: 0xffaa66, sun: 0xff8844 };
 
-  function spriteTex(img, sx, sy, sw, sh) {
-    const c = document.createElement('canvas');
-    c.width = sw; c.height = sh;
-    const ctx = c.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-    const t = new THREE.CanvasTexture(c);
-    t.magFilter = THREE.NearestFilter;
-    t.minFilter = THREE.NearestFilter;
-    if (THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace; else t.encoding = THREE.sRGBEncoding;
-    return t;
+  let T = themes[season];
+  function mulColor(c, f) { return ((((c>>16)&0xff)*f)<<16) | ((((c>>8)&0xff)*f)<<8) | (((c&0xff)*f)); }
+  let skyColor = T.sky, fogColor = T.fog, ambColor = T.ambient, sunColor = T.sun, ambI = T.ambI, sunI = T.sunI;
+  let particleColor = T.particle, particleName = T.pName;
+  if (isNight) {
+    skyColor = mulColor(T.sky, nightMod.skyMul); fogColor = mulColor(T.fog, nightMod.fogMul);
+    ambColor = nightMod.ambient; sunColor = nightMod.sun; ambI = nightMod.ambI; sunI = nightMod.sunI;
+    particleColor = nightMod.particle; particleName = nightMod.pName;
+  } else if (isDusk) {
+    skyColor = mulColor(T.sky, duskMod.skyMul); fogColor = mulColor(T.fog, duskMod.fogMul);
+    ambColor = duskMod.ambient; sunColor = duskMod.sun; ambI = duskMod.ambI; sunI = duskMod.sunI;
   }
 
-  function buildGarden() {
-    // Grid: 7 cols x 5 rows, each cell = 1 unit
-    const COLS = 7, ROWS = 5;
-    const hw = COLS / 2, hd = ROWS / 2;
-    const TW = 36, TH = 34;
+  renderer.setClearColor(skyColor);
+  scene.fog = new THREE.Fog(fogColor, 12, 28);
 
-    // Ground tile map
-    const TILES = {
-      G:  [0, 0],   GF: [36, 0],  GT: [72, 0],   GS: [108, 0],
-      W:  [0, 102],  WR: [36, 102], WL: [36, 136], WK: [0, 136],
-    };
+  camera.position.set(8, 9, 8);
+  camera.lookAt(0, 0, 0);
 
-    const MAP = [
-      ['G','GF','G','G','G','GT','G'],
-      ['G','GT','GF','W','W','G','G'],
-      ['GF','G','W','WL','W','G','GS'],
-      ['G','G','GS','W','GF','GT','G'],
-      ['G','GT','GF','G','G','GF','G'],
-    ];
+  // ---- Lights ----
+  scene.add(new THREE.AmbientLight(ambColor, ambI));
+  const sun = new THREE.DirectionalLight(sunColor, sunI);
+  sun.position.set(5, 10, 4);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 30;
+  sun.shadow.camera.left = -8; sun.shadow.camera.right = 8;
+  sun.shadow.camera.top = 8; sun.shadow.camera.bottom = -8;
+  scene.add(sun);
 
-    // Ground tiles as flat quads
-    const tileGeo = new THREE.PlaneGeometry(1, 1);
-    tileGeo.rotateX(-Math.PI / 2);
+  // ---- Ground island ----
+  const COLS = 7, ROWS = 5, hw = COLS/2, hd = ROWS/2;
+  // Main platform
+  const platGeo = new THREE.BoxGeometry(COLS + 0.4, 0.5, ROWS + 0.4);
+  const platMat = new THREE.MeshStandardMaterial({ color: T.ground, roughness: 0.9 });
+  const platform = new THREE.Mesh(platGeo, platMat);
+  platform.position.y = -0.25;
+  platform.receiveShadow = true;
+  scene.add(platform);
 
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const tKey = MAP[r][c];
-        const tPos = TILES[tKey];
-        const isWater = tKey.startsWith('W');
-        const tex = spriteTex(blocksImg, tPos[0], tPos[1], TW, TH);
-        const mat = new THREE.MeshStandardMaterial({
-          map: tex, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide,
-          roughness: isWater ? 0.2 : 0.9,
-          metalness: isWater ? 0.3 : 0,
-        });
-        const mesh = new THREE.Mesh(tileGeo, mat);
-        mesh.position.set(c - hw + 0.5, isWater ? -0.08 : 0, r - hd + 0.5);
-        if (isWater) mesh.userData.isWater = true;
-        scene.add(mesh);
+  // Dirt underside
+  const dirtGeo = new THREE.BoxGeometry(COLS, 0.6, ROWS);
+  const dirtMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, roughness: 1 });
+  const dirt = new THREE.Mesh(dirtGeo, dirtMat);
+  dirt.position.y = -0.8;
+  scene.add(dirt);
 
-        // Side faces for ground tiles (give depth)
-        if (!isWater) {
-          const sideH = 0.25;
-          const sGeo = new THREE.BoxGeometry(1, sideH, 1);
-          const sMat = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 1 });
-          const sMesh = new THREE.Mesh(sGeo, sMat);
-          sMesh.position.set(c - hw + 0.5, -sideH / 2, r - hd + 0.5);
-          scene.add(sMesh);
-        }
+  // ---- Grass tiles ----
+  const grassMat = new THREE.MeshStandardMaterial({ color: T.grass, roughness: 0.85 });
+  const waterMap = [[0,0,0,0,0,0,0],[0,0,0,1,1,0,0],[0,0,1,1,1,0,0],[0,0,0,1,0,0,0],[0,0,0,0,0,0,0]];
+  const waterTiles = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const x = c - hw + 0.5, z = r - hd + 0.5;
+      if (waterMap[r][c]) {
+        // Water
+        const wGeo = new THREE.PlaneGeometry(1, 1);
+        wGeo.rotateX(-Math.PI / 2);
+        const wMat = new THREE.MeshStandardMaterial({ color: T.water, transparent: true, opacity: 0.75, roughness: 0.1, metalness: 0.4 });
+        const wMesh = new THREE.Mesh(wGeo, wMat);
+        wMesh.position.set(x, -0.06, z);
+        wMesh.receiveShadow = true;
+        scene.add(wMesh);
+        waterTiles.push(wMesh);
+      } else {
+        // Grass patch with slight height variation
+        const gGeo = new THREE.BoxGeometry(0.95, 0.08, 0.95);
+        const gMesh = new THREE.Mesh(gGeo, grassMat.clone());
+        gMesh.material.color.setHex(T.grass + Math.floor(Math.random() * 0x111111));
+        gMesh.position.set(x, 0.04 + Math.random() * 0.02, z);
+        gMesh.receiveShadow = true; gMesh.castShadow = true;
+        scene.add(gMesh);
       }
     }
-
-    // Billboard sprite helper
-    function addSprite(img, sx, sy, sw, sh, x, y, z, scale) {
-      const tex = spriteTex(img, sx, sy, sw, sh);
-      const ratio = sh / sw;
-      const geo = new THREE.PlaneGeometry(scale, scale * ratio);
-      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(x, y + (scale * ratio) / 2, z);
-      mesh.renderOrder = Math.round((z + x) * 10);
-      // Billboard: rotate to face camera direction (fixed isometric facing)
-      mesh.lookAt(mesh.position.x + camera.position.x, mesh.position.y, mesh.position.z + camera.position.z);
-      scene.add(mesh);
-      return mesh;
-    }
-
-    // ---- Decorations ----
-    // Large green tree (back-left)
-    addSprite(miscImg, 86, 176, 122, 134, -hw + 1, 0, -hd + 0.5, 4);
-
-    // Autumn tree (back-right)
-    addSprite(miscImg, 212, 186, 54, 114, hw - 1.5, 0, -hd + 0.2, 2.8);
-
-    // Bushes
-    addSprite(miscImg, 238, 84, 48, 38, hw - 1.5, 0, -hd + 1.8, 1.4);
-    addSprite(miscImg, 290, 98, 34, 28, -hw + 0.2, 0, hd - 2, 1.0);
-
-    // Bench
-    addSprite(miscImg, 4, 78, 60, 34, hw - 1.8, 0, hd - 1.5, 1.6);
-
-    // Flowers
-    const flowers = [
-      [96, 2, 12, 18],  [110, 2, 12, 18], [124, 2, 14, 18],
-      [138, 2, 12, 18], [152, 2, 12, 18], [166, 2, 12, 18],
-    ];
-    const fPos = [
-      [-1, 0, hd-0.3], [0.5, 0, hd-0.5], [2, 0, hd-0.3],
-      [hw-0.5, 0, 0], [hw-0.8, 0, 1.2], [-hw+0.5, 0, -0.5],
-    ];
-    fPos.forEach((p, i) => addSprite(miscImg, flowers[i%flowers.length][0], flowers[i%flowers.length][1], flowers[i%flowers.length][2], flowers[i%flowers.length][3], p[0], p[1], p[2], 0.45));
-
-    // Fence
-    addSprite(miscImg, 2, 2, 18, 52, -hw + 0.2, 0, -hd + 0.2, 1.2);
-
-    // Mushrooms
-    addSprite(miscImg, 196, 148, 28, 20, 1.5, 0, hd - 1, 0.6);
-
-    // Rocks
-    addSprite(miscImg, 2, 60, 42, 24, -hw + 1.5, 0, hd - 1.5, 0.8);
-
-    // ---- Particles (fireflies) ----
-    const particleCount = 30;
-    const pGeo = new THREE.BufferGeometry();
-    const pPos = new Float32Array(particleCount * 3);
-    const pVel = [];
-    for (let i = 0; i < particleCount; i++) {
-      pPos[i*3] = (Math.random() - 0.5) * 10;
-      pPos[i*3+1] = 0.3 + Math.random() * 3;
-      pPos[i*3+2] = (Math.random() - 0.5) * 8;
-      pVel.push({ x: (Math.random()-0.5)*0.005, y: (Math.random()-0.5)*0.003, z: (Math.random()-0.5)*0.005 });
-    }
-    pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-    const pMat = new THREE.PointsMaterial({ color: 0xaaffaa, size: 0.06, transparent: true, opacity: 0.6 });
-    const particles = new THREE.Points(pGeo, pMat);
-    scene.add(particles);
-
-    // ---- Animation ----
-    let time = 0;
-    function animate() {
-      requestAnimationFrame(animate);
-      time += 0.01;
-
-      // Slow auto-rotate
-      const radius = 11;
-      const speed = 0.05;
-      camera.position.x = Math.cos(time * speed) * radius;
-      camera.position.z = Math.sin(time * speed) * radius;
-      camera.position.y = 8;
-      camera.lookAt(0, -0.5, 0);
-
-      // Update billboards to face camera
-      scene.traverse(obj => {
-        if (obj.isMesh && obj.material?.map && obj.geometry?.type === 'PlaneGeometry' && obj.position.y > 0.05) {
-          obj.lookAt(
-            obj.position.x + camera.position.x,
-            obj.position.y,
-            obj.position.z + camera.position.z
-          );
-        }
-      });
-
-      // Animate water tiles
-      scene.traverse(obj => {
-        if (obj.userData?.isWater) {
-          obj.position.y = -0.08 + Math.sin(time * 2 + obj.position.x * 3) * 0.015;
-        }
-      });
-
-      // Animate fireflies
-      const pos = particles.geometry.attributes.position.array;
-      for (let i = 0; i < particleCount; i++) {
-        pos[i*3] += pVel[i].x + Math.sin(time * 2 + i) * 0.002;
-        pos[i*3+1] += pVel[i].y + Math.cos(time * 1.5 + i * 0.7) * 0.002;
-        pos[i*3+2] += pVel[i].z + Math.sin(time * 1.8 + i * 1.3) * 0.002;
-        // Bounds
-        if (Math.abs(pos[i*3]) > 6) pVel[i].x *= -1;
-        if (pos[i*3+1] < 0.2 || pos[i*3+1] > 4) pVel[i].y *= -1;
-        if (Math.abs(pos[i*3+2]) > 5) pVel[i].z *= -1;
-      }
-      particles.geometry.attributes.position.needsUpdate = true;
-      pMat.opacity = 0.3 + Math.sin(time * 3) * 0.3;
-
-      renderer.render(scene, camera);
-    }
-    animate();
   }
 
-  function onImgLoad() {
-    loadCount++;
-    if (loadCount >= 2) buildGarden();
+  // ---- Procedural tree generator ----
+  function makeTree(x, z, height, leafColor, trunkColor, leafRadius, bare) {
+    const group = new THREE.Group();
+    // Trunk
+    const tGeo = new THREE.CylinderGeometry(0.08, 0.14, height, 6);
+    const tMat = new THREE.MeshStandardMaterial({ color: trunkColor, roughness: 0.9 });
+    const trunk = new THREE.Mesh(tGeo, tMat);
+    trunk.position.y = height / 2;
+    trunk.castShadow = true;
+    group.add(trunk);
+    // Branches
+    for (let i = 0; i < 3; i++) {
+      const angle = (i / 3) * Math.PI * 2 + Math.random() * 0.5;
+      const bLen = 0.4 + Math.random() * 0.3;
+      const bGeo = new THREE.CylinderGeometry(0.03, 0.06, bLen, 4);
+      const branch = new THREE.Mesh(bGeo, tMat);
+      branch.position.set(Math.cos(angle) * 0.2, height * 0.6 + i * 0.2, Math.sin(angle) * 0.2);
+      branch.rotation.z = Math.cos(angle) * 0.6;
+      branch.rotation.x = Math.sin(angle) * 0.6;
+      branch.castShadow = true;
+      group.add(branch);
+    }
+    if (!bare) {
+      // Canopy: cluster of spheres
+      const lMat = new THREE.MeshStandardMaterial({ color: leafColor, roughness: 0.8 });
+      const positions = [[0, height + leafRadius * 0.5, 0],
+        [leafRadius*0.5, height, leafRadius*0.3], [-leafRadius*0.4, height, -leafRadius*0.3],
+        [0, height - leafRadius*0.2, leafRadius*0.4], [-leafRadius*0.3, height+leafRadius*0.3, 0]];
+      positions.forEach(p => {
+        const r = leafRadius * (0.5 + Math.random() * 0.3);
+        const lGeo = new THREE.SphereGeometry(r, 6, 5);
+        const leaf = new THREE.Mesh(lGeo, lMat.clone());
+        leaf.material.color.offsetHSL(Math.random()*0.05-0.025, 0, Math.random()*0.1-0.05);
+        leaf.position.set(p[0], p[1], p[2]);
+        leaf.castShadow = true;
+        group.add(leaf);
+      });
+    }
+    group.position.set(x, 0, z);
+    scene.add(group);
+    return group;
   }
-  blocksImg.onload = onImgLoad;
-  miscImg.onload = onImgLoad;
-  blocksImg.src = '/garden/blocks.png';
-  miscImg.src = '/garden/misc.png';
 
-  // Responsive resize
+  // ---- Place trees ----
+  const isBare = season === 'winter';
+  makeTree(-hw + 0.5, -hd + 0.5, 2.8, T.leaf, T.trunk, 1.2, false);
+  makeTree(hw, -hd + 0.3, 2.2, season==='autumn' ? 0xcc5511 : T.leaf, T.trunk, 0.8, isBare);
+  makeTree(-hw - 0.3, hd - 0.5, 1.6, T.leaf, T.trunk, 0.7, false);
+
+  // ---- Flowers ----
+  if (season !== 'winter') {
+    const flowerPositions = [
+      [-1, 0.12, hd-0.3], [0.5, 0.12, hd+0.1], [2, 0.12, hd-0.2],
+      [hw-0.3, 0.12, 0.5], [-hw+0.8, 0.12, -0.3], [1, 0.12, -hd+0.5],
+      [-0.5, 0.12, -hd+0.8], [hw-0.5, 0.12, -1],
+    ];
+    flowerPositions.forEach((p, i) => {
+      const color = T.flower[i % T.flower.length];
+      // Stem
+      const sGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.2, 4);
+      const sMat = new THREE.MeshStandardMaterial({ color: 0x3a6a2a });
+      const stem = new THREE.Mesh(sGeo, sMat);
+      stem.position.set(p[0], p[1], p[2]);
+      scene.add(stem);
+      // Bloom
+      const bGeo = new THREE.SphereGeometry(0.06, 5, 4);
+      const bMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.15 });
+      const bloom = new THREE.Mesh(bGeo, bMat);
+      bloom.position.set(p[0], p[1] + 0.13, p[2]);
+      scene.add(bloom);
+    });
+  }
+
+  // ---- Bushes ----
+  function makeBush(x, z, scale) {
+    const bMat = new THREE.MeshStandardMaterial({ color: T.leaf, roughness: 0.85 });
+    for (let i = 0; i < 3; i++) {
+      const r = scale * (0.2 + Math.random() * 0.15);
+      const geo = new THREE.SphereGeometry(r, 5, 4);
+      const m = new THREE.Mesh(geo, bMat.clone());
+      m.material.color.offsetHSL(0, 0, Math.random()*0.1-0.05);
+      m.position.set(x + (Math.random()-0.5)*scale*0.5, r, z + (Math.random()-0.5)*scale*0.5);
+      m.castShadow = true;
+      scene.add(m);
+    }
+  }
+  makeBush(hw, -hd + 1.5, 0.7);
+  makeBush(-hw + 0.3, 0.5, 0.5);
+
+  // ---- Bench ----
+  const benchGroup = new THREE.Group();
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.8 });
+  // Seat
+  const seatGeo = new THREE.BoxGeometry(0.8, 0.05, 0.3);
+  const seat = new THREE.Mesh(seatGeo, woodMat);
+  seat.position.y = 0.25;
+  benchGroup.add(seat);
+  // Back
+  const backGeo = new THREE.BoxGeometry(0.8, 0.3, 0.04);
+  const back = new THREE.Mesh(backGeo, woodMat);
+  back.position.set(0, 0.38, -0.13);
+  benchGroup.add(back);
+  // Legs
+  for (const lx of [-0.3, 0.3]) {
+    const legGeo = new THREE.BoxGeometry(0.04, 0.25, 0.04);
+    const leg = new THREE.Mesh(legGeo, woodMat);
+    leg.position.set(lx, 0.12, 0.1);
+    benchGroup.add(leg);
+    const leg2 = leg.clone();
+    leg2.position.z = -0.1;
+    benchGroup.add(leg2);
+  }
+  benchGroup.position.set(hw - 0.8, 0, hd - 0.5);
+  benchGroup.rotation.y = -0.3;
+  benchGroup.castShadow = true;
+  scene.add(benchGroup);
+
+  // ---- Rocks ----
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x7a7a7a, roughness: 0.9 });
+  [[1.5, 0.08, hd-0.8, 0.12], [-0.5, 0.06, hd-0.5, 0.08], [2.2, 0.05, hd-0.3, 0.06]].forEach(r => {
+    const geo = new THREE.SphereGeometry(r[3], 5, 4);
+    geo.scale(1, 0.6, 1.2);
+    const m = new THREE.Mesh(geo, rockMat);
+    m.position.set(r[0], r[1], r[2]);
+    m.castShadow = true;
+    scene.add(m);
+  });
+
+  // ---- Fence ----
+  const fenceMat = new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 0.85 });
+  for (let i = 0; i < 4; i++) {
+    const postGeo = new THREE.BoxGeometry(0.04, 0.5, 0.04);
+    const post = new THREE.Mesh(postGeo, fenceMat);
+    post.position.set(-hw + 0.3 + i * 0.3, 0.25, -hd + 0.3);
+    post.castShadow = true;
+    scene.add(post);
+  }
+  // Rails
+  for (const ry of [0.15, 0.35]) {
+    const railGeo = new THREE.BoxGeometry(1.0, 0.03, 0.03);
+    const rail = new THREE.Mesh(railGeo, fenceMat);
+    rail.position.set(-hw + 0.7, ry, -hd + 0.3);
+    scene.add(rail);
+  }
+
+  // ---- Lily pads on water ----
+  const padMat = new THREE.MeshStandardMaterial({ color: 0x3a7a3a, roughness: 0.7 });
+  [[0, -0.02, 0.3], [-0.4, -0.02, -0.1], [0.5, -0.02, 0]].forEach(p => {
+    const geo = new THREE.CircleGeometry(0.12, 6);
+    geo.rotateX(-Math.PI / 2);
+    const pad = new THREE.Mesh(geo, padMat);
+    pad.position.set(p[0], p[1], p[2]);
+    scene.add(pad);
+  });
+
+  // ---- Particles ----
+  const pCount = isNight ? 40 : 25;
+  const pGeo = new THREE.BufferGeometry();
+  const pArr = new Float32Array(pCount * 3);
+  const pVel = [];
+  for (let i = 0; i < pCount; i++) {
+    pArr[i*3] = (Math.random()-0.5) * 10;
+    pArr[i*3+1] = 0.5 + Math.random() * 4;
+    pArr[i*3+2] = (Math.random()-0.5) * 8;
+    pVel.push({x:(Math.random()-0.5)*0.004, y:(Math.random()-0.5)*0.003, z:(Math.random()-0.5)*0.004});
+  }
+  pGeo.setAttribute('position', new THREE.BufferAttribute(pArr, 3));
+  const pSize = particleName === 'snow' ? 0.08 : 0.04;
+  const pMat = new THREE.PointsMaterial({ color: particleColor, size: pSize, transparent: true, opacity: 0.7 });
+  const particles = new THREE.Points(pGeo, pMat);
+  scene.add(particles);
+
+  // ---- Stars (night only) ----
+  if (isNight) {
+    const starCount = 80;
+    const sGeo = new THREE.BufferGeometry();
+    const sArr = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      sArr[i*3] = (Math.random()-0.5) * 30;
+      sArr[i*3+1] = 8 + Math.random() * 12;
+      sArr[i*3+2] = (Math.random()-0.5) * 30;
+    }
+    sGeo.setAttribute('position', new THREE.BufferAttribute(sArr, 3));
+    const sMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.04, transparent: true, opacity: 0.8 });
+    scene.add(new THREE.Points(sGeo, sMat));
+  }
+
+  // ---- Snow cover (winter) ----
+  if (season === 'winter') {
+    const snowGeo = new THREE.PlaneGeometry(COLS + 0.2, ROWS + 0.2);
+    snowGeo.rotateX(-Math.PI / 2);
+    const snowMat = new THREE.MeshStandardMaterial({ color: 0xeeeeff, transparent: true, opacity: 0.3, roughness: 0.6 });
+    const snow = new THREE.Mesh(snowGeo, snowMat);
+    snow.position.y = 0.1;
+    snow.receiveShadow = true;
+    scene.add(snow);
+  }
+
+  // ---- Animation ----
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    t += 0.008;
+
+    // Slow orbit
+    camera.position.x = Math.cos(t * 0.06) * 11;
+    camera.position.z = Math.sin(t * 0.06) * 11;
+    camera.position.y = 8 + Math.sin(t * 0.03) * 0.3;
+    camera.lookAt(0, 0, 0);
+
+    // Water wave
+    waterTiles.forEach((w, i) => {
+      w.position.y = -0.06 + Math.sin(t * 1.5 + w.position.x * 2 + w.position.z) * 0.02;
+      w.material.opacity = 0.7 + Math.sin(t * 2 + i) * 0.08;
+    });
+
+    // Particles
+    const pos = particles.geometry.attributes.position.array;
+    for (let i = 0; i < pCount; i++) {
+      const snowDrift = particleName === 'snow' ? 0.001 : 0;
+      pos[i*3] += pVel[i].x + Math.sin(t + i) * 0.001;
+      pos[i*3+1] += pVel[i].y - snowDrift + Math.cos(t * 0.8 + i * 0.5) * 0.001;
+      pos[i*3+2] += pVel[i].z;
+      if (Math.abs(pos[i*3]) > 6) pVel[i].x *= -1;
+      if (pos[i*3+1] < 0.2 || pos[i*3+1] > 5) { pVel[i].y *= -1; if (particleName==='snow' && pos[i*3+1]<0.3) pos[i*3+1]=5; }
+      if (Math.abs(pos[i*3+2]) > 5) pVel[i].z *= -1;
+    }
+    particles.geometry.attributes.position.needsUpdate = true;
+    if (isNight) pMat.opacity = 0.4 + Math.sin(t * 3) * 0.3;
+
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // Responsive
   window.addEventListener('resize', () => {
-    const w = mount.clientWidth;
-    const h = Math.round(w * 40 / 82);
+    const w = mount.clientWidth, h = Math.round(w * 40 / 82);
     renderer.setSize(w, h);
     const a = w / h;
-    camera.left = -frust * a; camera.right = frust * a;
+    camera.left = -frust*a; camera.right = frust*a;
     camera.updateProjectionMatrix();
   });
 }
