@@ -47,10 +47,10 @@
     /* Container */
     .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 
-    /* Garden Canvas */
+    /* Garden 3D */
     .garden-wrapper { display: flex; justify-content: center; margin-bottom: 28px; }
-    .garden-frame { border: 3px solid var(--border); border-radius: 16px; overflow: hidden; background: #060e08; box-shadow: 0 4px 40px rgba(74,222,128,0.08), inset 0 0 60px rgba(0,0,0,0.3); max-width: 820px; width: 100%; }
-    .garden-frame canvas { display: block; width: 100%; image-rendering: pixelated; image-rendering: -moz-crisp-edges; image-rendering: crisp-edges; }
+    .garden-frame { border: 3px solid var(--border); border-radius: 16px; overflow: hidden; background: #060e08; box-shadow: 0 4px 40px rgba(74,222,128,0.08), inset 0 0 60px rgba(0,0,0,0.3); max-width: 820px; width: 100%; position: relative; }
+    .garden-frame canvas { display: block; width: 100%!important; height: auto!important; aspect-ratio: 82/40; }
 
     /* Section */
     .section { margin-bottom: 28px; }
@@ -159,11 +159,9 @@
   </div>
 
   <div class="container">
-    <!-- Pixel Garden -->
+    <!-- 3D Garden -->
     <div class="garden-wrapper">
-      <div class="garden-frame">
-        <canvas id="gardenCanvas" width="410" height="290"></canvas>
-      </div>
+      <div class="garden-frame" id="gardenMount"></div>
     </div>
 
     <!-- Weather -->
@@ -217,6 +215,7 @@
     </div>
   </div>
 
+<script src="https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.min.js"></script>
 <script>
 // ============ Language ============
 const LANG = window.location.pathname.startsWith('/cn') ? 'cn' : 'en';
@@ -554,64 +553,66 @@ function translateDay(name) {
 
 // ============ Pixel Garden ============
 function renderGarden() {
-  const canvas = document.getElementById('gardenCanvas');
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
+  const mount = document.getElementById('gardenMount');
+  const W = mount.clientWidth || 820;
+  const H = Math.round(W * 40 / 82);
 
-  const blocksImg = new Image();
-  const miscImg = new Image();
-  let loaded = 0;
+  // Three.js scene
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(W, H);
+  renderer.setClearColor(0x060e08);
+  mount.appendChild(renderer.domElement);
 
-  function onLoad() {
-    loaded++;
-    if (loaded < 2) return;
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x060e08, 0.06);
 
-    const W = canvas.width;
-    const H = canvas.height;
+  // Orthographic camera - isometric angle
+  const aspect = W / H;
+  const frust = 5.5;
+  const camera = new THREE.OrthographicCamera(-frust*aspect, frust*aspect, frust, -frust, 0.1, 50);
+  camera.position.set(7, 8, 7);
+  camera.lookAt(0, -0.5, 0);
 
-    // Sky gradient
-    const sky = ctx.createLinearGradient(0, 0, 0, H * 0.45);
-    sky.addColorStop(0, '#0c1a2e');
-    sky.addColorStop(1, '#0a1a10');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, W, H);
+  // Lights
+  const ambient = new THREE.AmbientLight(0x6688aa, 0.5);
+  scene.add(ambient);
+  const dirLight = new THREE.DirectionalLight(0xfff4e0, 0.9);
+  dirLight.position.set(4, 8, 3);
+  scene.add(dirLight);
+  const fillLight = new THREE.DirectionalLight(0x4466aa, 0.3);
+  fillLight.position.set(-3, 4, -2);
+  scene.add(fillLight);
 
-    // Ground area gradient
-    const gnd = ctx.createLinearGradient(0, H * 0.45, 0, H);
-    gnd.addColorStop(0, '#0a1a10');
-    gnd.addColorStop(1, '#081208');
-    ctx.fillStyle = gnd;
-    ctx.fillRect(0, H * 0.45, W, H * 0.55);
+  // Helper: extract sprite to texture
+  const blocksImg = new Image(), miscImg = new Image();
+  let loadCount = 0;
 
-    // Draw stars
-    ctx.fillStyle = '#ffffff';
-    const stars = [[30,15],[85,8],[150,22],[250,12],[320,28],[370,6],[55,35],[195,5],[290,32],[400,18]];
-    stars.forEach(([x,y]) => {
-      ctx.globalAlpha = 0.3 + Math.random() * 0.5;
-      ctx.fillRect(x, y, 1, 1);
-    });
-    ctx.globalAlpha = 1;
+  function spriteTex(img, sx, sy, sw, sh) {
+    const c = document.createElement('canvas');
+    c.width = sw; c.height = sh;
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+    const t = new THREE.CanvasTexture(c);
+    t.magFilter = THREE.NearestFilter;
+    t.minFilter = THREE.NearestFilter;
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
 
-    // Tile constants
-    const TW = 36, TH = 38, HALF = 18, VSTEP = 10;
-    const originX = W / 2 + 5;
-    const originY = 108;
+  function buildGarden() {
+    // Grid: 7 cols x 5 rows, each cell = 1 unit
+    const COLS = 7, ROWS = 5;
+    const hw = COLS / 2, hd = ROWS / 2;
+    const TW = 36, TH = 34;
 
-    // Tile sprite positions in blocks.png (col, row in spritesheet)
-    const TILE = {
-      G:  [0, 0],    // plain grass
-      GF: [36, 0],   // grass + flower
-      GT: [72, 0],   // grass + tuft
-      GS: [108, 0],  // grass + sprout
-      GM: [144, 0],  // grass + mushroom
-      GW: [180, 0],  // grass + weed
-      W:  [0, 116],  // water
-      WR: [36, 116], // water ripple
-      WL: [36, 152], // water lily
-      WK: [0, 152],  // water rock
+    // Ground tile map
+    const TILES = {
+      G:  [0, 0],   GF: [36, 0],  GT: [72, 0],   GS: [108, 0],
+      W:  [0, 102],  WR: [36, 102], WL: [36, 136], WK: [0, 136],
     };
 
-    // Garden map (7 cols x 5 rows)
     const MAP = [
       ['G','GF','G','G','G','GT','G'],
       ['G','GT','GF','W','W','G','G'],
@@ -620,87 +621,172 @@ function renderGarden() {
       ['G','GT','GF','G','G','GF','G'],
     ];
 
-    // Draw isometric ground
-    for (let row = 0; row < MAP.length; row++) {
-      for (let col = 0; col < MAP[row].length; col++) {
-        const tile = TILE[MAP[row][col]];
-        const sx = originX + (col - row) * HALF;
-        const sy = originY + (col + row) * VSTEP;
-        ctx.drawImage(blocksImg, tile[0], tile[1], TW, TH, sx - HALF, sy, TW, TH);
+    // Ground tiles as flat quads
+    const tileGeo = new THREE.PlaneGeometry(1, 1);
+    tileGeo.rotateX(-Math.PI / 2);
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const tKey = MAP[r][c];
+        const tPos = TILES[tKey];
+        const isWater = tKey.startsWith('W');
+        const tex = spriteTex(blocksImg, tPos[0], tPos[1], TW, TH);
+        const mat = new THREE.MeshStandardMaterial({
+          map: tex, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide,
+          roughness: isWater ? 0.2 : 0.9,
+          metalness: isWater ? 0.3 : 0,
+        });
+        const mesh = new THREE.Mesh(tileGeo, mat);
+        mesh.position.set(c - hw + 0.5, isWater ? -0.08 : 0, r - hd + 0.5);
+        if (isWater) mesh.userData.isWater = true;
+        scene.add(mesh);
+
+        // Side faces for ground tiles (give depth)
+        if (!isWater) {
+          const sideH = 0.25;
+          const sGeo = new THREE.BoxGeometry(1, sideH, 1);
+          const sMat = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 1 });
+          const sMesh = new THREE.Mesh(sGeo, sMat);
+          sMesh.position.set(c - hw + 0.5, -sideH / 2, r - hd + 0.5);
+          scene.add(sMesh);
+        }
       }
     }
 
-    // Helper: grid position to screen
-    function gToS(col, row) {
-      return [originX + (col - row) * HALF, originY + (col + row) * VSTEP];
+    // Billboard sprite helper
+    function addSprite(img, sx, sy, sw, sh, x, y, z, scale) {
+      const tex = spriteTex(img, sx, sy, sw, sh);
+      const ratio = sh / sw;
+      const geo = new THREE.PlaneGeometry(scale, scale * ratio);
+      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y + (scale * ratio) / 2, z);
+      mesh.renderOrder = Math.round((z + x) * 10);
+      // Billboard: rotate to face camera direction (fixed isometric facing)
+      mesh.lookAt(mesh.position.x + camera.position.x, mesh.position.y, mesh.position.z + camera.position.z);
+      scene.add(mesh);
+      return mesh;
     }
 
-    // Draw decorations from misc.png
-    // Large green tree (back-left) - sprite approx at (88, 178, 118, 130)
-    const [tx, ty] = gToS(0, 1);
-    ctx.drawImage(miscImg, 88, 178, 118, 130, tx - 70, ty - 118, 118, 130);
+    // ---- Decorations ----
+    // Large green tree (back-left)
+    addSprite(miscImg, 86, 176, 122, 134, -hw + 1, 0, -hd + 0.5, 4);
 
-    // Autumn tree (back-right) - sprite approx at (213, 188, 52, 112)
-    const [ax, ay] = gToS(6, 0);
-    ctx.drawImage(miscImg, 213, 188, 52, 112, ax - 22, ay - 96, 52, 112);
+    // Autumn tree (back-right)
+    addSprite(miscImg, 212, 186, 54, 114, hw - 1.5, 0, -hd + 0.2, 2.8);
 
-    // Bushes - sprite approx at (238, 86, 46, 36)
-    const [bx, by] = gToS(5, 1);
-    ctx.drawImage(miscImg, 238, 86, 46, 36, bx - 18, by - 24, 46, 36);
+    // Bushes
+    addSprite(miscImg, 238, 84, 48, 38, hw - 1.5, 0, -hd + 1.8, 1.4);
+    addSprite(miscImg, 290, 98, 34, 28, -hw + 0.2, 0, hd - 2, 1.0);
 
-    // Small bush - approx (290, 100, 30, 24)
-    const [b2x, b2y] = gToS(0, 3);
-    ctx.drawImage(miscImg, 290, 100, 30, 24, b2x - 24, b2y - 14, 30, 24);
+    // Bench
+    addSprite(miscImg, 4, 78, 60, 34, hw - 1.8, 0, hd - 1.5, 1.6);
 
-    // Bench - sprite approx at (4, 78, 60, 34)
-    const [bex, bey] = gToS(5, 3);
-    ctx.drawImage(miscImg, 4, 78, 60, 34, bex - 26, bey - 22, 60, 34);
-
-    // Flowers from misc.png (row of small flowers near top of sheet)
-    // Red flower approx (96, 4, 10, 16)
-    const flowerSprites = [
-      [96, 4, 10, 16],   // red
-      [110, 4, 10, 16],  // yellow
-      [124, 4, 10, 16],  // orange
-      [138, 4, 10, 16],  // pink
-      [152, 4, 10, 16],  // blue
-      [166, 4, 10, 16],  // purple
-      [180, 4, 10, 16],  // white
+    // Flowers
+    const flowers = [
+      [96, 2, 12, 18],  [110, 2, 12, 18], [124, 2, 14, 18],
+      [138, 2, 12, 18], [152, 2, 12, 18], [166, 2, 12, 18],
     ];
-
-    // Place flowers at specific grid positions
-    const flowerPositions = [
-      { grid: [3, 4], fi: 0 },
-      { grid: [1, 4], fi: 1 },
-      { grid: [4, 4], fi: 3 },
-      { grid: [6, 2], fi: 4 },
-      { grid: [6, 3], fi: 5 },
-      { grid: [2, 0], fi: 2 },
-      { grid: [4, 0], fi: 6 },
+    const fPos = [
+      [-1, 0, hd-0.3], [0.5, 0, hd-0.5], [2, 0, hd-0.3],
+      [hw-0.5, 0, 0], [hw-0.8, 0, 1.2], [-hw+0.5, 0, -0.5],
     ];
-    flowerPositions.forEach(fp => {
-      const [fx, fy] = gToS(fp.grid[0], fp.grid[1]);
-      const fs = flowerSprites[fp.fi];
-      ctx.drawImage(miscImg, fs[0], fs[1], fs[2], fs[3], fx - 5, fy - 10, fs[2], fs[3]);
-    });
+    fPos.forEach((p, i) => addSprite(miscImg, flowers[i%flowers.length][0], flowers[i%flowers.length][1], flowers[i%flowers.length][2], flowers[i%flowers.length][3], p[0], p[1], p[2], 0.45));
 
-    // Small rocks - approx (50, 128, 18, 12)
-    const [rx, ry] = gToS(1, 3);
-    ctx.drawImage(miscImg, 50, 128, 18, 12, rx - 6, ry + 2, 18, 12);
+    // Fence
+    addSprite(miscImg, 2, 2, 18, 52, -hw + 0.2, 0, -hd + 0.2, 1.2);
 
-    // Fence section - approx (2, 2, 18, 52)
-    const [fex, fey] = gToS(0, 0);
-    ctx.drawImage(miscImg, 2, 2, 18, 52, fex - 24, fey - 40, 18, 52);
+    // Mushrooms
+    addSprite(miscImg, 196, 148, 28, 20, 1.5, 0, hd - 1, 0.6);
 
-    // Mushroom pair - approx (198, 150, 26, 18)
-    const [mx, my] = gToS(4, 3);
-    ctx.drawImage(miscImg, 198, 150, 26, 18, mx - 10, my - 8, 26, 18);
+    // Rocks
+    addSprite(miscImg, 2, 60, 42, 24, -hw + 1.5, 0, hd - 1.5, 0.8);
+
+    // ---- Particles (fireflies) ----
+    const particleCount = 30;
+    const pGeo = new THREE.BufferGeometry();
+    const pPos = new Float32Array(particleCount * 3);
+    const pVel = [];
+    for (let i = 0; i < particleCount; i++) {
+      pPos[i*3] = (Math.random() - 0.5) * 10;
+      pPos[i*3+1] = 0.3 + Math.random() * 3;
+      pPos[i*3+2] = (Math.random() - 0.5) * 8;
+      pVel.push({ x: (Math.random()-0.5)*0.005, y: (Math.random()-0.5)*0.003, z: (Math.random()-0.5)*0.005 });
+    }
+    pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+    const pMat = new THREE.PointsMaterial({ color: 0xaaffaa, size: 0.06, transparent: true, opacity: 0.6 });
+    const particles = new THREE.Points(pGeo, pMat);
+    scene.add(particles);
+
+    // ---- Animation ----
+    let time = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.01;
+
+      // Slow auto-rotate
+      const radius = 11;
+      const speed = 0.05;
+      camera.position.x = Math.cos(time * speed) * radius;
+      camera.position.z = Math.sin(time * speed) * radius;
+      camera.position.y = 8;
+      camera.lookAt(0, -0.5, 0);
+
+      // Update billboards to face camera
+      scene.traverse(obj => {
+        if (obj.isMesh && obj.material?.map && obj.geometry?.type === 'PlaneGeometry' && obj.position.y > 0.05) {
+          obj.lookAt(
+            obj.position.x + camera.position.x,
+            obj.position.y,
+            obj.position.z + camera.position.z
+          );
+        }
+      });
+
+      // Animate water tiles
+      scene.traverse(obj => {
+        if (obj.userData?.isWater) {
+          obj.position.y = -0.08 + Math.sin(time * 2 + obj.position.x * 3) * 0.015;
+        }
+      });
+
+      // Animate fireflies
+      const pos = particles.geometry.attributes.position.array;
+      for (let i = 0; i < particleCount; i++) {
+        pos[i*3] += pVel[i].x + Math.sin(time * 2 + i) * 0.002;
+        pos[i*3+1] += pVel[i].y + Math.cos(time * 1.5 + i * 0.7) * 0.002;
+        pos[i*3+2] += pVel[i].z + Math.sin(time * 1.8 + i * 1.3) * 0.002;
+        // Bounds
+        if (Math.abs(pos[i*3]) > 6) pVel[i].x *= -1;
+        if (pos[i*3+1] < 0.2 || pos[i*3+1] > 4) pVel[i].y *= -1;
+        if (Math.abs(pos[i*3+2]) > 5) pVel[i].z *= -1;
+      }
+      particles.geometry.attributes.position.needsUpdate = true;
+      pMat.opacity = 0.3 + Math.sin(time * 3) * 0.3;
+
+      renderer.render(scene, camera);
+    }
+    animate();
   }
 
-  blocksImg.onload = onLoad;
-  miscImg.onload = onLoad;
+  function onImgLoad() {
+    loadCount++;
+    if (loadCount >= 2) buildGarden();
+  }
+  blocksImg.onload = onImgLoad;
+  miscImg.onload = onImgLoad;
   blocksImg.src = '/garden/blocks.png';
   miscImg.src = '/garden/misc.png';
+
+  // Responsive resize
+  window.addEventListener('resize', () => {
+    const w = mount.clientWidth;
+    const h = Math.round(w * 40 / 82);
+    renderer.setSize(w, h);
+    const a = w / h;
+    camera.left = -frust * a; camera.right = frust * a;
+    camera.updateProjectionMatrix();
+  });
 }
 
 // ============ Weather ============
