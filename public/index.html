@@ -579,26 +579,15 @@ function renderGarden() {
     }
 
     // ---- Animated elements state ----
-    // Birds: red cardinal, blue jay, grey sparrow
+    // Birds: red cardinal, blue jay, grey sparrow - spawn randomly
     const birdTypes = [
-      { body: '#c0392b', wing: '#922b21', belly: '#e74c3c', beak: '#f39c12', eye: '#1a1a1a', crest: '#922b21' }, // cardinal
-      { body: '#2874a6', wing: '#1a5276', belly: '#aed6f1', beak: '#555', eye: '#1a1a1a', crest: '#1a5276' },    // blue jay
-      { body: '#7f8c8d', wing: '#5d6d7e', belly: '#bdc3c7', beak: '#b7950b', eye: '#1a1a1a', crest: null },      // sparrow
-      { body: '#c0392b', wing: '#78281f', belly: '#f1948a', beak: '#d4ac0d', eye: '#1a1a1a', crest: '#78281f' }, // cardinal 2
-      { body: '#2e86c1', wing: '#21618c', belly: '#85c1e9', beak: '#666', eye: '#1a1a1a', crest: '#21618c' },    // blue jay 2
+      { body: '#c0392b', wing: '#922b21', belly: '#e74c3c', beak: '#f39c12', eye: '#1a1a1a', crest: '#922b21' },
+      { body: '#2874a6', wing: '#1a5276', belly: '#aed6f1', beak: '#555', eye: '#1a1a1a', crest: '#1a5276' },
+      { body: '#7f8c8d', wing: '#5d6d7e', belly: '#bdc3c7', beak: '#b7950b', eye: '#1a1a1a', crest: null },
     ];
     const birds = [];
-    for (let i = 0; i < 5; i++) {
-      birds.push({
-        x: -30 + Math.random() * (cw + 60),
-        y: 25 + Math.random() * 90,
-        speed: 0.5 + Math.random() * 0.6,
-        wingPhase: Math.random() * Math.PI * 2,
-        type: birdTypes[i % birdTypes.length],
-        scale: 1 + Math.random() * 0.4,
-        glideOffset: Math.random() * Math.PI * 2,
-      });
-    }
+    let birdTimer = 0;
+    let nextBirdSpawn = 300 + Math.random() * 600; // frames until next spawn
 
     const raindrops = [];
     for (let i = 0; i < 60; i++) {
@@ -637,11 +626,11 @@ function renderGarden() {
     for (let i = 0; i < 10; i++) {
       waterfallLines.push({
         x: 468 + Math.random() * 35,
-        startY: 525 + Math.random() * 15,
-        y: 525 + Math.random() * 30,
+        startY: 535 + Math.random() * 15,
+        y: 535 + Math.random() * 30,
         speed: 0.8 + Math.random() * 0.6,
         len: 3 + Math.random() * 5,
-        maxY: 575 + Math.random() * 15,
+        maxY: 585 + Math.random() * 15,
       });
     }
 
@@ -792,16 +781,33 @@ function renderGarden() {
         drawCloud(c);
       });
 
-      // ---- Birds (colored: cardinal, blue jay, sparrow) ----
+      // ---- Birds (spawn randomly, 0-2 at a time) ----
       if (!isNight) {
-        birds.forEach(b => {
+        birdTimer++;
+        if (birdTimer >= nextBirdSpawn && birds.length < 2) {
+          const count = Math.random() < 0.6 ? 1 : 2; // usually 1, sometimes 2
+          for (let bi = 0; bi < count; bi++) {
+            birds.push({
+              x: -30 - bi * 40,
+              y: 20 + Math.random() * 80,
+              speed: 0.4 + Math.random() * 0.5,
+              wingPhase: Math.random() * Math.PI * 2,
+              type: birdTypes[Math.floor(Math.random() * birdTypes.length)],
+              scale: 1,
+              glideOffset: Math.random() * Math.PI * 2,
+            });
+          }
+          birdTimer = 0;
+          nextBirdSpawn = 500 + Math.random() * 1200; // 8-28 seconds at 60fps
+        }
+        for (let bi = birds.length - 1; bi >= 0; bi--) {
+          const b = birds[bi];
           b.x += b.speed;
           b.wingPhase += 0.1;
-          b.y += Math.sin(b.wingPhase * 0.3 + b.glideOffset) * 0.25;
-          if (b.x > cw + 30) { b.x = -30; b.y = 25 + Math.random() * 90; }
-          const wingUp = Math.sin(b.wingPhase) > 0 ? 1 : -1;
-          drawBird(b.x, b.y, b, wingUp);
-        });
+          b.y += Math.sin(b.wingPhase * 0.3 + b.glideOffset) * 0.2;
+          if (b.x > cw + 40) { birds.splice(bi, 1); continue; }
+          drawBird(b.x, b.y, b, Math.sin(b.wingPhase) > 0 ? 1 : -1);
+        }
       }
 
       // ---- Fireflies (night) ----
