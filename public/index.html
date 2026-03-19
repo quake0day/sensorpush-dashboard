@@ -40,6 +40,9 @@
     .lang-btn, .unit-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; text-decoration: none; transition: all 0.15s; }
     .lang-btn:hover, .unit-btn:hover { background: var(--border); color: var(--text); }
     .unit-btn.active-f .f-label, .unit-btn.active-c .c-label { color: var(--accent); font-weight: 600; }
+    .music-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text3); width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+    .music-btn:hover { background: var(--border); color: var(--text); }
+    .music-btn.playing { color: var(--accent); border-color: var(--accent); }
     .status { font-size: 12px; color: var(--text3); display: flex; align-items: center; gap: 5px; }
     .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; }
     .status.error .dot { background: var(--red); }
@@ -152,6 +155,7 @@
     </div>
     <div class="header-right">
       <div class="weather-brief" id="wxBrief"></div>
+      <button class="music-btn" id="musicBtn" onclick="toggleMusic()" title="Music">&#9835;</button>
       <button class="unit-btn active-c" id="unitBtn" onclick="toggleUnit()"><span class="f-label">°F</span> / <span class="c-label">°C</span></button>
       <a class="lang-btn" id="langBtn"></a>
       <div class="status" id="status"><span class="dot"></span> <span id="statusText"></span></div>
@@ -1468,21 +1472,60 @@ async function init() {
 
   await refreshCharts();
 
+  // ---- Real-time updates ----
+  // Sensor + Tuya: every 30 seconds
   setInterval(async () => {
     try {
       sensorsData = await api("GET", "/api/sensors");
       renderSensors(sensorsData);
-      loadWeather();
+      loadWeather(); // also updates garden weather effects
       const tuyaDevices = await api("GET", "/api/tuya/devices");
       renderWaterSensor(tuyaDevices);
-      await refreshCharts();
+      await loadAlarmLog();
       setStatus(true, T.connected + " - " + new Date().toLocaleTimeString(locale));
     } catch (e) { setStatus(false, "Refresh failed"); }
-  }, 120000);
+  }, 30000);
 
-  // Refresh weather every 30 min
-  setInterval(loadWeather, 30 * 60 * 1000);
+  // Charts: every 5 minutes
+  setInterval(refreshCharts, 5 * 60 * 1000);
+
+  // Weather API: every 15 minutes
+  setInterval(loadWeather, 15 * 60 * 1000);
 }
+
+// ============ Background Music ============
+let bgMusic = null;
+let musicPlaying = false;
+
+function toggleMusic() {
+  if (!bgMusic) {
+    bgMusic = new Audio();
+    bgMusic.loop = true;
+    bgMusic.volume = 0.12;
+    bgMusic.preload = 'none';
+    bgMusic.src = '/music/bg.mp3';
+  }
+  if (musicPlaying) {
+    bgMusic.pause();
+    musicPlaying = false;
+    document.getElementById('musicBtn').classList.remove('playing');
+  } else {
+    bgMusic.play().then(() => {
+      musicPlaying = true;
+      document.getElementById('musicBtn').classList.add('playing');
+    }).catch(() => {});
+  }
+}
+
+// Lazy load music: preload audio after page is fully loaded
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.href = '/music/bg.mp3';
+    document.head.appendChild(link);
+  }, 5000);
+});
 
 init();
 </script>
