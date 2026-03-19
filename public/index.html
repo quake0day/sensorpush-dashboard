@@ -626,7 +626,7 @@ function renderGarden() {
     for (let i = 0; i < 14; i++) {
       sparkles.push({
         x: 380 + Math.random() * 170,
-        y: 410 + Math.random() * 90,
+        y: 590 + Math.random() * 90,
         phase: Math.random() * Math.PI * 2,
         speed: 0.8 + Math.random() * 1.5,
       });
@@ -637,11 +637,11 @@ function renderGarden() {
     for (let i = 0; i < 10; i++) {
       waterfallLines.push({
         x: 468 + Math.random() * 35,
-        startY: 345 + Math.random() * 15,
-        y: 345 + Math.random() * 30,
+        startY: 525 + Math.random() * 15,
+        y: 525 + Math.random() * 30,
         speed: 0.8 + Math.random() * 0.6,
         len: 3 + Math.random() * 5,
-        maxY: 395 + Math.random() * 15,
+        maxY: 575 + Math.random() * 15,
       });
     }
 
@@ -663,43 +663,37 @@ function renderGarden() {
     window.gardenSetRain = function(r) { showRain = r; };
 
     function drawBird(x, y, bird, wingAngle) {
-      const s = bird.scale;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(s, s);
-      // Body (ellipse)
-      ctx.fillStyle = bird.type.body;
-      ctx.beginPath(); ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
+      const s = Math.round(bird.scale * 2) / 2; // snap to 0.5
+      const P = 2; // pixel size
+      const wingUp = wingAngle > 0;
+      const bx = Math.round(x), by = Math.round(y);
+      const t = bird.type;
+      // Body (3x2 block)
+      px(bx, by, P*3, P*2, t.body);
       // Belly
-      ctx.fillStyle = bird.type.belly;
-      ctx.beginPath(); ctx.ellipse(0, 2, 6, 3, 0, 0, Math.PI); ctx.fill();
-      // Head
-      ctx.fillStyle = bird.type.body;
-      ctx.beginPath(); ctx.arc(9, -2, 4, 0, Math.PI * 2); ctx.fill();
+      px(bx + P, by + P, P*2, P, t.belly);
+      // Head (2x2)
+      px(bx + P*3, by - P, P*2, P*2, t.body);
       // Eye
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(10.5, -3, 1.5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = bird.type.eye;
-      ctx.beginPath(); ctx.arc(11, -3, 0.8, 0, Math.PI * 2); ctx.fill();
+      px(bx + P*4, by - P, P, P, '#fff');
       // Beak
-      ctx.fillStyle = bird.type.beak;
-      ctx.beginPath(); ctx.moveTo(13, -2); ctx.lineTo(17, -1); ctx.lineTo(13, 0); ctx.fill();
-      // Crest (cardinal/jay)
-      if (bird.type.crest) {
-        ctx.fillStyle = bird.type.crest;
-        ctx.beginPath(); ctx.moveTo(8, -5); ctx.lineTo(10, -9); ctx.lineTo(12, -5); ctx.fill();
+      px(bx + P*5, by, P, P, t.beak);
+      // Crest
+      if (t.crest) {
+        px(bx + P*3, by - P*2, P, P, t.crest);
+        px(bx + P*4, by - P*2, P, P, t.crest);
       }
       // Tail
-      ctx.fillStyle = bird.type.wing;
-      ctx.beginPath(); ctx.moveTo(-8, -1); ctx.lineTo(-14, -4); ctx.lineTo(-13, 1); ctx.lineTo(-8, 2); ctx.fill();
-      // Wings (animated)
-      ctx.fillStyle = bird.type.wing;
-      ctx.save();
-      ctx.translate(-1, -3);
-      ctx.rotate(wingAngle * 0.6);
-      ctx.beginPath(); ctx.ellipse(0, -4, 10, 3, -0.3, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-      ctx.restore();
+      px(bx - P*2, by - P, P*2, P, t.wing);
+      px(bx - P*3, by - P*2, P, P, t.wing);
+      // Wing (animated up/down)
+      if (wingUp) {
+        px(bx, by - P*2, P*2, P, t.wing);
+        px(bx + P, by - P*3, P, P, t.wing);
+      } else {
+        px(bx, by + P*2, P*2, P, t.wing);
+        px(bx + P, by + P*3, P, P, t.wing);
+      }
     }
 
     function drawPixelSun(x, y, r) {
@@ -805,8 +799,8 @@ function renderGarden() {
           b.wingPhase += 0.1;
           b.y += Math.sin(b.wingPhase * 0.3 + b.glideOffset) * 0.25;
           if (b.x > cw + 30) { b.x = -30; b.y = 25 + Math.random() * 90; }
-          const wingAngle = Math.sin(b.wingPhase) * 0.8;
-          drawBird(b.x, b.y, b, wingAngle);
+          const wingUp = Math.sin(b.wingPhase) > 0 ? 1 : -1;
+          drawBird(b.x, b.y, b, wingUp);
         });
       }
 
