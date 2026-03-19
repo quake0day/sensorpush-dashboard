@@ -701,79 +701,115 @@ function renderGarden() {
     // Dawn: low-left, warm orange. Morning: rising, golden. Noon: high-center, bright white-yellow.
     // Afternoon: descending right. Dusk: low-right, deep orange-red.
     function getSunConfig() {
-      // Map timeF to sun arc (sunrise 6 → sunset 20)
-      const dayLen = 14.5; // hours of daylight (5.5 to 20)
-      const progress = Math.max(0, Math.min(1, (timeF - 5.5) / dayLen)); // 0=sunrise, 1=sunset
-      // Arc: x goes left to right, y follows parabola (highest at noon)
-      const sx = 80 + progress * (cw - 160);
-      const sy = 140 - Math.sin(progress * Math.PI) * 130; // parabola peaking at ~10
-      const size = 12 + Math.sin(progress * Math.PI) * 6;  // bigger at noon
+      const dayLen = 14.5;
+      const progress = Math.max(0, Math.min(1, (timeF - 5.5) / dayLen));
+      // Arc: x left→right, y parabola (horizon at edges, peak at noon)
+      const horizonY = 82; // the "horizon line" where sun rises/sets
+      const sx = 60 + progress * (cw - 120);
+      // At progress 0 and 1, sun center is AT horizon. Peak around y=10.
+      const arcHeight = Math.sin(progress * Math.PI);
+      const sy = horizonY - arcHeight * (horizonY - 8);
+      const size = 14 + arcHeight * 6;
 
-      // Color shifts through the day
+      // How much sun is below horizon (0=fully above, 1=fully below)
+      // Near sunrise/sunset, sun sinks toward horizon
+      const edgeDist = Math.min(progress, 1 - progress); // 0 at edges, 0.5 at noon
+      const sinkRatio = edgeDist < 0.1 ? 1 - (edgeDist / 0.1) : 0; // 1=at horizon, 0=fully up
+
       let core, glow, rayColor, glowR, glowAlpha;
-      if (progress < 0.12 || progress > 0.88) {
-        // Dawn/dusk: deep orange-red
-        core = '#ff6030'; glow = 'rgba(255,80,20,'; rayColor = '#ff7040';
+      if (edgeDist < 0.08) {
+        core = '#ff4020'; glow = 'rgba(255,60,10,'; rayColor = '#ff5030';
+        glowR = size * 5; glowAlpha = 0.25;
+      } else if (edgeDist < 0.15) {
+        core = '#ff7030'; glow = 'rgba(255,100,30,'; rayColor = '#ff8040';
         glowR = size * 4; glowAlpha = 0.2;
-      } else if (progress < 0.25 || progress > 0.75) {
-        // Early morning / late afternoon: warm gold
+      } else if (edgeDist < 0.28) {
         core = '#ffaa33'; glow = 'rgba(255,170,50,'; rayColor = '#ffbb44';
         glowR = size * 3.5; glowAlpha = 0.18;
       } else {
-        // Midday: bright white-yellow
         core = '#fff4b0'; glow = 'rgba(255,244,180,'; rayColor = '#ffe066';
         glowR = size * 3; glowAlpha = 0.15;
       }
-      return { x: sx, y: sy, r: size, core, glow, glowR, glowAlpha, rayColor, progress };
+      return { x: sx, y: sy, r: size, core, glow, glowR, glowAlpha, rayColor, progress, sinkRatio, horizonY };
     }
 
     function drawSkyGlow(sunCfg) {
-      // Dawn/dusk sky glow (朝霞/晚霞)
       const p = sunCfg.progress;
-      if ((p < 0.15 || p > 0.85) && !isNight) {
-        // Colorful horizon glow
-        const isDawnGlow = p < 0.15;
-        const intensity = isDawnGlow ? (0.15 - p) / 0.15 : (p - 0.85) / 0.15;
-        const grad = ctx.createLinearGradient(0, 0, 0, ch * 0.4);
-        const r = isDawnGlow ? 255 : 255;
-        const g = isDawnGlow ? 120 : 80;
-        const b = isDawnGlow ? 80 : 50;
-        grad.addColorStop(0, `rgba(${r},${g},${b},${intensity * 0.35})`);
-        grad.addColorStop(0.4, `rgba(255,${isDawnGlow?160:100},60,${intensity * 0.2})`);
-        grad.addColorStop(0.7, `rgba(255,200,100,${intensity * 0.08})`);
+      const edgeDist = Math.min(p, 1 - p);
+      if (edgeDist < 0.18 && !isNight) {
+        const isDawnGlow = p < 0.5;
+        const intensity = Math.max(0, 1 - edgeDist / 0.18);
+        // Wide warm glow across sky
+        const grad = ctx.createRadialGradient(sunCfg.x, sunCfg.horizonY, 0, sunCfg.x, sunCfg.horizonY, 300);
+        grad.addColorStop(0, `rgba(255,${isDawnGlow?100:60},20,${intensity * 0.35})`);
+        grad.addColorStop(0.3, `rgba(255,${isDawnGlow?140:90},40,${intensity * 0.2})`);
+        grad.addColorStop(0.6, `rgba(255,180,80,${intensity * 0.08})`);
         grad.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, cw, ch * 0.4);
-        // Horizontal color band at horizon
-        const hGrad = ctx.createLinearGradient(0, ch * 0.05, 0, ch * 0.15);
-        hGrad.addColorStop(0, `rgba(255,${isDawnGlow?100:60},${isDawnGlow?60:30},${intensity * 0.15})`);
+        ctx.fillRect(0, 0, cw, sunCfg.horizonY + 40);
+        // Warm color band along horizon
+        const hGrad = ctx.createLinearGradient(0, sunCfg.horizonY - 30, 0, sunCfg.horizonY + 20);
+        hGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        hGrad.addColorStop(0.4, `rgba(255,${isDawnGlow?80:50},20,${intensity * 0.2})`);
+        hGrad.addColorStop(0.7, `rgba(255,${isDawnGlow?120:70},30,${intensity * 0.15})`);
         hGrad.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = hGrad;
-        ctx.fillRect(0, 0, cw, ch * 0.15);
+        ctx.fillRect(0, sunCfg.horizonY - 30, cw, 50);
       }
     }
 
     function drawSun(sunCfg) {
-      const { x, y, r, core, glow, glowR, glowAlpha, rayColor } = sunCfg;
-      // Outer glow
-      const g1 = ctx.createRadialGradient(x, y, r * 0.5, x, y, glowR);
+      const { x, y, r, core, glow, glowR, glowAlpha, rayColor, sinkRatio, horizonY } = sunCfg;
+
+      // How much of the sun is hidden below horizon
+      // sinkRatio: 0=fully visible, 1=half hidden at horizon
+      const clipY = horizonY + r * (1 - sinkRatio * 2); // clip line
+
+      ctx.save();
+      if (sinkRatio > 0.01) {
+        // Clip: only draw the part above the horizon
+        ctx.beginPath();
+        ctx.rect(0, 0, cw, horizonY);
+        ctx.clip();
+      }
+
+      // Outer glow (always full, bleeds above horizon)
+      const g1 = ctx.createRadialGradient(x, y, r * 0.3, x, y, glowR);
       g1.addColorStop(0, glow + glowAlpha + ')');
-      g1.addColorStop(0.5, glow + (glowAlpha * 0.4) + ')');
+      g1.addColorStop(0.4, glow + (glowAlpha * 0.4) + ')');
       g1.addColorStop(1, glow + '0)');
       ctx.fillStyle = g1;
       ctx.beginPath(); ctx.arc(x, y, glowR, 0, Math.PI * 2); ctx.fill();
-      // Core
+
+      // Core disc
       ctx.fillStyle = core;
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-      // Inner bright center
+      // Bright center
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.beginPath(); ctx.arc(x, y, r * 0.5, 0, Math.PI * 2); ctx.fill();
-      // Pixel rays
-      for (let a = 0; a < 8; a++) {
-        const angle = (a / 8) * Math.PI * 2 + frame * 0.004;
+      ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, Math.PI * 2); ctx.fill();
+
+      // Pixel rays (only above horizon)
+      const rayCount = sinkRatio > 0.5 ? 5 : 8;
+      for (let a = 0; a < rayCount; a++) {
+        const angle = (a / rayCount) * Math.PI * 2 + frame * 0.004;
+        // Skip rays pointing downward when sinking
+        if (sinkRatio > 0.3 && Math.sin(angle) > 0.3) continue;
         const d1 = r + 3, d2 = r + 8;
         px(x + Math.cos(angle) * d1, y + Math.sin(angle) * d1, 3, 3, rayColor);
         px(x + Math.cos(angle) * d2, y + Math.sin(angle) * d2, 2, 2, rayColor);
+      }
+
+      ctx.restore();
+
+      // Reflection glow on the "horizon" (warm line where sun meets edge)
+      if (sinkRatio > 0.1) {
+        const refAlpha = sinkRatio * 0.3;
+        const refGrad = ctx.createRadialGradient(x, horizonY, 0, x, horizonY, r * 3);
+        refGrad.addColorStop(0, `rgba(255,100,30,${refAlpha})`);
+        refGrad.addColorStop(0.5, `rgba(255,150,50,${refAlpha * 0.4})`);
+        refGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = refGrad;
+        ctx.fillRect(x - r * 3, horizonY - 5, r * 6, 20);
       }
     }
 
