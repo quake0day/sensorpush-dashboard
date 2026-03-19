@@ -611,26 +611,27 @@ function renderGarden() {
       });
     }
 
-    // Water sparkle positions (on the pond/waterfall area ~right-center)
+    // Water sparkle positions (on the pond surface - center-right area)
     const sparkles = [];
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 14; i++) {
       sparkles.push({
-        x: 420 + Math.random() * 200,
-        y: 280 + Math.random() * 150,
+        x: 380 + Math.random() * 170,
+        y: 250 + Math.random() * 90,
         phase: Math.random() * Math.PI * 2,
-        speed: 1 + Math.random() * 2,
+        speed: 0.8 + Math.random() * 1.5,
       });
     }
 
-    // Waterfall flow lines (near the waterfall area)
+    // Waterfall flow lines (rock cascade, right-center of image)
     const waterfallLines = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 10; i++) {
       waterfallLines.push({
-        x: 490 + Math.random() * 40,
-        y: 260 + Math.random() * 20,
-        speed: 1.5 + Math.random() * 1,
-        len: 6 + Math.random() * 10,
-        maxY: 330 + Math.random() * 30,
+        x: 468 + Math.random() * 35,
+        startY: 190 + Math.random() * 15,
+        y: 190 + Math.random() * 30,
+        speed: 0.8 + Math.random() * 0.6,
+        len: 3 + Math.random() * 5,
+        maxY: 240 + Math.random() * 15,
       });
     }
 
@@ -788,16 +789,25 @@ function renderGarden() {
         px(s.x, s.y, 2, 2, color);
       });
 
-      // ---- Waterfall flow ----
+      // ---- Waterfall flow (short cascading splashes) ----
       waterfallLines.forEach(w => {
         w.y += w.speed;
         if (w.y > w.maxY) {
-          w.y = 260 + Math.random() * 20;
-          w.x = 490 + Math.random() * 40;
+          w.y = w.startY;
+          w.x = 468 + Math.random() * 35;
         }
-        const alpha = 0.3 + 0.3 * Math.sin(frame * 0.1 + w.x);
-        ctx.fillStyle = isNight ? `rgba(80,120,180,${alpha})` : `rgba(180,220,255,${alpha})`;
-        ctx.fillRect(Math.round(w.x), Math.round(w.y), 2, Math.round(w.len));
+        const progress = (w.y - w.startY) / (w.maxY - w.startY);
+        const alpha = (0.4 + 0.3 * Math.sin(frame * 0.15 + w.x)) * (1 - progress * 0.5);
+        const color = isNight ? `rgba(100,140,200,${alpha})` : `rgba(210,235,255,${alpha})`;
+        // Short thick splash dots instead of long rain lines
+        px(w.x, w.y, 2, Math.round(w.len), color);
+        // Splash particles at bottom
+        if (progress > 0.8) {
+          const splashAlpha = alpha * 0.5;
+          const sc = isNight ? `rgba(100,140,200,${splashAlpha})` : `rgba(210,235,255,${splashAlpha})`;
+          px(w.x - 2, w.maxY + Math.random() * 3, 1, 1, sc);
+          px(w.x + 3, w.maxY + Math.random() * 3, 1, 1, sc);
+        }
       });
 
       // ---- Rain ----
