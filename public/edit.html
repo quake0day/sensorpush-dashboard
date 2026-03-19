@@ -5,447 +5,477 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Garden Editor</title>
 <style>
-  :root { --bg:#0a1a10; --s1:#12261a; --s2:#1a3326; --bd:#24432e; --t1:#e8f0e8; --t2:#8aaa96; --t3:#5a7a66; --acc:#4ade80; --red:#ef4444; }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--t1); display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+  :root{--bg:#0a1a10;--s1:#12261a;--s2:#1a3326;--bd:#24432e;--t1:#e8f0e8;--t2:#8aaa96;--t3:#5a7a66;--acc:#4ade80;--red:#ef4444;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--t1);display:flex;flex-direction:column;height:100vh;overflow:hidden;}
 
-  .toolbar { background:var(--s1); border-bottom:1px solid var(--bd); padding:8px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; }
-  .toolbar h1 { font-size:16px; color:var(--acc); margin-right:8px; }
-  .toolbar input { background:var(--s2); border:1px solid var(--bd); color:var(--t1); padding:4px 8px; border-radius:5px; font-size:12px; width:180px; }
-  .toolbar button, .toolbar a { background:var(--s2); border:1px solid var(--bd); color:var(--t2); padding:4px 12px; border-radius:5px; cursor:pointer; font-size:12px; text-decoration:none; }
-  .toolbar button:hover, .toolbar a:hover { background:var(--bd); color:var(--t1); }
-  .btn-save { background:#166534!important; border-color:#22c55e!important; color:#22c55e!important; }
-  .sep { width:1px; height:20px; background:var(--bd); }
+  .bar{background:var(--s1);border-bottom:1px solid var(--bd);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;}
+  .bar h1{font-size:15px;color:var(--acc);}
+  .bar input[type=text]{background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:4px 8px;border-radius:5px;font-size:12px;width:170px;}
+  .bar select,.bar input[type=number]{background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:3px 6px;border-radius:4px;font-size:11px;width:48px;}
+  .btn{background:var(--s2);border:1px solid var(--bd);color:var(--t2);padding:4px 12px;border-radius:5px;cursor:pointer;font-size:12px;text-decoration:none;display:inline-block;}
+  .btn:hover{background:var(--bd);color:var(--t1);}
+  .btn-sav{background:#166534;border-color:#22c55e;color:#22c55e;}
+  .btn-sav:hover{background:#22c55e;color:#000;}
+  .sep{width:1px;height:20px;background:var(--bd);}
+  .lbl{color:var(--t3);font-size:11px;}
 
-  .main { display:flex; flex:1; overflow:hidden; }
+  .main{display:flex;flex:1;overflow:hidden;}
 
-  /* Left: Sprite Sheet Viewer */
-  .panel-left { width:260px; background:var(--s1); border-right:1px solid var(--bd); display:flex; flex-direction:column; overflow:hidden; }
-  .sheet-tabs { display:flex; border-bottom:1px solid var(--bd); }
-  .sheet-tab { flex:1; padding:7px; text-align:center; font-size:12px; cursor:pointer; color:var(--t3); border-bottom:2px solid transparent; }
-  .sheet-tab.active { color:var(--acc); border-color:var(--acc); }
-  .sheet-controls { padding:6px 10px; border-bottom:1px solid var(--bd); font-size:11px; color:var(--t3); display:flex; gap:8px; align-items:center; }
-  .sheet-controls input { width:40px; background:var(--s2); border:1px solid var(--bd); color:var(--t1); padding:2px 4px; border-radius:3px; font-size:11px; text-align:center; }
-  .sheet-view { flex:1; overflow:auto; padding:8px; position:relative; cursor:crosshair; }
-  .sheet-view canvas { image-rendering:pixelated; display:block; }
-  .selected-preview { padding:8px 10px; border-top:1px solid var(--bd); display:flex; align-items:center; gap:8px; min-height:50px; }
-  .selected-preview canvas { image-rendering:pixelated; border:1px solid var(--bd); }
-  .selected-preview .info { font-size:11px; color:var(--t2); }
-  .tool-bar { padding:6px 10px; border-top:1px solid var(--bd); display:flex; gap:4px; }
-  .tool-btn { padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer; background:var(--s2); border:1px solid var(--bd); color:var(--t2); }
-  .tool-btn:hover { background:var(--bd); }
-  .tool-btn.active { background:var(--acc); color:#000; border-color:var(--acc); }
+  /* Left panel */
+  .pnl-l{width:240px;background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;}
+  .tabs{display:flex;border-bottom:1px solid var(--bd);}
+  .tab{flex:1;padding:6px;text-align:center;font-size:12px;cursor:pointer;color:var(--t3);border-bottom:2px solid transparent;}
+  .tab.on{color:var(--acc);border-color:var(--acc);}
+  .sh-ctrl{padding:5px 8px;border-bottom:1px solid var(--bd);font-size:10px;color:var(--t3);display:flex;gap:6px;align-items:center;}
+  .sh-ctrl input{width:36px;background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:1px 3px;border-radius:3px;font-size:10px;text-align:center;}
+  .sh-area{flex:1;overflow:auto;padding:6px;cursor:crosshair;}
+  .sh-area canvas{image-rendering:pixelated;display:block;}
+  .sel-pv{padding:6px 8px;border-top:1px solid var(--bd);display:flex;align-items:center;gap:8px;min-height:44px;}
+  .sel-pv canvas{image-rendering:pixelated;border:1px solid var(--bd);}
+  .sel-pv .info{font-size:10px;color:var(--t2);}
+  .tools{padding:5px 8px;border-top:1px solid var(--bd);display:flex;gap:3px;flex-wrap:wrap;}
+  .tbtn{padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;background:var(--s2);border:1px solid var(--bd);color:var(--t2);}
+  .tbtn:hover{background:var(--bd);}
+  .tbtn.on{background:var(--acc);color:#000;border-color:var(--acc);}
 
-  /* Center: Isometric Canvas */
-  .panel-center { flex:1; overflow:auto; background:#060e08; display:flex; align-items:center; justify-content:center; }
-  .panel-center canvas { image-rendering:pixelated; cursor:crosshair; }
+  /* Center: Three.js */
+  .viewport{flex:1;position:relative;overflow:hidden;}
+  .viewport canvas{display:block;}
 
-  /* Right: Saved */
-  .panel-right { width:180px; background:var(--s1); border-left:1px solid var(--bd); display:flex; flex-direction:column; font-size:12px; }
-  .panel-right h3 { font-size:11px; color:var(--t3); padding:8px 10px 4px; text-transform:uppercase; letter-spacing:1px; }
-  .saved-list { flex:1; overflow-y:auto; padding:4px 8px; }
-  .saved-item { display:flex; justify-content:space-between; align-items:center; padding:5px 6px; border-radius:5px; cursor:pointer; margin-bottom:1px; }
-  .saved-item:hover { background:var(--s2); }
-  .saved-item .del { color:var(--t3); cursor:pointer; padding:1px 5px; border-radius:3px; font-size:10px; }
-  .saved-item .del:hover { background:var(--red); color:#fff; }
-  .layer-ctrl { padding:8px 10px; border-top:1px solid var(--bd); }
-  .layer-ctrl label { font-size:10px; color:var(--t3); display:block; margin-bottom:3px; }
+  /* Right panel */
+  .pnl-r{width:170px;background:var(--s1);border-left:1px solid var(--bd);display:flex;flex-direction:column;font-size:12px;}
+  .pnl-r h3{font-size:10px;color:var(--t3);padding:8px 8px 4px;text-transform:uppercase;letter-spacing:1px;}
+  .sv-list{flex:1;overflow-y:auto;padding:2px 6px;}
+  .sv-item{display:flex;justify-content:space-between;align-items:center;padding:4px 6px;border-radius:4px;cursor:pointer;margin-bottom:1px;font-size:11px;}
+  .sv-item:hover{background:var(--s2);}
+  .sv-item .x{color:var(--t3);cursor:pointer;padding:1px 4px;border-radius:3px;font-size:10px;}
+  .sv-item .x:hover{background:var(--red);color:#fff;}
+  .ctrl{padding:6px 8px;border-top:1px solid var(--bd);}
+  .ctrl label{font-size:10px;color:var(--t3);display:block;margin-bottom:2px;}
+  .ctrl input[type=range]{width:100%;}
 
-  .info-bar { background:var(--s1); border-top:1px solid var(--bd); padding:5px 16px; font-size:11px; color:var(--t3); display:flex; gap:16px; }
+  .sbar{background:var(--s1);border-top:1px solid var(--bd);padding:4px 14px;font-size:10px;color:var(--t3);display:flex;gap:16px;}
 </style>
 </head>
 <body>
-<div class="toolbar">
-  <a href="/">← Back</a>
+<div class="bar">
+  <a href="/" class="btn">← Back</a><div class="sep"></div>
+  <h1>Garden Editor</h1><div class="sep"></div>
+  <span class="lbl">Name:</span>
+  <input type="text" id="gardenName" placeholder="garden_winter_day">
+  <button class="btn btn-sav" onclick="saveGarden()">Save</button>
   <div class="sep"></div>
-  <h1>Garden Editor</h1>
+  <span class="lbl">Grid:</span>
+  <select id="gCols" onchange="rebuildGrid()"><option>5</option><option selected>7</option><option>9</option><option>11</option></select>
+  <span class="lbl">x</span>
+  <select id="gRows" onchange="rebuildGrid()"><option>3</option><option selected>5</option><option>7</option><option>9</option></select>
+  <button class="btn" onclick="if(confirm('Clear all?')){initLayers();rebuildGrid()}">Clear</button>
   <div class="sep"></div>
-  <span style="color:var(--t3)">Name:</span>
-  <input id="gardenName" placeholder="garden_winter_day" />
-  <button class="btn-save" onclick="saveGarden()">Save</button>
-  <div class="sep"></div>
-  <span style="color:var(--t3)">Grid:</span>
-  <select id="gridCols" onchange="resizeGrid()"><option value="5">5</option><option value="7" selected>7</option><option value="9">9</option><option value="11">11</option></select>
-  <span style="color:var(--t3)">x</span>
-  <select id="gridRows" onchange="resizeGrid()"><option value="3">3</option><option value="5" selected>5</option><option value="7">7</option><option value="9">9</option></select>
-  <button onclick="if(confirm('Clear?')){initGrid();redraw()}">Clear</button>
+  <span class="lbl">Camera:</span>
+  <button class="btn" onclick="resetCam()">Reset</button>
 </div>
 
 <div class="main">
-  <div class="panel-left">
-    <div class="sheet-tabs">
-      <div class="sheet-tab active" onclick="switchSheet('blocks')">Blocks</div>
-      <div class="sheet-tab" onclick="switchSheet('misc')">Misc</div>
+  <!-- Sprite Palette -->
+  <div class="pnl-l">
+    <div class="tabs">
+      <div class="tab on" onclick="switchSheet('blocks',this)">Blocks</div>
+      <div class="tab" onclick="switchSheet('misc',this)">Misc</div>
     </div>
-    <div class="sheet-controls">
-      <span>Cell W:</span><input id="cellW" type="number" value="36" min="8" max="128" onchange="renderSheet()">
-      <span>H:</span><input id="cellH" type="number" value="34" min="8" max="128" onchange="renderSheet()">
-      <span>Zoom:</span><input id="sheetZoom" type="number" value="2" min="1" max="5" onchange="renderSheet()">
+    <div class="sh-ctrl">
+      W:<input id="cW" type="number" value="36" min="4" max="200" onchange="drawSheet()">
+      H:<input id="cH" type="number" value="34" min="4" max="200" onchange="drawSheet()">
+      Zoom:<input id="sZ" type="number" value="2" min="1" max="6" onchange="drawSheet()">
     </div>
-    <div class="sheet-view" id="sheetView">
-      <canvas id="sheetCanvas"></canvas>
-    </div>
-    <div class="selected-preview" id="selPreview">
-      <span class="info">Click sprite sheet to select a tile</span>
-    </div>
-    <div class="tool-bar">
-      <div class="tool-btn active" id="toolGround" onclick="setTool('ground')">Ground</div>
-      <div class="tool-btn" id="toolDeco" onclick="setTool('deco')">Decor</div>
-      <div class="tool-btn" id="toolEraser" onclick="setTool('eraser')">Eraser</div>
+    <div class="sh-area"><canvas id="shCvs"></canvas></div>
+    <div class="sel-pv" id="preview"><span class="info">Click sheet to pick a tile</span></div>
+    <div class="tools">
+      <div class="tbtn on" id="tGnd" onclick="setTool('ground')">Ground</div>
+      <div class="tbtn" id="tDec" onclick="setTool('deco')">Decor</div>
+      <div class="tbtn" id="tEra" onclick="setTool('eraser')">Eraser</div>
+      <div class="tbtn" id="tPick" onclick="setTool('pick')">Pick</div>
     </div>
   </div>
 
-  <div class="panel-center">
-    <canvas id="editorCanvas"></canvas>
-  </div>
+  <!-- Three.js Viewport -->
+  <div class="viewport" id="viewport"></div>
 
-  <div class="panel-right">
+  <!-- Right Panel -->
+  <div class="pnl-r">
     <h3>Saved Gardens</h3>
-    <div class="saved-list" id="savedList"></div>
-    <div class="layer-ctrl">
-      <label>Decor Y Offset</label>
-      <input type="range" id="decoOffY" min="-140" max="10" value="-30" style="width:100%" oninput="document.getElementById('offYVal').textContent=this.value+'px'">
-      <span id="offYVal" style="font-size:10px;color:var(--t3)">-30px</span>
+    <div class="sv-list" id="svList"></div>
+    <div class="ctrl">
+      <label>Decor Height: <span id="dhVal">0.5</span></label>
+      <input type="range" id="dH" min="0" max="3" step="0.1" value="0.5" oninput="document.getElementById('dhVal').textContent=this.value">
+    </div>
+    <div class="ctrl">
+      <label>Decor Scale: <span id="dsVal">1.0</span></label>
+      <input type="range" id="dS" min="0.3" max="3" step="0.1" value="1.0" oninput="document.getElementById('dsVal').textContent=this.value">
     </div>
   </div>
 </div>
-
-<div class="info-bar">
-  <span id="infoCell">-</span>
-  <span id="infoSprite">-</span>
-  <span>Left: place | Right: erase | Sheet: click to pick</span>
+<div class="sbar">
+  <span id="sCell">-</span>
+  <span id="sTool">Tool: Ground</span>
+  <span>Left: place | Right: erase | Scroll: zoom | Middle-drag: pan | Right-drag: orbit</span>
 </div>
 
-<script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
 // ============ State ============
-let gridCols = 7, gridRows = 5;
-let groundLayer = [];  // [row][col] = {sheet, sx, sy, sw, sh} or null
-let decoLayer = [];    // [row][col] = {sheet, sx, sy, sw, sh, offsetY} or null
-let currentSheet = 'blocks';
-let currentTool = 'ground';  // 'ground' | 'deco' | 'eraser'
-let selectedTile = null;     // {sheet, sx, sy, sw, sh}
+let gCols = 7, gRows = 5;
+let groundL = [];  // [r][c] = {sheet,sx,sy,sw,sh} | null
+let decoL = [];    // [r][c] = {sheet,sx,sy,sw,sh,height,scale} | null
+let curSheet = 'blocks';
+let tool = 'ground';
+let selTile = null; // {sheet,sx,sy,sw,sh}
 let hoverCell = null;
 
-const HALF_W = 18;   // half tile width for isometric
-const HALF_H = 9;    // half diamond height (2:1 ratio)
-const CANVAS_ZOOM = 2;
-
-function initGrid() {
-  groundLayer = Array.from({length: gridRows}, () => Array(gridCols).fill(null));
-  decoLayer = Array.from({length: gridRows}, () => Array(gridCols).fill(null));
-}
-initGrid();
+window.initLayers = function() {
+  groundL = Array.from({length:gRows},()=>Array(gCols).fill(null));
+  decoL = Array.from({length:gRows},()=>Array(gCols).fill(null));
+};
+initLayers();
 
 // ============ Images ============
-const imgs = { blocks: new Image(), misc: new Image() };
-let loadCount = 0;
-function onLoad() {
-  loadCount++;
-  if (loadCount >= 2) { renderSheet(); redraw(); loadGardenList(); }
-}
-imgs.blocks.onload = onLoad;
-imgs.misc.onload = onLoad;
-imgs.blocks.src = '/garden/blocks.png';
-imgs.misc.src = '/garden/misc.png';
+const imgs = {};
+let loadN = 0;
+function onImg(){loadN++;if(loadN>=2){drawSheet();buildScene();loadList();}}
+const bImg = new Image(); bImg.onload=onImg; bImg.src='/garden/blocks.png';
+const mImg = new Image(); mImg.onload=onImg; mImg.src='/garden/misc.png';
+imgs.blocks=bImg; imgs.misc=mImg;
 
-// ============ Sheet Viewer ============
-function switchSheet(name) {
-  currentSheet = name;
-  document.querySelectorAll('.sheet-tab').forEach(t => t.classList.toggle('active', t.textContent.toLowerCase() === name));
-  // Set default cell sizes
-  if (name === 'blocks') {
-    document.getElementById('cellW').value = 36;
-    document.getElementById('cellH').value = 34;
-  } else {
-    document.getElementById('cellW').value = 20;
-    document.getElementById('cellH').value = 20;
-  }
-  renderSheet();
-}
+// ============ Sheet Palette ============
+window.switchSheet = function(name,el){
+  curSheet=name;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('cW').value = name==='blocks'?36:20;
+  document.getElementById('cH').value = name==='blocks'?34:20;
+  drawSheet();
+};
 
-function renderSheet() {
-  const cvs = document.getElementById('sheetCanvas');
-  const ctx = cvs.getContext('2d');
-  const img = imgs[currentSheet];
-  const z = parseInt(document.getElementById('sheetZoom').value) || 2;
-  const cw = parseInt(document.getElementById('cellW').value) || 36;
-  const ch = parseInt(document.getElementById('cellH').value) || 34;
-
-  cvs.width = img.width * z;
-  cvs.height = img.height * z;
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
-
-  // Draw grid overlay
-  ctx.strokeStyle = 'rgba(74,222,128,0.4)';
-  ctx.lineWidth = 1;
-  for (let x = 0; x <= img.width; x += cw) {
-    ctx.beginPath(); ctx.moveTo(x * z, 0); ctx.lineTo(x * z, cvs.height); ctx.stroke();
-  }
-  for (let y = 0; y <= img.height; y += ch) {
-    ctx.beginPath(); ctx.moveTo(0, y * z); ctx.lineTo(cvs.width, y * z); ctx.stroke();
-  }
-
-  // Highlight selected tile
-  if (selectedTile && selectedTile.sheet === currentSheet) {
-    ctx.strokeStyle = '#4ade80';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(selectedTile.sx * z, selectedTile.sy * z, selectedTile.sw * z, selectedTile.sh * z);
+function drawSheet(){
+  const cvs=document.getElementById('shCvs'), ctx=cvs.getContext('2d');
+  const img=imgs[curSheet], z=+(document.getElementById('sZ').value)||2;
+  const cw=+(document.getElementById('cW').value)||36, ch=+(document.getElementById('cH').value)||34;
+  cvs.width=img.width*z; cvs.height=img.height*z;
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(img,0,0,cvs.width,cvs.height);
+  ctx.strokeStyle='rgba(74,222,128,0.35)'; ctx.lineWidth=1;
+  for(let x=0;x<=img.width;x+=cw){ctx.beginPath();ctx.moveTo(x*z,0);ctx.lineTo(x*z,cvs.height);ctx.stroke();}
+  for(let y=0;y<=img.height;y+=ch){ctx.beginPath();ctx.moveTo(0,y*z);ctx.lineTo(cvs.width,y*z);ctx.stroke();}
+  if(selTile&&selTile.sheet===curSheet){
+    ctx.strokeStyle='#4ade80';ctx.lineWidth=2;
+    ctx.strokeRect(selTile.sx*z,selTile.sy*z,selTile.sw*z,selTile.sh*z);
   }
 }
 
-// Click on sprite sheet to select
-document.getElementById('sheetCanvas').addEventListener('click', (e) => {
-  const cvs = e.target;
-  const rect = cvs.getBoundingClientRect();
-  const z = parseInt(document.getElementById('sheetZoom').value) || 2;
-  const cw = parseInt(document.getElementById('cellW').value) || 36;
-  const ch = parseInt(document.getElementById('cellH').value) || 34;
-
-  const px = (e.clientX - rect.left) / z;
-  const py = (e.clientY - rect.top) / z;
-  const col = Math.floor(px / cw);
-  const row = Math.floor(py / ch);
-  const sx = col * cw;
-  const sy = row * ch;
-  const img = imgs[currentSheet];
-  if (sx + cw > img.width + 2 || sy + ch > img.height + 2) return;
-
-  selectedTile = { sheet: currentSheet, sx, sy, sw: cw, sh: ch };
-  if (currentTool === 'eraser') setTool('ground');
-  renderSheet();
-  updatePreview();
+document.getElementById('shCvs').addEventListener('click',e=>{
+  const rect=e.target.getBoundingClientRect();
+  const z=+(document.getElementById('sZ').value)||2;
+  const cw=+(document.getElementById('cW').value)||36, ch=+(document.getElementById('cH').value)||34;
+  const px=(e.clientX-rect.left)/z, py=(e.clientY-rect.top)/z;
+  const c=Math.floor(px/cw), r=Math.floor(py/ch);
+  const img=imgs[curSheet];
+  if(c*cw>=img.width||r*ch>=img.height) return;
+  selTile={sheet:curSheet,sx:c*cw,sy:r*ch,sw:cw,sh:ch};
+  if(tool==='eraser')setTool('ground');
+  drawSheet(); updPreview();
 });
 
-function updatePreview() {
-  const el = document.getElementById('selPreview');
-  if (!selectedTile) {
-    el.innerHTML = '<span class="info">Click sprite sheet to select</span>';
-    return;
+function updPreview(){
+  const el=document.getElementById('preview');
+  if(!selTile){el.innerHTML='<span class="info">Click sheet to pick</span>';return;}
+  const s=selTile, sc=3;
+  const c=document.createElement('canvas');c.width=s.sw*sc;c.height=s.sh*sc;
+  const x=c.getContext('2d');x.imageSmoothingEnabled=false;
+  x.drawImage(imgs[s.sheet],s.sx,s.sy,s.sw,s.sh,0,0,c.width,c.height);
+  el.innerHTML='';el.appendChild(c);
+  const d=document.createElement('div');d.className='info';
+  d.innerHTML=`${s.sheet}<br>${s.sx},${s.sy} ${s.sw}x${s.sh}`;
+  el.appendChild(d);
+}
+
+window.setTool = function(t){
+  tool=t;
+  document.getElementById('tGnd').classList.toggle('on',t==='ground');
+  document.getElementById('tDec').classList.toggle('on',t==='deco');
+  document.getElementById('tEra').classList.toggle('on',t==='eraser');
+  document.getElementById('tPick').classList.toggle('on',t==='pick');
+  document.getElementById('sTool').textContent='Tool: '+{ground:'Ground',deco:'Decor',eraser:'Eraser',pick:'Pick'}[t];
+};
+
+// ============ Three.js Setup ============
+const vp = document.getElementById('viewport');
+const renderer = new THREE.WebGLRenderer({antialias:true,alpha:false});
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x060e08);
+vp.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x060e08, 20, 40);
+
+const frustum = 6;
+const aspect = vp.clientWidth/vp.clientHeight;
+const camera = new THREE.OrthographicCamera(-frustum*aspect, frustum*aspect, frustum, -frustum, 0.1, 100);
+camera.position.set(8, 10, 8);
+camera.lookAt(0, 0, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.1;
+controls.maxPolarAngle = Math.PI/2.5;
+controls.minPolarAngle = Math.PI/6;
+controls.target.set(0, 0, 0);
+controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
+
+window.resetCam = function(){
+  camera.position.set(8,10,8); controls.target.set(0,0,0); controls.update();
+};
+
+// Lights
+scene.add(new THREE.AmbientLight(0xccddcc, 0.7));
+const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+dir.position.set(5, 10, 5);
+scene.add(dir);
+
+// ============ Grid & Tiles ============
+const gridGroup = new THREE.Group();
+scene.add(gridGroup);
+
+const tileGroup = new THREE.Group(); // ground tiles
+scene.add(tileGroup);
+
+const decoGroup = new THREE.Group(); // decorations
+scene.add(decoGroup);
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let groundPlane;
+const cellMeshes = []; // for raycasting
+
+function makeTex(sheet, sx, sy, sw, sh) {
+  const c = document.createElement('canvas');
+  c.width = sw; c.height = sh;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(imgs[sheet], sx, sy, sw, sh, 0, 0, sw, sh);
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function buildScene() {
+  // Clear
+  gridGroup.clear(); tileGroup.clear(); decoGroup.clear();
+  cellMeshes.length = 0;
+
+  const hw = gCols / 2, hd = gRows / 2;
+  controls.target.set(0, 0, 0);
+
+  // Grid lines
+  const gridMat = new THREE.LineBasicMaterial({color:0x1a3326,transparent:true,opacity:0.6});
+  for (let i = 0; i <= gCols; i++) {
+    const g = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(i - hw, 0, -hd),
+      new THREE.Vector3(i - hw, 0, gRows - hd)
+    ]);
+    gridGroup.add(new THREE.Line(g, gridMat));
   }
-  const s = selectedTile;
-  const scale = 3;
-  const pvs = document.createElement('canvas');
-  pvs.width = s.sw * scale; pvs.height = s.sh * scale;
-  const ctx = pvs.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(imgs[s.sheet], s.sx, s.sy, s.sw, s.sh, 0, 0, pvs.width, pvs.height);
-  el.innerHTML = '';
-  el.appendChild(pvs);
-  const info = document.createElement('div');
-  info.className = 'info';
-  info.innerHTML = `${s.sheet}<br>${s.sx},${s.sy} ${s.sw}x${s.sh}`;
-  el.appendChild(info);
+  for (let j = 0; j <= gRows; j++) {
+    const g = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-hw, 0, j - hd),
+      new THREE.Vector3(gCols - hw, 0, j - hd)
+    ]);
+    gridGroup.add(new THREE.Line(g, gridMat));
+  }
+
+  // Invisible cell planes for raycasting
+  const cellGeo = new THREE.PlaneGeometry(1, 1);
+  cellGeo.rotateX(-Math.PI / 2);
+  const cellMat = new THREE.MeshBasicMaterial({visible: false, side: THREE.DoubleSide});
+  for (let r = 0; r < gRows; r++) {
+    for (let c = 0; c < gCols; c++) {
+      const m = new THREE.Mesh(cellGeo, cellMat);
+      m.position.set(c - hw + 0.5, 0, r - hd + 0.5);
+      m.userData = { col: c, row: r };
+      gridGroup.add(m);
+      cellMeshes.push(m);
+    }
+  }
+
+  // Hover indicator
+  const hoverGeo = new THREE.PlaneGeometry(1, 1);
+  hoverGeo.rotateX(-Math.PI / 2);
+  const hoverMat = new THREE.MeshBasicMaterial({color:0x4ade80, transparent:true, opacity:0.25, side:THREE.DoubleSide});
+  window.hoverMesh = new THREE.Mesh(hoverGeo, hoverMat);
+  window.hoverMesh.position.y = 0.01;
+  window.hoverMesh.visible = false;
+  scene.add(window.hoverMesh);
+
+  rebuildTiles();
 }
 
-function setTool(tool) {
-  currentTool = tool;
-  document.getElementById('toolGround').classList.toggle('active', tool === 'ground');
-  document.getElementById('toolDeco').classList.toggle('active', tool === 'deco');
-  document.getElementById('toolEraser').classList.toggle('active', tool === 'eraser');
-}
+function rebuildTiles() {
+  tileGroup.clear(); decoGroup.clear();
+  const hw = gCols / 2, hd = gRows / 2;
 
-// ============ Isometric Canvas ============
-function getOrigin() {
-  return {
-    x: (gridCols + gridRows) * HALF_W / 2 + 40,
-    y: 50
-  };
-}
-
-function gridToScreen(col, row) {
-  const o = getOrigin();
-  return {
-    x: o.x + (col - row) * HALF_W,
-    y: o.y + (col + row) * HALF_H
-  };
-}
-
-function screenToGrid(canvasX, canvasY) {
-  const o = getOrigin();
-  const lx = canvasX / CANVAS_ZOOM;
-  const ly = canvasY / CANVAS_ZOOM;
-  // Inverse isometric
-  const fCol = ((lx - o.x) / HALF_W + (ly - o.y) / HALF_H) / 2;
-  const fRow = ((ly - o.y) / HALF_H - (lx - o.x) / HALF_W) / 2;
-  const col = Math.round(fCol);
-  const row = Math.round(fRow);
-  if (col >= 0 && col < gridCols && row >= 0 && row < gridRows) return { col, row };
-  return null;
-}
-
-function drawDiamond(ctx, cx, cy, hw, hh, fill, stroke) {
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - hh);       // top
-  ctx.lineTo(cx + hw, cy);       // right
-  ctx.lineTo(cx, cy + hh);       // bottom
-  ctx.lineTo(cx - hw, cy);       // left
-  ctx.closePath();
-  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 0.5; ctx.stroke(); }
-}
-
-function redraw() {
-  const cvs = document.getElementById('editorCanvas');
-  const ctx = cvs.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-
-  const padW = (gridCols + gridRows) * HALF_W + 80;
-  const padH = (gridCols + gridRows) * HALF_H + 200;
-  cvs.width = padW * CANVAS_ZOOM;
-  cvs.height = padH * CANVAS_ZOOM;
-  ctx.scale(CANVAS_ZOOM, CANVAS_ZOOM);
-
-  // Background
-  ctx.fillStyle = '#060e08';
-  ctx.fillRect(0, 0, padW, padH);
-
-  // Draw back-to-front (row by row)
-  for (let row = 0; row < gridRows; row++) {
-    for (let col = 0; col < gridCols; col++) {
-      const { x, y } = gridToScreen(col, row);
-      const gnd = groundLayer[row][col];
-
-      if (gnd) {
-        // Draw ground tile centered on cell
-        const img = imgs[gnd.sheet];
-        // The tile's top-center diamond point should align with (x, y - HALF_H)
-        // Draw so the tile fills the cell area
-        ctx.drawImage(img, gnd.sx, gnd.sy, gnd.sw, gnd.sh,
-          x - gnd.sw / 2, y - HALF_H, gnd.sw, gnd.sh);
+  for (let r = 0; r < gRows; r++) {
+    for (let c = 0; c < gCols; c++) {
+      const g = groundL[r]?.[c];
+      if (g) {
+        const tex = makeTex(g.sheet, g.sx, g.sy, g.sw, g.sh);
+        const ratio = g.sh / g.sw;
+        const geo = new THREE.PlaneGeometry(1, ratio);
+        geo.rotateX(-Math.PI / 2);
+        const mat = new THREE.MeshBasicMaterial({map: tex, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide});
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(c - hw + 0.5, 0.005, r - hd + 0.5);
+        tileGroup.add(mesh);
       }
 
-      // Grid cell outline (diamond shape)
-      const isHover = hoverCell && hoverCell.col === col && hoverCell.row === row;
-      drawDiamond(ctx, x, y, HALF_W, HALF_H,
-        isHover ? 'rgba(74,222,128,0.15)' : null,
-        isHover ? '#4ade80' : '#1e3a2c');
-
-      // Cell coordinate label
-      ctx.font = '6px monospace';
-      ctx.fillStyle = '#2a4a36';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${col},${row}`, x, y + 3);
-    }
-  }
-
-  // Draw decorations (second pass, back-to-front)
-  for (let row = 0; row < gridRows; row++) {
-    for (let col = 0; col < gridCols; col++) {
-      const deco = decoLayer[row][col];
-      if (!deco) continue;
-      const { x, y } = gridToScreen(col, row);
-      const img = imgs[deco.sheet];
-      const offY = deco.offsetY || -30;
-      ctx.drawImage(img, deco.sx, deco.sy, deco.sw, deco.sh,
-        x - deco.sw / 2, y + offY, deco.sw, deco.sh);
+      const d = decoL[r]?.[c];
+      if (d) {
+        const tex = makeTex(d.sheet, d.sx, d.sy, d.sw, d.sh);
+        const sc = d.scale || 1;
+        const ratio = d.sh / d.sw;
+        const w = sc, h = sc * ratio;
+        const geo = new THREE.PlaneGeometry(w, h);
+        const mat = new THREE.MeshBasicMaterial({map: tex, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide});
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(c - hw + 0.5, (d.height || 0.5) + h / 2, r - hd + 0.5);
+        // Billboard: face camera Y-axis rotation only
+        mesh.onBeforeRender = function(renderer, scene, camera) {
+          mesh.quaternion.copy(camera.quaternion);
+        };
+        decoGroup.add(mesh);
+      }
     }
   }
 }
 
-// ============ Canvas Interaction ============
-const editorCvs = document.getElementById('editorCanvas');
+window.rebuildGrid = function() {
+  const nc = +(document.getElementById('gCols').value);
+  const nr = +(document.getElementById('gRows').value);
+  const ng = Array.from({length:nr},(_,r)=>Array.from({length:nc},(_,c)=>groundL[r]?.[c]||null));
+  const nd = Array.from({length:nr},(_,r)=>Array.from({length:nc},(_,c)=>decoL[r]?.[c]||null));
+  gCols=nc; gRows=nr; groundL=ng; decoL=nd;
+  buildScene();
+};
 
-editorCvs.addEventListener('click', (e) => {
-  const rect = editorCvs.getBoundingClientRect();
-  const cell = screenToGrid(e.clientX - rect.left, e.clientY - rect.top);
-  if (!cell) return;
-  const { col, row } = cell;
+// ============ Interaction ============
+function getCell(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(cellMeshes);
+  return hits.length ? hits[0].object.userData : null;
+}
 
-  if (currentTool === 'eraser') {
-    groundLayer[row][col] = null;
-    decoLayer[row][col] = null;
-  } else if (currentTool === 'ground' && selectedTile) {
-    groundLayer[row][col] = { ...selectedTile };
-  } else if (currentTool === 'deco' && selectedTile) {
-    const offY = parseInt(document.getElementById('decoOffY').value) || -30;
-    decoLayer[row][col] = { ...selectedTile, offsetY: offY };
-  }
-  redraw();
-});
-
-editorCvs.addEventListener('contextmenu', (e) => {
-  e.preventDefault();
-  const rect = editorCvs.getBoundingClientRect();
-  const cell = screenToGrid(e.clientX - rect.left, e.clientY - rect.top);
-  if (!cell) return;
-  if (currentTool === 'deco') decoLayer[cell.row][cell.col] = null;
-  else groundLayer[cell.row][cell.col] = null;
-  redraw();
-});
-
-editorCvs.addEventListener('mousemove', (e) => {
-  const rect = editorCvs.getBoundingClientRect();
-  const cell = screenToGrid(e.clientX - rect.left, e.clientY - rect.top);
-  const prev = hoverCell;
-  hoverCell = cell;
+renderer.domElement.addEventListener('pointermove', e => {
+  const cell = getCell(e);
   if (cell) {
-    document.getElementById('infoCell').textContent = `Cell: ${cell.col}, ${cell.row}`;
-    const g = groundLayer[cell.row][cell.col];
-    const d = decoLayer[cell.row][cell.col];
-    const parts = [];
-    if (g) parts.push(`Ground: ${g.sheet}[${g.sx},${g.sy}]`);
-    if (d) parts.push(`Deco: ${d.sheet}[${d.sx},${d.sy}]`);
-    document.getElementById('infoSprite').textContent = parts.join(' | ') || '-';
+    hoverCell = cell;
+    const hw = gCols/2, hd = gRows/2;
+    window.hoverMesh.position.set(cell.col - hw + 0.5, 0.01, cell.row - hd + 0.5);
+    window.hoverMesh.visible = true;
+    document.getElementById('sCell').textContent = `Cell: ${cell.col}, ${cell.row}`;
   } else {
-    document.getElementById('infoCell').textContent = '-';
-    document.getElementById('infoSprite').textContent = '-';
+    window.hoverMesh.visible = false;
+    document.getElementById('sCell').textContent = '-';
   }
-  // Only redraw if hover changed
-  if ((prev?.col !== cell?.col) || (prev?.row !== cell?.row)) redraw();
 });
 
-editorCvs.addEventListener('mouseleave', () => { hoverCell = null; redraw(); });
+renderer.domElement.addEventListener('click', e => {
+  // Ignore if user was orbiting/panning
+  const cell = getCell(e);
+  if (!cell) return;
+  const {col, row} = cell;
 
-// ============ Grid Resize ============
-function resizeGrid() {
-  const nc = parseInt(document.getElementById('gridCols').value);
-  const nr = parseInt(document.getElementById('gridRows').value);
-  const ng = Array.from({length: nr}, (_, r) => Array.from({length: nc}, (_, c) => groundLayer[r]?.[c] || null));
-  const nd = Array.from({length: nr}, (_, r) => Array.from({length: nc}, (_, c) => decoLayer[r]?.[c] || null));
-  gridCols = nc; gridRows = nr;
-  groundLayer = ng; decoLayer = nd;
-  redraw();
+  if (tool === 'eraser') {
+    groundL[row][col] = null;
+    decoL[row][col] = null;
+  } else if (tool === 'ground' && selTile) {
+    groundL[row][col] = {...selTile};
+  } else if (tool === 'deco' && selTile) {
+    const h = +(document.getElementById('dH').value) || 0.5;
+    const s = +(document.getElementById('dS').value) || 1;
+    decoL[row][col] = {...selTile, height: h, scale: s};
+  } else if (tool === 'pick') {
+    const g = groundL[row][col];
+    const d = decoL[row][col];
+    if (d) { selTile = {sheet:d.sheet,sx:d.sx,sy:d.sy,sw:d.sw,sh:d.sh}; setTool('deco'); }
+    else if (g) { selTile = {sheet:g.sheet,sx:g.sx,sy:g.sy,sw:g.sw,sh:g.sh}; setTool('ground'); }
+    drawSheet(); updPreview();
+    rebuildTiles(); return;
+  }
+  rebuildTiles();
+});
+
+renderer.domElement.addEventListener('contextmenu', e => {
+  // Right-click erase handled by OrbitControls rotate; use shift+click for erase instead
+});
+
+// ============ Animation ============
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.setSize(vp.clientWidth, vp.clientHeight);
+  const a = vp.clientWidth / vp.clientHeight;
+  camera.left = -frustum * a; camera.right = frustum * a;
+  camera.top = frustum; camera.bottom = -frustum;
+  camera.updateProjectionMatrix();
+  renderer.render(scene, camera);
 }
+animate();
 
 // ============ Save / Load ============
-async function saveGarden() {
-  const name = document.getElementById('gardenName').value.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+window.saveGarden = async function() {
+  const name = document.getElementById('gardenName').value.trim().replace(/[^a-zA-Z0-9_-]/g,'_');
   if (!name) return alert('Enter a name');
   const res = await fetch(`/api/garden/${name}`, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ label: name, gridCols, gridRows, ground: groundLayer, deco: decoLayer })
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({label:name,gridCols:gCols,gridRows:gRows,ground:groundL,deco:decoL})
   });
-  if ((await res.json()).ok) { loadGardenList(); alert('Saved: ' + name); }
-}
+  if ((await res.json()).ok) { loadList(); alert('Saved: '+name); }
+};
 
 async function loadGarden(name) {
-  const data = await (await fetch(`/api/garden/${name}`)).json();
-  if (data.error) return;
-  document.getElementById('gardenName').value = data.label || name;
-  gridCols = data.gridCols || 7; gridRows = data.gridRows || 5;
-  document.getElementById('gridCols').value = gridCols;
-  document.getElementById('gridRows').value = gridRows;
-  groundLayer = data.ground || [];
-  decoLayer = data.deco || [];
-  while (groundLayer.length < gridRows) groundLayer.push(Array(gridCols).fill(null));
-  while (decoLayer.length < gridRows) decoLayer.push(Array(gridCols).fill(null));
-  redraw();
+  const d = await (await fetch(`/api/garden/${name}`)).json();
+  if (d.error) return;
+  document.getElementById('gardenName').value = d.label || name;
+  gCols = d.gridCols||7; gRows = d.gridRows||5;
+  document.getElementById('gCols').value = gCols;
+  document.getElementById('gRows').value = gRows;
+  groundL = d.ground||[]; decoL = d.deco||[];
+  while(groundL.length<gRows)groundL.push(Array(gCols).fill(null));
+  while(decoL.length<gRows)decoL.push(Array(gCols).fill(null));
+  buildScene();
 }
+window.loadGarden = loadGarden;
 
-async function deleteGarden(name) {
-  if (!confirm('Delete ' + name + '?')) return;
-  await fetch(`/api/garden/${name}`, { method: 'DELETE' });
-  loadGardenList();
+async function delGarden(name){
+  if(!confirm('Delete '+name+'?'))return;
+  await fetch(`/api/garden/${name}`,{method:'DELETE'});
+  loadList();
 }
+window.delGarden = delGarden;
 
-async function loadGardenList() {
-  const list = await (await fetch('/api/gardens')).json();
-  const el = document.getElementById('savedList');
-  if (!list.length) { el.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--t3)">No saved gardens</div>'; return; }
-  el.innerHTML = list.map(g => `<div class="saved-item">
+async function loadList(){
+  const list = await(await fetch('/api/gardens')).json();
+  const el = document.getElementById('svList');
+  if(!list.length){el.innerHTML='<div style="padding:8px;font-size:10px;color:var(--t3)">No saved gardens</div>';return;}
+  el.innerHTML = list.map(g=>`<div class="sv-item">
     <span onclick="loadGarden('${g.name}')">${g.label||g.name}</span>
-    <span class="del" onclick="event.stopPropagation();deleteGarden('${g.name}')">x</span>
+    <span class="x" onclick="event.stopPropagation();delGarden('${g.name}')">x</span>
   </div>`).join('');
 }
 </script>
