@@ -248,7 +248,7 @@ const T = {
     pondLow: 'LOW - Refill needed',
     pondCritical: 'CRITICAL - Refill immediately!',
     pondNormal: 'Water level OK',
-    pondDesc: 'Dual-probe sensor: white probe (shallow) & black probe (deep)',
+    pondDesc: 'Dual-probe sensor: black probe (shallow) & white probe (deep)',
     alarmHistory: 'Pond Level Alert History (24h)',
     sensorReading: 'Sensor',
     forecastReading: 'Forecast',
@@ -346,7 +346,7 @@ const T = {
     pondLow: '偏低 - 需要加水',
     pondCritical: '严重偏低 - 必须立即加水！',
     pondNormal: '水位正常',
-    pondDesc: '双探头传感器：白色探头（浅水位）& 黑色探头（深水位）',
+    pondDesc: '双探头传感器：黑色探头（浅水位）& 白色探头（深水位）',
     alarmHistory: '鱼塘水位报警记录（24小时）',
     sensorReading: '传感器',
     forecastReading: '预报',
@@ -1038,10 +1038,10 @@ function renderWaterSensor(devices) {
   (ws.status || []).forEach(s => statusMap[s.code] = s.value);
 
   // Dual probe mapping (from v2 thing model):
-  //   watersensor_state (DP1) = right probe = black = deep position
-  //   tamper_alarm (DP5)      = left probe  = white = shallow position
-  const leftAlarm = statusMap.tamper_alarm === true;          // white/shallow
-  const rightAlarm = statusMap.watersensor_state === 'alarm'; // black/deep
+  //   watersensor_state (DP1) = right probe = black = shallow position
+  //   tamper_alarm (DP5)      = left probe  = white = deep position
+  const leftAlarm = statusMap.tamper_alarm === true;          // white/deep
+  const rightAlarm = statusMap.watersensor_state === 'alarm'; // black/shallow
   const battery = statusMap.battery_percentage;
   const online = ws.online;
   const updated = ws.update_time ? new Date(ws.update_time * 1000).toLocaleString(locale) : '--';
@@ -1059,12 +1059,13 @@ function renderWaterSensor(devices) {
   const probeBlackOk = !rightAlarm;
 
   // Water level Y positions in SVG (pond area 40-190)
-  // White probe at y=85, Black probe at y=140
+  // Black probe at y=85 (shallow, alarms first when water drops)
+  // White probe at y=140 (deep, alarms when critically low)
   // Water level depends on probe states
   let waterY;
   if (!rightAlarm && !leftAlarm) waterY = 58;   // above both → high
-  else if (!rightAlarm && leftAlarm) waterY = 108; // between probes → medium
-  else waterY = 165;                               // below both → critical
+  else if (rightAlarm && !leftAlarm) waterY = 108; // black(shallow) out, white(deep) still in → medium
+  else waterY = 165;                               // both out → critical
 
   const waterColor = waterY < 80 ? '#1e6091' : waterY < 130 ? '#b45309' : '#991b1b';
   const waterColorLight = waterY < 80 ? '#2980b9' : waterY < 130 ? '#d97706' : '#dc2626';
@@ -1129,21 +1130,19 @@ function renderWaterSensor(devices) {
     <!-- Pole base/mount -->
     <rect x="82" y="18" width="20" height="8" rx="3" fill="#9ca3af"/>
 
-    <!-- White probe (shallow) at y=85 -->
-    <circle cx="92" cy="85" r="9" fill="${probeWhiteOk ? '#f0f0f0' : '#f0f0f0'}" stroke="${probeWhiteOk ? '#22c55e' : '#ef4444'}" stroke-width="2.5"/>
-    <text x="92" y="89" text-anchor="middle" fill="#333" font-size="10" font-weight="bold">${whiteLabel}</text>
-    <!-- White probe label -->
-    <line x1="101" y1="85" x2="122" y2="85" stroke="${probeWhiteOk ? '#22c55e80' : '#ef444480'}" stroke-width="1" stroke-dasharray="3,2"/>
+    <!-- Black probe (shallow) at y=85 - alarms first when water drops -->
+    <circle cx="92" cy="85" r="9" fill="#374151" stroke="${probeBlackOk ? '#22c55e' : '#ef4444'}" stroke-width="2.5"/>
+    <text x="92" y="89" text-anchor="middle" fill="#e0e0e0" font-size="10" font-weight="bold">${blackLabel}</text>
+    <line x1="101" y1="85" x2="122" y2="85" stroke="${probeBlackOk ? '#22c55e80' : '#ef444480'}" stroke-width="1" stroke-dasharray="3,2"/>
     <text x="125" y="82" fill="#8aaa96" font-size="8">${shallowTxt}</text>
-    <text x="125" y="92" fill="${probeWhiteOk ? '#22c55e' : '#ef4444'}" font-size="8" font-weight="600">${probeWhiteOk ? (LANG==='cn'?'●水中':'●OK') : (LANG==='cn'?'◉离水':'◉DRY')}</text>
+    <text x="125" y="92" fill="${probeBlackOk ? '#22c55e' : '#ef4444'}" font-size="8" font-weight="600">${probeBlackOk ? (LANG==='cn'?'●水中':'●OK') : (LANG==='cn'?'◉离水':'◉DRY')}</text>
 
-    <!-- Black probe (deep) at y=140 -->
-    <circle cx="92" cy="140" r="9" fill="#374151" stroke="${probeBlackOk ? '#22c55e' : '#ef4444'}" stroke-width="2.5"/>
-    <text x="92" y="144" text-anchor="middle" fill="#e0e0e0" font-size="10" font-weight="bold">${blackLabel}</text>
-    <!-- Black probe label -->
-    <line x1="101" y1="140" x2="122" y2="140" stroke="${probeBlackOk ? '#22c55e80' : '#ef444480'}" stroke-width="1" stroke-dasharray="3,2"/>
+    <!-- White probe (deep) at y=140 - alarms when critically low -->
+    <circle cx="92" cy="140" r="9" fill="#f0f0f0" stroke="${probeWhiteOk ? '#22c55e' : '#ef4444'}" stroke-width="2.5"/>
+    <text x="92" y="144" text-anchor="middle" fill="#333" font-size="10" font-weight="bold">${whiteLabel}</text>
+    <line x1="101" y1="140" x2="122" y2="140" stroke="${probeWhiteOk ? '#22c55e80' : '#ef444480'}" stroke-width="1" stroke-dasharray="3,2"/>
     <text x="125" y="137" fill="#8aaa96" font-size="8">${deepTxt}</text>
-    <text x="125" y="147" fill="${probeBlackOk ? '#22c55e' : '#ef4444'}" font-size="8" font-weight="600">${probeBlackOk ? (LANG==='cn'?'●水中':'●OK') : (LANG==='cn'?'◉离水':'◉DRY')}</text>
+    <text x="125" y="147" fill="${probeWhiteOk ? '#22c55e' : '#ef4444'}" font-size="8" font-weight="600">${probeWhiteOk ? (LANG==='cn'?'●水中':'●OK') : (LANG==='cn'?'◉离水':'◉DRY')}</text>
 
     <!-- Water level indicator arrow -->
     <polygon points="34,${waterY} 26,${waterY-5} 26,${waterY+5}" fill="${waterColorLight}"/>
@@ -1162,10 +1161,10 @@ function renderWaterSensor(devices) {
     <div class="water-info">
       <div class="water-status ${statusClass}">${statusText}</div>
       <div class="water-detail" style="margin-top:8px;">
-        <span style="color:${probeWhiteOk ? 'var(--green)' : 'var(--red)'}">${probeWhiteOk ? '●' : '◉'} ${LANG==='cn'?'白色探头（浅水位）':'White probe (shallow)'}: ${probeWhiteOk ? (LANG==='cn'?'在水中':'In water') : (LANG==='cn'?'离开水面':'Out of water')}</span>
+        <span style="color:${probeBlackOk ? 'var(--green)' : 'var(--red)'}">${probeBlackOk ? '●' : '◉'} ${LANG==='cn'?'黑色探头（浅水位）':'Black probe (shallow)'}: ${probeBlackOk ? (LANG==='cn'?'在水中':'In water') : (LANG==='cn'?'离开水面':'Out of water')}</span>
       </div>
       <div class="water-detail">
-        <span style="color:${probeBlackOk ? 'var(--green)' : 'var(--red)'}">${probeBlackOk ? '●' : '◉'} ${LANG==='cn'?'黑色探头（深水位）':'Black probe (deep)'}: ${probeBlackOk ? (LANG==='cn'?'在水中':'In water') : (LANG==='cn'?'离开水面':'Out of water')}</span>
+        <span style="color:${probeWhiteOk ? 'var(--green)' : 'var(--red)'}">${probeWhiteOk ? '●' : '◉'} ${LANG==='cn'?'白色探头（深水位）':'White probe (deep)'}: ${probeWhiteOk ? (LANG==='cn'?'在水中':'In water') : (LANG==='cn'?'离开水面':'Out of water')}</span>
       </div>
       <div class="water-detail" style="margin-top:8px;">${T.battery}: ${battery !== undefined ? battery + '%' : '--'} &nbsp; ${online ? '🟢' : '⚫'} ${online ? 'Online' : 'Offline'}</div>
       <div class="water-detail">${T.updated}: ${updated}</div>
@@ -1186,8 +1185,8 @@ async function loadAlarmLog() {
       const isAlarm = log.alarm;
       const time = new Date(log.time).toLocaleString(locale);
       const probe = log.probe === 'black'
-        ? (LANG === 'cn' ? '黑色探头(深)' : 'Black probe (deep)')
-        : (LANG === 'cn' ? '白色探头(浅)' : 'White probe (shallow)');
+        ? (LANG === 'cn' ? '黑色探头(浅)' : 'Black probe (shallow)')
+        : (LANG === 'cn' ? '白色探头(深)' : 'White probe (deep)');
       const stateText = isAlarm
         ? (LANG === 'cn' ? '离开水面' : 'Out of water')
         : (LANG === 'cn' ? '回到水中' : 'Back in water');
