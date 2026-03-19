@@ -215,7 +215,7 @@
     </div>
   </div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
 <script>
 // ============ Language ============
 const LANG = window.location.pathname.startsWith('/cn') ? 'cn' : 'en';
@@ -597,7 +597,7 @@ function renderGarden() {
     const t = new THREE.CanvasTexture(c);
     t.magFilter = THREE.NearestFilter;
     t.minFilter = THREE.NearestFilter;
-    t.colorSpace = THREE.SRGBColorSpace;
+    if (THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace; else t.encoding = THREE.sRGBEncoding;
     return t;
   }
 
