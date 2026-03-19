@@ -568,9 +568,16 @@ function renderGarden() {
 
     // ---- Time/Weather detection ----
     const hour = new Date().getHours();
-    const isNight = hour < 6 || hour >= 20;
-    const isDusk = (hour >= 18 && hour < 20) || (hour >= 6 && hour < 7);
-    const isRaining = false; // will be updated from weather data
+    const minute = new Date().getMinutes();
+    const timeF = hour + minute / 60; // e.g. 6.5 = 6:30am
+    const isNight = timeF < 5.5 || timeF >= 20.5;
+    const isDawn = timeF >= 5.5 && timeF < 7.5;   // 5:30-7:30
+    const isMorning = timeF >= 7.5 && timeF < 11;
+    const isNoon = timeF >= 11 && timeF < 14;
+    const isAfternoon = timeF >= 14 && timeF < 17.5;
+    const isDusk = timeF >= 17.5 && timeF < 20.5;  // 5:30-8:30pm
+    let weatherDesc = '';  // set by weather API
+    let showRain = false;
 
     // ---- Pixel art drawing helpers ----
     function px(x, y, w, h, color) {
@@ -642,13 +649,14 @@ function renderGarden() {
       { x: 200, y: 55, puffs: [{dx:0,dy:0,r:18},{dx:14,dy:-3,r:14},{dx:-10,dy:-2,r:12}], speed: 0.08, opacity: 0.3 },
     ];
 
-    // ---- Sun/Moon ----
-    let sunX = 700, sunY = 50;
-
     let frame = 0;
-    let showRain = false;
 
-    // Allow weather to toggle rain
+    // Weather API updates garden state
+    window.gardenSetWeather = function(desc) {
+      weatherDesc = (desc || '').toLowerCase();
+      showRain = !!weatherDesc.match(/rain|shower|drizzle|storm/);
+    };
+    // Legacy compat
     window.gardenSetRain = function(r) { showRain = r; };
 
     function drawBird(x, y, bird, wingAngle) {
@@ -685,24 +693,97 @@ function renderGarden() {
       }
     }
 
-    function drawPixelSun(x, y, r) {
-      // Core
-      ctx.fillStyle = '#ffe066';
-      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-      // Glow
-      ctx.fillStyle = 'rgba(255,224,100,0.15)';
-      ctx.beginPath(); ctx.arc(x, y, r * 2.5, 0, Math.PI * 2); ctx.fill();
-      // Rays (pixel style)
-      ctx.fillStyle = '#ffd700';
-      for (let a = 0; a < 8; a++) {
-        const angle = (a / 8) * Math.PI * 2 + frame * 0.005;
-        const rx = x + Math.cos(angle) * (r + 4);
-        const ry = y + Math.sin(angle) * (r + 4);
-        px(rx, ry, 3, 3, '#ffd700');
-        const rx2 = x + Math.cos(angle) * (r + 9);
-        const ry2 = y + Math.sin(angle) * (r + 9);
-        px(rx2, ry2, 2, 2, '#ffee88');
+    // Sun position follows an arc across the sky based on time
+    // Dawn: low-left, warm orange. Morning: rising, golden. Noon: high-center, bright white-yellow.
+    // Afternoon: descending right. Dusk: low-right, deep orange-red.
+    function getSunConfig() {
+      // Map timeF to sun arc (sunrise 6 → sunset 20)
+      const dayLen = 14.5; // hours of daylight (5.5 to 20)
+      const progress = Math.max(0, Math.min(1, (timeF - 5.5) / dayLen)); // 0=sunrise, 1=sunset
+      // Arc: x goes left to right, y follows parabola (highest at noon)
+      const sx = 80 + progress * (cw - 160);
+      const sy = 140 - Math.sin(progress * Math.PI) * 130; // parabola peaking at ~10
+      const size = 12 + Math.sin(progress * Math.PI) * 6;  // bigger at noon
+
+      // Color shifts through the day
+      let core, glow, rayColor, glowR, glowAlpha;
+      if (progress < 0.12 || progress > 0.88) {
+        // Dawn/dusk: deep orange-red
+        core = '#ff6030'; glow = 'rgba(255,80,20,'; rayColor = '#ff7040';
+        glowR = size * 4; glowAlpha = 0.2;
+      } else if (progress < 0.25 || progress > 0.75) {
+        // Early morning / late afternoon: warm gold
+        core = '#ffaa33'; glow = 'rgba(255,170,50,'; rayColor = '#ffbb44';
+        glowR = size * 3.5; glowAlpha = 0.18;
+      } else {
+        // Midday: bright white-yellow
+        core = '#fff4b0'; glow = 'rgba(255,244,180,'; rayColor = '#ffe066';
+        glowR = size * 3; glowAlpha = 0.15;
       }
+      return { x: sx, y: sy, r: size, core, glow, glowR, glowAlpha, rayColor, progress };
+    }
+
+    function drawSkyGlow(sunCfg) {
+      // Dawn/dusk sky glow (朝霞/晚霞)
+      const p = sunCfg.progress;
+      if ((p < 0.15 || p > 0.85) && !isNight) {
+        // Colorful horizon glow
+        const isDawnGlow = p < 0.15;
+        const intensity = isDawnGlow ? (0.15 - p) / 0.15 : (p - 0.85) / 0.15;
+        const grad = ctx.createLinearGradient(0, 0, 0, ch * 0.4);
+        const r = isDawnGlow ? 255 : 255;
+        const g = isDawnGlow ? 120 : 80;
+        const b = isDawnGlow ? 80 : 50;
+        grad.addColorStop(0, `rgba(${r},${g},${b},${intensity * 0.35})`);
+        grad.addColorStop(0.4, `rgba(255,${isDawnGlow?160:100},60,${intensity * 0.2})`);
+        grad.addColorStop(0.7, `rgba(255,200,100,${intensity * 0.08})`);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, cw, ch * 0.4);
+        // Horizontal color band at horizon
+        const hGrad = ctx.createLinearGradient(0, ch * 0.05, 0, ch * 0.15);
+        hGrad.addColorStop(0, `rgba(255,${isDawnGlow?100:60},${isDawnGlow?60:30},${intensity * 0.15})`);
+        hGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = hGrad;
+        ctx.fillRect(0, 0, cw, ch * 0.15);
+      }
+    }
+
+    function drawSun(sunCfg) {
+      const { x, y, r, core, glow, glowR, glowAlpha, rayColor } = sunCfg;
+      // Outer glow
+      const g1 = ctx.createRadialGradient(x, y, r * 0.5, x, y, glowR);
+      g1.addColorStop(0, glow + glowAlpha + ')');
+      g1.addColorStop(0.5, glow + (glowAlpha * 0.4) + ')');
+      g1.addColorStop(1, glow + '0)');
+      ctx.fillStyle = g1;
+      ctx.beginPath(); ctx.arc(x, y, glowR, 0, Math.PI * 2); ctx.fill();
+      // Core
+      ctx.fillStyle = core;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      // Inner bright center
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.beginPath(); ctx.arc(x, y, r * 0.5, 0, Math.PI * 2); ctx.fill();
+      // Pixel rays
+      for (let a = 0; a < 8; a++) {
+        const angle = (a / 8) * Math.PI * 2 + frame * 0.004;
+        const d1 = r + 3, d2 = r + 8;
+        px(x + Math.cos(angle) * d1, y + Math.sin(angle) * d1, 3, 3, rayColor);
+        px(x + Math.cos(angle) * d2, y + Math.sin(angle) * d2, 2, 2, rayColor);
+      }
+    }
+
+    function isSunVisible() {
+      // No sun at night
+      if (isNight) return false;
+      // No sun if cloudy/overcast
+      if (weatherDesc.match(/cloudy|overcast/) && !weatherDesc.match(/partly|mostly sunny/)) return false;
+      return true;
+    }
+
+    function isSunDimmed() {
+      // Partly cloudy = dimmed sun
+      return !!weatherDesc.match(/partly cloudy|mostly cloudy|partly sunny/);
     }
 
     function drawPixelMoon(x, y, r) {
@@ -745,16 +826,21 @@ function renderGarden() {
       // ---- Draw background image ----
       ctx.drawImage(bgImg, 0, 0, cw, ch);
 
-      // ---- Night overlay ----
+      // ---- Time-of-day overlay ----
       if (isNight) {
-        ctx.fillStyle = 'rgba(10,15,40,0.55)';
+        ctx.fillStyle = 'rgba(8,12,35,0.6)';
+        ctx.fillRect(0, 0, cw, ch);
+      } else if (isDawn) {
+        // Warm dawn tint
+        ctx.fillStyle = 'rgba(80,40,15,0.12)';
         ctx.fillRect(0, 0, cw, ch);
       } else if (isDusk) {
-        ctx.fillStyle = 'rgba(60,30,10,0.2)';
+        // Warm dusk tint, deeper than dawn
+        ctx.fillStyle = 'rgba(70,25,10,0.2)';
         ctx.fillRect(0, 0, cw, ch);
       }
 
-      // ---- Sun or Moon ----
+      // ---- Sky glow, Sun, or Moon ----
       if (isNight) {
         drawPixelMoon(680, 45, 18);
         // Stars
@@ -768,8 +854,15 @@ function renderGarden() {
         }
         ctx.globalAlpha = 1;
       } else {
-        const sunPhase = frame * 0.001;
-        drawPixelSun(700 + Math.sin(sunPhase) * 20, 45 + Math.cos(sunPhase) * 5, 16);
+        const sunCfg = getSunConfig();
+        // Dawn/dusk glow (朝霞/晚霞) - draw even if cloudy
+        drawSkyGlow(sunCfg);
+        // Sun (hidden when fully cloudy)
+        if (isSunVisible()) {
+          if (isSunDimmed()) ctx.globalAlpha = 0.5;
+          drawSun(sunCfg);
+          ctx.globalAlpha = 1;
+        }
       }
 
       // ---- Clouds (soft radial gradient puffs) ----
@@ -899,11 +992,8 @@ async function loadWeather() {
     const desc = current.shortForecast;
     const emoji = wxEmoji(desc);
 
-    // Toggle rain animation in garden based on weather
-    if (window.gardenSetRain) {
-      const isRainy = desc.toLowerCase().match(/rain|shower|drizzle|storm/);
-      window.gardenSetRain(!!isRainy);
-    }
+    // Update garden weather effects (rain, sun visibility, etc.)
+    if (window.gardenSetWeather) window.gardenSetWeather(desc);
 
     // Get sensor readings for main display
     const sensorIds = Object.keys(sensorsData);
