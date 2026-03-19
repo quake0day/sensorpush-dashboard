@@ -1553,14 +1553,34 @@ function toggleMusic() {
   }
 }
 
-// Lazy load music: preload audio after page is fully loaded
+// Auto-play music after page loads (retry on user interaction if blocked)
 window.addEventListener('load', () => {
   setTimeout(() => {
-    const link = document.createElement('link');
-    link.rel = 'prefetch';
-    link.href = '/music/bg.mp3';
-    document.head.appendChild(link);
-  }, 5000);
+    if (!bgMusic) {
+      bgMusic = new Audio();
+      bgMusic.loop = true;
+      bgMusic.volume = 0.12;
+      bgMusic.src = '/music/bg.mp3';
+    }
+    bgMusic.play().then(() => {
+      musicPlaying = true;
+      document.getElementById('musicBtn').classList.add('playing');
+    }).catch(() => {
+      // Autoplay blocked - start on first user interaction
+      const startOnClick = () => {
+        if (!musicPlaying && bgMusic) {
+          bgMusic.play().then(() => {
+            musicPlaying = true;
+            document.getElementById('musicBtn').classList.add('playing');
+          }).catch(() => {});
+        }
+        document.removeEventListener('click', startOnClick);
+        document.removeEventListener('touchstart', startOnClick);
+      };
+      document.addEventListener('click', startOnClick);
+      document.addEventListener('touchstart', startOnClick);
+    });
+  }, 2000);
 });
 
 init();
