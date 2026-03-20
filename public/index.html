@@ -560,21 +560,36 @@ function translateDay(name) {
 function renderGarden() {
   const canvas = document.getElementById('gardenCanvas');
   const ctx = canvas.getContext('2d');
-  const bgImg = new Image();
-  bgImg.src = '/garden-bg.jpg';
 
-  bgImg.onload = function() {
-    // Canvas at image aspect ratio, scaled to container
+  // ---- Time detection (needed before image load) ----
+  const hour = new Date().getHours();
+  const minute = new Date().getMinutes();
+  const timeF = hour + minute / 60;
+  const useNightBg = timeF < 5.5 || timeF >= 20.5;
+
+  // Load day and night background images
+  const bgDay = new Image();
+  const bgNight = new Image();
+  let loadCount = 0;
+  bgDay.src = '/garden-bg.jpg';
+  bgNight.src = '/garden-night.jpg';
+
+  function onBgLoad() {
+    loadCount++;
+    if (loadCount < 2) return;
+    startGarden();
+  }
+  bgDay.onload = onBgLoad;
+  bgNight.onload = onBgLoad;
+
+  function startGarden() {
+    const bgImg = useNightBg ? bgNight : bgDay;
     const ratio = bgImg.height / bgImg.width;
     const cw = 820, ch = Math.round(cw * ratio);
     canvas.width = cw;
     canvas.height = ch;
 
-    // ---- Time/Weather detection ----
-    const hour = new Date().getHours();
-    const minute = new Date().getMinutes();
-    const timeF = hour + minute / 60; // e.g. 6.5 = 6:30am
-    const isNight = timeF < 5.5 || timeF >= 20.5;
+    const isNight = useNightBg;
     const isDawn = timeF >= 5.5 && timeF < 7.5;   // 5:30-7:30
     const isMorning = timeF >= 7.5 && timeF < 11;
     const isNoon = timeF >= 11 && timeF < 14;
@@ -866,9 +881,10 @@ function renderGarden() {
       // ---- Draw background image ----
       ctx.drawImage(bgImg, 0, 0, cw, ch);
 
-      // ---- Time-of-day overlay ----
+      // ---- Time-of-day overlay (night uses its own background, no heavy overlay) ----
       if (isNight) {
-        ctx.fillStyle = 'rgba(8,12,35,0.6)';
+        // Light overlay only - night image already has correct mood
+        ctx.fillStyle = 'rgba(5,8,25,0.15)';
         ctx.fillRect(0, 0, cw, ch);
       } else if (isDawn) {
         // Warm dawn tint
