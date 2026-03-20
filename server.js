@@ -312,6 +312,10 @@ app.get("/cn", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+app.get("/pin", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "pin.html"));
+});
+
 app.get("/edit", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "edit.html"));
 });

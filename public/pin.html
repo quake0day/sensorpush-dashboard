@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garden Pin Tool</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:-apple-system,sans-serif;background:#0a1a10;color:#e8f0e8;display:flex;flex-direction:column;height:100vh;}
+  .bar{background:#12261a;border-bottom:1px solid #24432e;padding:8px 16px;display:flex;align-items:center;gap:12px;font-size:13px;}
+  .bar h1{font-size:15px;color:#4ade80;}
+  .btn{background:#1a3326;border:1px solid #24432e;color:#8aaa96;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:12px;text-decoration:none;}
+  .btn:hover{background:#24432e;color:#e8f0e8;}
+  .btn.active{background:#4ade80;color:#000;border-color:#4ade80;}
+  .sep{width:1px;height:20px;background:#24432e;}
+  .main{flex:1;overflow:auto;display:flex;justify-content:center;padding:10px;position:relative;}
+  .canvas-wrap{position:relative;display:inline-block;}
+  .canvas-wrap img{display:block;cursor:crosshair;}
+  .pin{position:absolute;width:8px;height:8px;border-radius:50%;border:2px solid #fff;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 0 4px rgba(0,0,0,0.8);}
+  .pin-label{position:absolute;background:rgba(0,0,0,0.8);color:#4ade80;font-size:10px;padding:1px 4px;border-radius:3px;white-space:nowrap;transform:translate(-50%,8px);pointer-events:none;}
+  .info{background:#12261a;border-top:1px solid #24432e;padding:8px 16px;font-size:12px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;}
+  .coord{color:#4ade80;font-family:monospace;font-size:14px;}
+  .pin-list{background:#12261a;border-top:1px solid #24432e;padding:8px 16px;max-height:150px;overflow-y:auto;font-size:11px;}
+  .pin-entry{display:flex;gap:10px;padding:2px 0;border-bottom:1px solid #1a3326;align-items:center;}
+  .pin-entry .del{color:#5a7a66;cursor:pointer;padding:0 4px;}
+  .pin-entry .del:hover{color:#ef4444;}
+</style>
+</head>
+<body>
+<div class="bar">
+  <a href="/" class="btn">← Back</a>
+  <div class="sep"></div>
+  <h1>Pin Coordinate Tool</h1>
+  <div class="sep"></div>
+  <button class="btn active" id="btnDay" onclick="switchImg('day')">Day</button>
+  <button class="btn" id="btnNight" onclick="switchImg('night')">Night</button>
+  <div class="sep"></div>
+  <span style="color:#5a7a66">Click image to drop a pin. Canvas: 820 x auto (same as dashboard).</span>
+  <div class="sep"></div>
+  <button class="btn" onclick="clearPins()">Clear Pins</button>
+  <button class="btn" onclick="copyPins()">Copy All</button>
+</div>
+
+<div class="main" id="main">
+  <div class="canvas-wrap" id="wrap">
+    <canvas id="canvas" style="cursor:crosshair;image-rendering:auto;"></canvas>
+  </div>
+</div>
+
+<div class="info">
+  <span>Cursor: <span class="coord" id="cursorCoord">-</span></span>
+  <span>Last Pin: <span class="coord" id="lastPin">-</span></span>
+  <span>Pins: <span id="pinCount">0</span></span>
+  <span style="color:#5a7a66">These coordinates match the garden canvas (820w) exactly.</span>
+</div>
+
+<div class="pin-list" id="pinList"></div>
+
+<script>
+const CW = 820; // same as garden canvas width
+let currentImg = 'day';
+let pins = [];
+let imgEl = null;
+
+const dayImg = new Image();
+const nightImg = new Image();
+dayImg.src = '/garden-bg.jpg';
+nightImg.src = '/garden-night.jpg';
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let loaded = 0;
+function onLoad() {
+  loaded++;
+  if (loaded >= 2) drawImage();
+}
+dayImg.onload = onLoad;
+nightImg.onload = onLoad;
+
+function switchImg(which) {
+  currentImg = which;
+  document.getElementById('btnDay').classList.toggle('active', which === 'day');
+  document.getElementById('btnNight').classList.toggle('active', which === 'night');
+  drawImage();
+}
+
+function drawImage() {
+  const img = currentImg === 'day' ? dayImg : nightImg;
+  const ratio = img.height / img.width;
+  const ch = Math.round(CW * ratio);
+  canvas.width = CW;
+  canvas.height = ch;
+  canvas.style.width = CW + 'px';
+  canvas.style.height = ch + 'px';
+  ctx.drawImage(img, 0, 0, CW, ch);
+
+  // Draw grid lines every 100px
+  ctx.strokeStyle = 'rgba(74,222,128,0.15)';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= CW; x += 100) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ch); ctx.stroke();
+    ctx.fillStyle = 'rgba(74,222,128,0.3)';
+    ctx.font = '9px monospace';
+    ctx.fillText(x, x + 2, 10);
+  }
+  for (let y = 0; y <= ch; y += 100) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CW, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(74,222,128,0.3)';
+    ctx.fillText(y, 2, y - 2);
+  }
+
+  // Draw pins
+  pins.forEach((p, i) => {
+    if (p.img !== currentImg) return;
+    // Crosshair
+    ctx.strokeStyle = p.color || '#ff4444';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(p.x - 8, p.y); ctx.lineTo(p.x + 8, p.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p.x, p.y - 8); ctx.lineTo(p.x, p.y + 8); ctx.stroke();
+    // Dot
+    ctx.fillStyle = p.color || '#ff4444';
+    ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill();
+    // Label
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    const label = `#${i+1} (${p.x}, ${p.y})`;
+    const tw = ctx.measureText(label).width;
+    ctx.fillRect(p.x - tw/2 - 3, p.y + 6, tw + 6, 14);
+    ctx.fillStyle = '#4ade80';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, p.x, p.y + 17);
+    ctx.textAlign = 'start';
+  });
+}
+
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = Math.round((e.clientX - rect.left) * scaleX);
+  const y = Math.round((e.clientY - rect.top) * scaleY);
+  document.getElementById('cursorCoord').textContent = `x: ${x}, y: ${y}`;
+});
+
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = Math.round((e.clientX - rect.left) * scaleX);
+  const y = Math.round((e.clientY - rect.top) * scaleY);
+
+  const colors = ['#ff4444', '#44aaff', '#ffaa00', '#aa44ff', '#44ff88', '#ff44aa'];
+  pins.push({ x, y, img: currentImg, color: colors[pins.length % colors.length] });
+  document.getElementById('lastPin').textContent = `x: ${x}, y: ${y} (${currentImg})`;
+  document.getElementById('pinCount').textContent = pins.length;
+  updatePinList();
+  drawImage();
+});
+
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  // Remove nearest pin
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = Math.round((e.clientX - rect.left) * scaleX);
+  const y = Math.round((e.clientY - rect.top) * scaleY);
+  let nearest = -1, minDist = 20;
+  pins.forEach((p, i) => {
+    if (p.img !== currentImg) return;
+    const d = Math.sqrt((p.x-x)**2 + (p.y-y)**2);
+    if (d < minDist) { minDist = d; nearest = i; }
+  });
+  if (nearest >= 0) { pins.splice(nearest, 1); updatePinList(); drawImage(); }
+});
+
+function updatePinList() {
+  const el = document.getElementById('pinList');
+  if (!pins.length) { el.innerHTML = '<span style="color:#5a7a66">No pins yet. Click on image to add.</span>'; return; }
+  el.innerHTML = pins.map((p, i) => `<div class="pin-entry">
+    <span class="del" onclick="removePin(${i})">x</span>
+    <span style="color:${p.color}">Pin #${i+1}</span>
+    <span class="coord">x: ${p.x}, y: ${p.y}</span>
+    <span style="color:#5a7a66">[${p.img}]</span>
+  </div>`).join('');
+}
+
+function removePin(i) { pins.splice(i, 1); updatePinList(); drawImage(); }
+function clearPins() { pins = []; updatePinList(); drawImage(); document.getElementById('pinCount').textContent = 0; }
+
+function copyPins() {
+  const text = pins.map((p, i) => `Pin #${i+1}: x=${p.x}, y=${p.y} [${p.img}]`).join('\n');
+  navigator.clipboard.writeText(text).then(() => alert('Copied ' + pins.length + ' pins to clipboard'));
+}
+
+updatePinList();
+</script>
+</body>
+</html>

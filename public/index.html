@@ -625,13 +625,17 @@ function renderGarden() {
       });
     }
 
+    // Fireflies: summer nights only, sparse
+    const month = new Date().getMonth(); // 0-11
+    const isSummer = month >= 5 && month <= 8; // June-September
+    const fireflyCount = isSummer ? 5 : 0;
     const fireflies = [];
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < fireflyCount; i++) {
       fireflies.push({
         x: 200 + Math.random() * 400,
-        y: 100 + Math.random() * 300,
-        dx: (Math.random() - 0.5) * 0.5,
-        dy: (Math.random() - 0.5) * 0.3,
+        y: 150 + Math.random() * 250,
+        dx: (Math.random() - 0.5) * 0.3,
+        dy: (Math.random() - 0.5) * 0.2,
         phase: Math.random() * Math.PI * 2,
       });
     }
