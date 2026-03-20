@@ -111,17 +111,20 @@ app.get("/api/weather", async (req, res) => {
     const forecastUrl = points.properties.forecast;
     const hourlyUrl = points.properties.forecastHourly;
 
-    const [forecastRes, hourlyRes] = await Promise.all([
+    const [forecastRes, hourlyRes, sunRes] = await Promise.all([
       fetch(forecastUrl, { headers }),
       fetch(hourlyUrl, { headers }),
+      fetch(`https://api.sunrise-sunset.org/json?lat=${NWS_LAT}&lng=${NWS_LON}&formatted=0&date=today`),
     ]);
     const forecast = await forecastRes.json();
     const hourly = await hourlyRes.json();
+    const sunData = await sunRes.json();
 
     weatherCache = {
       location: points.properties.relativeLocation?.properties,
       forecast: (forecast.properties.periods || []).slice(0, 14),
       hourly: (hourly.properties.periods || []).slice(0, 24),
+      sun: sunData.results || {},
       updated: new Date().toISOString(),
     };
     weatherCacheTime = Date.now();
