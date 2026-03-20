@@ -980,6 +980,34 @@ function renderGarden() {
         });
       }
 
+      // ---- Night light sources (lanterns & path lights) ----
+      if (isNight) {
+        const lights = [
+          { x: 237, y: 383, r: 55, color: [255, 180, 80], flicker: 0.15 },  // tree lantern
+          { x: 504, y: 482, r: 40, color: [255, 190, 100], flicker: 0.1 },  // path light waterfall
+          { x: 634, y: 438, r: 38, color: [255, 185, 90], flicker: 0.12 },  // path light right
+          { x: 633, y: 531, r: 35, color: [255, 190, 100], flicker: 0.1 },  // lower path light
+        ];
+        lights.forEach((l, i) => {
+          const pulse = 1 + Math.sin(frame * 0.04 + i * 1.7) * l.flicker;
+          const r = l.r * pulse;
+          const [cr, cg, cb] = l.color;
+          // Outer glow
+          const g1 = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, r);
+          g1.addColorStop(0, `rgba(${cr},${cg},${cb},0.25)`);
+          g1.addColorStop(0.4, `rgba(${cr},${cg},${cb},0.1)`);
+          g1.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+          ctx.fillStyle = g1;
+          ctx.beginPath(); ctx.arc(l.x, l.y, r, 0, Math.PI * 2); ctx.fill();
+          // Inner bright core
+          const g2 = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, r * 0.3);
+          g2.addColorStop(0, `rgba(255,240,200,0.35)`);
+          g2.addColorStop(1, `rgba(255,220,150,0)`);
+          ctx.fillStyle = g2;
+          ctx.beginPath(); ctx.arc(l.x, l.y, r * 0.3, 0, Math.PI * 2); ctx.fill();
+        });
+      }
+
       // ---- Water sparkles on pond ----
       sparkles.forEach(s => {
         s.phase += 0.04 * s.speed;
