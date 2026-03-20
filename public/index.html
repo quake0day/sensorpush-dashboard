@@ -829,15 +829,76 @@ function renderGarden() {
       return !!weatherDesc.match(/partly cloudy|mostly cloudy|partly sunny/);
     }
 
+    // Calculate real lunar phase (0=new, 0.5=full, 1=new again)
+    function getLunarPhase() {
+      // Known new moon: Jan 6, 2000 18:14 UTC
+      const knownNew = new Date(2000, 0, 6, 18, 14).getTime();
+      const lunarCycle = 29.53058867 * 24 * 3600 * 1000; // ms
+      const elapsed = Date.now() - knownNew;
+      const phase = (elapsed % lunarCycle) / lunarCycle; // 0-1
+      return phase;
+    }
+
     function drawPixelMoon(x, y, r) {
+      const phase = getLunarPhase(); // 0=new, ~0.5=full
+
+      // Glow (brighter when fuller)
+      const fullness = 1 - Math.abs(phase - 0.5) * 2; // 0=new/thin, 1=full
+      const glowAlpha = 0.04 + fullness * 0.08;
+      ctx.fillStyle = `rgba(200,215,240,${glowAlpha})`;
+      ctx.beginPath(); ctx.arc(x, y, r * 3, 0, Math.PI * 2); ctx.fill();
+
+      // Draw lit portion of moon
+      ctx.save();
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.clip();
+
+      // Full disc in moon color
       ctx.fillStyle = '#e8e8d0';
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-      // Shadow crescent
-      ctx.fillStyle = '#1a2a3a';
-      ctx.beginPath(); ctx.arc(x + r * 0.4, y - r * 0.1, r * 0.85, 0, Math.PI * 2); ctx.fill();
-      // Glow
-      ctx.fillStyle = 'rgba(200,210,230,0.08)';
-      ctx.beginPath(); ctx.arc(x, y, r * 3, 0, Math.PI * 2); ctx.fill();
+
+      // Shadow overlay to create phase shape
+      // phase 0-0.5: waxing (shadow on left shrinks)
+      // phase 0.5-1: waning (shadow on right grows)
+      const shadowPhase = phase < 0.5 ? phase * 2 : (1 - phase) * 2; // 0=new, 1=full
+      const shadowOffset = r * 2 * (1 - shadowPhase); // how far the shadow circle is offset
+
+      if (shadowPhase < 0.98) { // not full moon
+        ctx.fillStyle = 'rgba(12,20,40,0.92)';
+        if (phase < 0.5) {
+          // Waxing: shadow from left, moving right
+          ctx.beginPath(); ctx.arc(x - shadowOffset, y, r * 1.05, 0, Math.PI * 2); ctx.fill();
+        } else {
+          // Waning: shadow from right, moving left
+          ctx.beginPath(); ctx.arc(x + shadowOffset, y, r * 1.05, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+      // Subtle crater texture on lit surface
+      ctx.fillStyle = 'rgba(180,180,160,0.15)';
+      ctx.beginPath(); ctx.arc(x - r*0.2, y - r*0.15, r*0.12, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + r*0.15, y + r*0.2, r*0.08, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x - r*0.05, y + r*0.3, r*0.1, 0, Math.PI*2); ctx.fill();
+
+      ctx.restore();
+
+      // Cloud cover over moon when cloudy
+      if (weatherDesc.match(/cloudy|overcast/)) {
+        const isMostly = !!weatherDesc.match(/mostly cloudy|overcast/);
+        const cloudAlpha = isMostly ? 0.6 : 0.35;
+        // Drifting cloud wisps across moon
+        const drift = (frame * 0.15) % (r * 6) - r * 2;
+        for (let ci = 0; ci < 4; ci++) {
+          const cx = x + drift + ci * r * 0.8 - r;
+          const cy = y + Math.sin(ci * 1.5 + frame * 0.01) * r * 0.3;
+          const cr = r * (0.5 + ci * 0.15);
+          const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr);
+          cg.addColorStop(0, `rgba(50,55,75,${cloudAlpha})`);
+          cg.addColorStop(0.6, `rgba(40,45,65,${cloudAlpha * 0.5})`);
+          cg.addColorStop(1, 'rgba(30,35,55,0)');
+          ctx.fillStyle = cg;
+          ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI*2); ctx.fill();
+        }
+      }
     }
 
     function drawCloud(cloud) {
