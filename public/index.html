@@ -154,6 +154,7 @@
       <div class="subtitle" id="subtitle"></div>
     </div>
     <div class="header-right">
+      <div id="etClock" style="font-size:12px;color:var(--text2);font-family:monospace;min-width:70px;text-align:center;"></div>
       <div class="weather-brief" id="wxBrief"></div>
       <button class="music-btn" id="musicBtn" onclick="toggleMusic()" title="Music">&#9835;</button>
       <button class="unit-btn active-c" id="unitBtn" onclick="toggleUnit()"><span class="f-label">°F</span> / <span class="c-label">°C</span></button>
@@ -454,6 +455,29 @@ const timeVals = [1,6,24,72,168];
 });
 
 // ============ Helpers ============
+// All time operations use US Eastern Time (America/New_York)
+function getET() {
+  const s = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+  return new Date(s);
+}
+function getETHour() { return getET().getHours(); }
+function getETMinute() { return getET().getMinutes(); }
+function getETMonth() { return getET().getMonth(); }
+function getETTimeF() { return getETHour() + getETMinute() / 60; }
+
+// Clock display (updates every second)
+function updateClock() {
+  const et = getET();
+  const h = et.getHours(), m = et.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  const mStr = m < 10 ? '0' + m : m;
+  const el = document.getElementById('etClock');
+  if (el) el.textContent = `${h12}:${mStr} ${ampm} ET`;
+}
+updateClock();
+setInterval(updateClock, 1000);
+
 const COLORS = ["#f97316","#38bdf8","#a78bfa","#34d399","#fb7185","#facc15","#818cf8","#2dd4bf"];
 let useF = false; // default Celsius
 function tempF2C(f) { return (f - 32) * 5 / 9; }
@@ -561,10 +585,8 @@ function renderGarden() {
   const canvas = document.getElementById('gardenCanvas');
   const ctx = canvas.getContext('2d');
 
-  // ---- Time detection (needed before image load) ----
-  const hour = new Date().getHours();
-  const minute = new Date().getMinutes();
-  const timeF = hour + minute / 60;
+  // ---- Time detection (US Eastern Time) ----
+  const timeF = getETTimeF();
   const useNightBg = timeF < 5.5 || timeF >= 20.5;
 
   // Load day and night background images
@@ -626,7 +648,7 @@ function renderGarden() {
     }
 
     // Fireflies: summer nights only, sparse
-    const month = new Date().getMonth(); // 0-11
+    const month = getETMonth(); // 0-11, US Eastern
     const isSummer = month >= 5 && month <= 8; // June-September
     const fireflyCount = isSummer ? 5 : 0;
     const fireflies = [];
