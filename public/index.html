@@ -1596,6 +1596,28 @@ async function loadGateways() {
 
 // ============ Init ============
 async function init() {
+  // Fetch sun times BEFORE rendering garden so day/night is correct
+  try {
+    const wxData = await api("GET", "/api/weather");
+    if (wxData.sun && wxData.sun.sunrise) {
+      function utcToETH(isoStr) {
+        const d = new Date(isoStr);
+        const s = d.toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false });
+        const [h, m] = s.split(':').map(Number);
+        return h + m / 60;
+      }
+      gardenSunTimes = {
+        sunrise: utcToETH(wxData.sun.sunrise),
+        sunset: utcToETH(wxData.sun.sunset),
+        dawnStart: utcToETH(wxData.sun.civil_twilight_begin),
+        duskEnd: utcToETH(wxData.sun.civil_twilight_end),
+      };
+    }
+    // Also set weather for garden effects
+    const cur = wxData.hourly?.[0] || wxData.forecast?.[0];
+    if (cur && window.gardenSetWeather) window.gardenSetWeather(cur.shortForecast);
+  } catch(e) { console.error('sun prefetch:', e); }
+
   renderGarden();
 
   try {
