@@ -583,13 +583,28 @@ function translateDay(name) {
 }
 
 // ============ Pixel Garden ============
+// Sun times (updated from weather API)
+let gardenSunTimes = { sunrise: 6.5, sunset: 19.5, dawnStart: 6, duskEnd: 20 }; // defaults in ET hours
+
 function renderGarden() {
   const canvas = document.getElementById('gardenCanvas');
   const ctx = canvas.getContext('2d');
 
-  // ---- Time detection (US Eastern Time) ----
-  const timeF = getETTimeF();
-  const useNightBg = timeF < 5.5 || timeF >= 20.5;
+  // ---- Time from sun data (US Eastern) ----
+  function getTimeState() {
+    const timeF = getETTimeF();
+    const { sunrise, sunset, dawnStart, duskEnd } = gardenSunTimes;
+    const isNight = timeF < dawnStart || timeF >= duskEnd;
+    const isDawn = timeF >= dawnStart && timeF < sunrise + 0.5;
+    const isDusk = timeF >= sunset - 0.5 && timeF < duskEnd;
+    const isMorning = timeF >= sunrise + 0.5 && timeF < 11;
+    const isNoon = timeF >= 11 && timeF < 14;
+    const isAfternoon = timeF >= 14 && timeF < sunset - 0.5;
+    return { timeF, isNight, isDawn, isDusk, isMorning, isNoon, isAfternoon, sunrise, sunset, dawnStart, duskEnd };
+  }
+
+  const ts = getTimeState();
+  const useNightBg = ts.isNight;
 
   // Load day and night background images
   const bgDay = new Image();
@@ -613,13 +628,8 @@ function renderGarden() {
     canvas.width = cw;
     canvas.height = ch;
 
-    const isNight = useNightBg;
-    const isDawn = timeF >= 5.5 && timeF < 7.5;   // 5:30-7:30
-    const isMorning = timeF >= 7.5 && timeF < 11;
-    const isNoon = timeF >= 11 && timeF < 14;
-    const isAfternoon = timeF >= 14 && timeF < 17.5;
-    const isDusk = timeF >= 17.5 && timeF < 20.5;  // 5:30-8:30pm
-    let weatherDesc = '';  // set by weather API
+    const { timeF, isNight, isDawn, isDusk } = ts;
+    let weatherDesc = '';
     let showRain = false;
 
     // ---- Pixel art drawing helpers ----
@@ -728,8 +738,9 @@ function renderGarden() {
     // Dawn: low-left, warm orange. Morning: rising, golden. Noon: high-center, bright white-yellow.
     // Afternoon: descending right. Dusk: low-right, deep orange-red.
     function getSunConfig() {
-      const dayLen = 14.5;
-      const progress = Math.max(0, Math.min(1, (timeF - 5.5) / dayLen));
+      const { sunrise, sunset, dawnStart, duskEnd } = gardenSunTimes;
+      const dayLen = duskEnd - dawnStart;
+      const progress = Math.max(0, Math.min(1, (timeF - dawnStart) / dayLen));
       // Arc: x left→right, y parabola (horizon at edges, peak at noon)
       const horizonY = 82; // the "horizon line" where sun rises/sets
       const sx = 60 + progress * (cw - 120);
@@ -841,9 +852,10 @@ function renderGarden() {
     }
 
     function isSunVisible() {
-      // No sun at night
       if (isNight) return false;
-      // No sun if cloudy/overcast
+      // No sun if raining/storming
+      if (weatherDesc.match(/rain|shower|drizzle|storm|thunder/)) return false;
+      // No sun if fully cloudy/overcast
       if (weatherDesc.match(/cloudy|overcast/) && !weatherDesc.match(/partly|mostly sunny/)) return false;
       return true;
     }
@@ -984,10 +996,10 @@ function renderGarden() {
         ctx.globalAlpha = 1;
       } else {
         const sunCfg = getSunConfig();
-        // Dawn/dusk glow (朝霞/晚霞) - draw even if cloudy
-        drawSkyGlow(sunCfg);
-        // Sun (hidden when fully cloudy)
-        if (isSunVisible()) {
+        // Dawn/dusk glow - no glow during rain
+        if (!showRain) drawSkyGlow(sunCfg);
+        // Sun (hidden when raining, fully cloudy)
+        if (isSunVisible() && !showRain) {
           if (isSunDimmed()) ctx.globalAlpha = 0.5;
           drawSun(sunCfg);
           ctx.globalAlpha = 1;
@@ -1129,6 +1141,22 @@ async function loadWeather() {
     const fxHum = current.relativeHumidity?.value || '--';
     const desc = current.shortForecast;
     const emoji = wxEmoji(desc);
+
+    // Parse sunrise/sunset times from API (convert UTC ISO to ET hours)
+    if (data.sun && data.sun.sunrise) {
+      function utcToETHours(isoStr) {
+        const d = new Date(isoStr);
+        const etStr = d.toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false });
+        const [h, m] = etStr.split(':').map(Number);
+        return h + m / 60;
+      }
+      gardenSunTimes = {
+        sunrise: utcToETHours(data.sun.sunrise),
+        sunset: utcToETHours(data.sun.sunset),
+        dawnStart: utcToETHours(data.sun.civil_twilight_begin),
+        duskEnd: utcToETHours(data.sun.civil_twilight_end),
+      };
+    }
 
     // Update garden weather effects (rain, sun visibility, etc.)
     if (window.gardenSetWeather) window.gardenSetWeather(desc);
