@@ -640,14 +640,24 @@ function renderGarden() {
 
     // ---- Animated elements state ----
     // Birds: red cardinal, blue jay, grey sparrow - spawn randomly
-    const birdTypes = [
-      { body: '#c0392b', wing: '#922b21', belly: '#e74c3c', beak: '#f39c12', eye: '#1a1a1a', crest: '#922b21' },
-      { body: '#2874a6', wing: '#1a5276', belly: '#aed6f1', beak: '#555', eye: '#1a1a1a', crest: '#1a5276' },
-      { body: '#7f8c8d', wing: '#5d6d7e', belly: '#bdc3c7', beak: '#b7950b', eye: '#1a1a1a', crest: null },
-    ];
+    // Load bird sprite frames (3 species x 4 frames)
+    const birdSpecies = ['bluejay', 'cardinal', 'grey'];
+    const birdFrames = {}; // { bluejay: [img,img,img,img], ... }
+    let birdImgsLoaded = 0;
+    const birdImgsTotal = 12;
+    birdSpecies.forEach(sp => {
+      birdFrames[sp] = [];
+      for (let f = 1; f <= 4; f++) {
+        const img = new Image();
+        img.onload = () => { birdImgsLoaded++; };
+        img.src = `/birds/${sp}/${f}.png`;
+        birdFrames[sp].push(img);
+      }
+    });
+
     const birds = [];
     let birdTimer = 0;
-    let nextBirdSpawn = 300 + Math.random() * 600; // frames until next spawn
+    let nextBirdSpawn = 300 + Math.random() * 600;
 
     const raindrops = [];
     for (let i = 0; i < 60; i++) {
@@ -700,38 +710,16 @@ function renderGarden() {
     // Legacy compat
     window.gardenSetRain = function(r) { showRain = r; };
 
-    function drawBird(x, y, bird, wingAngle) {
-      const s = Math.round(bird.scale * 2) / 2; // snap to 0.5
-      const P = 2; // pixel size
-      const wingUp = wingAngle > 0;
-      const bx = Math.round(x), by = Math.round(y);
-      const t = bird.type;
-      // Body (3x2 block)
-      px(bx, by, P*3, P*2, t.body);
-      // Belly
-      px(bx + P, by + P, P*2, P, t.belly);
-      // Head (2x2)
-      px(bx + P*3, by - P, P*2, P*2, t.body);
-      // Eye
-      px(bx + P*4, by - P, P, P, '#fff');
-      // Beak
-      px(bx + P*5, by, P, P, t.beak);
-      // Crest
-      if (t.crest) {
-        px(bx + P*3, by - P*2, P, P, t.crest);
-        px(bx + P*4, by - P*2, P, P, t.crest);
-      }
-      // Tail
-      px(bx - P*2, by - P, P*2, P, t.wing);
-      px(bx - P*3, by - P*2, P, P, t.wing);
-      // Wing (animated up/down)
-      if (wingUp) {
-        px(bx, by - P*2, P*2, P, t.wing);
-        px(bx + P, by - P*3, P, P, t.wing);
-      } else {
-        px(bx, by + P*2, P*2, P, t.wing);
-        px(bx + P, by + P*3, P, P, t.wing);
-      }
+    function drawBird(x, y, bird) {
+      if (birdImgsLoaded < birdImgsTotal) return;
+      const frames = birdFrames[bird.species];
+      if (!frames || !frames.length) return;
+      const frameIdx = Math.floor(bird.wingPhase * 0.5) % 4;
+      const img = frames[Math.abs(frameIdx)];
+      if (!img || !img.complete) return;
+      const size = 30; // display size in px
+      const ratio = img.height / img.width;
+      ctx.drawImage(img, Math.round(x), Math.round(y - size * ratio / 2), size, Math.round(size * ratio));
     }
 
     // Sun position follows an arc across the sky based on time
@@ -1022,12 +1010,11 @@ function renderGarden() {
           const count = Math.random() < 0.6 ? 1 : 2; // usually 1, sometimes 2
           for (let bi = 0; bi < count; bi++) {
             birds.push({
-              x: -30 - bi * 40,
+              x: -40 - bi * 50,
               y: 20 + Math.random() * 80,
               speed: 0.4 + Math.random() * 0.5,
               wingPhase: Math.random() * Math.PI * 2,
-              type: birdTypes[Math.floor(Math.random() * birdTypes.length)],
-              scale: 1,
+              species: birdSpecies[Math.floor(Math.random() * birdSpecies.length)],
               glideOffset: Math.random() * Math.PI * 2,
             });
           }
@@ -1040,7 +1027,7 @@ function renderGarden() {
           b.wingPhase += 0.1;
           b.y += Math.sin(b.wingPhase * 0.3 + b.glideOffset) * 0.2;
           if (b.x > cw + 40) { birds.splice(bi, 1); continue; }
-          drawBird(b.x, b.y, b, Math.sin(b.wingPhase) > 0 ? 1 : -1);
+          drawBird(b.x, b.y, b);
         }
       }
 
