@@ -640,18 +640,27 @@ function renderGarden() {
 
     // ---- Animated elements state ----
     // Birds: red cardinal, blue jay, grey sparrow - spawn randomly
-    // Load bird sprite frames (7 species x 4 frames)
-    const birdSpecies = ['bluejay', 'cardinal', 'sparrow', 'chickadee', 'oriole', 'canary', 'woodpecker'];
+    // Load bird sprite frames (variable frame counts per species)
+    const birdSpeciesCfg = [
+      { name: 'bluejay', frames: 4 },
+      { name: 'cardinal', frames: 4 },
+      { name: 'canary', frames: 4 },
+      { name: 'chickadee', frames: 2 },
+      { name: 'oriole', frames: 3 },
+      { name: 'woodpecker', frames: 3 },
+    ];
+    const birdSpecies = birdSpeciesCfg.map(s => s.name);
     const birdFrames = {};
     let birdImgsLoaded = 0;
-    const birdImgsTotal = birdSpecies.length * 4;
-    birdSpecies.forEach(sp => {
-      birdFrames[sp] = [];
-      for (let f = 1; f <= 4; f++) {
+    let birdImgsTotal = 0;
+    birdSpeciesCfg.forEach(sp => {
+      birdFrames[sp.name] = [];
+      birdImgsTotal += sp.frames;
+      for (let f = 1; f <= sp.frames; f++) {
         const img = new Image();
         img.onload = () => { birdImgsLoaded++; };
-        img.src = `/birds/${sp}/${f}.png`;
-        birdFrames[sp].push(img);
+        img.src = `/birds/${sp.name}/${f}.png`;
+        birdFrames[sp.name].push(img);
       }
     });
 
@@ -714,10 +723,10 @@ function renderGarden() {
       if (birdImgsLoaded < birdImgsTotal) return;
       const frames = birdFrames[bird.species];
       if (!frames || !frames.length) return;
-      const frameIdx = Math.floor(bird.wingPhase * 0.5) % 4;
-      const img = frames[Math.abs(frameIdx)];
+      const frameIdx = Math.floor(bird.wingPhase * 0.5) % frames.length;
+      const img = frames[frameIdx];
       if (!img || !img.complete) return;
-      const size = 30; // display size in px
+      const size = 30;
       const ratio = img.height / img.width;
       ctx.drawImage(img, Math.round(x), Math.round(y - size * ratio / 2), size, Math.round(size * ratio));
     }
