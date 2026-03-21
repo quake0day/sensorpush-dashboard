@@ -640,11 +640,11 @@ function renderGarden() {
 
     // ---- Animated elements state ----
     // Birds: red cardinal, blue jay, grey sparrow - spawn randomly
-    // Load bird sprite frames (3 species x 4 frames)
-    const birdSpecies = ['bluejay', 'cardinal', 'grey'];
-    const birdFrames = {}; // { bluejay: [img,img,img,img], ... }
+    // Load bird sprite frames (7 species x 4 frames)
+    const birdSpecies = ['bluejay', 'cardinal', 'sparrow', 'chickadee', 'oriole', 'canary', 'woodpecker'];
+    const birdFrames = {};
     let birdImgsLoaded = 0;
-    const birdImgsTotal = 12;
+    const birdImgsTotal = birdSpecies.length * 4;
     birdSpecies.forEach(sp => {
       birdFrames[sp] = [];
       for (let f = 1; f <= 4; f++) {
