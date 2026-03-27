@@ -215,6 +215,7 @@
     let hls = null;
     let currentQuality = "1080p";
     let retryTimer = null;
+    let stallTimer = null;
     let retryCount = 0;
     const MAX_RETRY = 30;
 
@@ -230,22 +231,23 @@
       if (Hls.isSupported()) {
         hls = new Hls({
           liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 6,
+          liveMaxLatencyDurationCount: 8,
           liveDurationInfinity: true,
           enableWorker: true,
           lowLatencyMode: false,
-          backBufferLength: 10,
-          maxBufferLength: 10,
-          maxMaxBufferLength: 30,
-          manifestLoadingTimeOut: 10000,
-          manifestLoadingMaxRetry: 6,
-          manifestLoadingRetryDelay: 2000,
-          levelLoadingTimeOut: 10000,
-          levelLoadingMaxRetry: 6,
-          levelLoadingRetryDelay: 2000,
-          fragLoadingTimeOut: 20000,
-          fragLoadingMaxRetry: 6,
-          fragLoadingRetryDelay: 2000,
+          backBufferLength: 30,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
+          maxBufferHole: 0.5,
+          manifestLoadingTimeOut: 15000,
+          manifestLoadingMaxRetry: 10,
+          manifestLoadingRetryDelay: 1000,
+          levelLoadingTimeOut: 15000,
+          levelLoadingMaxRetry: 10,
+          levelLoadingRetryDelay: 1000,
+          fragLoadingTimeOut: 30000,
+          fragLoadingMaxRetry: 10,
+          fragLoadingRetryDelay: 1000,
         });
         hls.loadSource(hlsUrl);
         hls.attachMedia(video);
@@ -258,14 +260,27 @@
           audioHint.style.display = video.muted ? "block" : "none";
         });
 
+        let mediaRecoveryAttempts = 0;
         hls.on(Hls.Events.ERROR, (event, data) => {
           console.warn("HLS error:", data.type, data.details, data.fatal);
           if (data.fatal) {
             if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-              console.log("Attempting media error recovery...");
-              hls.recoverMediaError();
+              mediaRecoveryAttempts++;
+              if (mediaRecoveryAttempts <= 3) {
+                console.log(`Media error recovery attempt ${mediaRecoveryAttempts}...`);
+                hls.recoverMediaError();
+              } else {
+                console.log("Media recovery failed, full reinit...");
+                mediaRecoveryAttempts = 0;
+                scheduleRetry();
+              }
+            } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              console.log("Network error, retrying source...");
+              hls.startLoad();
+              setTimeout(() => {
+                if (hls) hls.loadSource(hlsUrl);
+              }, 3000);
             } else {
-              // Network error or other fatal - schedule retry
               scheduleRetry();
             }
           }
@@ -275,6 +290,18 @@
           setStatus("on", "Live");
           camError.classList.remove("show");
           retryCount = 0;
+          mediaRecoveryAttempts = 0;
+        });
+
+        // Auto-recover from video stalls
+        hls.on(Hls.Events.BUFFER_APPENDING, () => {
+          clearTimeout(stallTimer);
+          stallTimer = setTimeout(() => {
+            if (hls && video.paused && !document.hidden) {
+              console.log("Stall detected, attempting play...");
+              video.play().catch(() => {});
+            }
+          }, 8000);
         });
 
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
