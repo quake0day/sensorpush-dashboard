@@ -372,6 +372,10 @@ function startFFmpeg(quality) {
     "-probesize", "5000000",
     "-i", url,
 
+    // Explicit stream mapping (required for audio to work)
+    "-map", "0:v:0",
+    "-map", "0:a:0",
+
     // Video: transcode HEVC→H.264 (browser-compatible)
     "-c:v", "libx264",
     "-preset", "fast",
@@ -394,8 +398,12 @@ function startFFmpeg(quality) {
     "-sc_threshold", "0",
     "-flags", "+cgop",             // Closed GOP for HLS
 
-    // Audio: copy AAC directly from camera (re-encoding corrupts metadata)
-    "-c:a", "copy",
+    // Audio: re-encode AAC with explicit params (copy loses channel metadata)
+    "-c:a", "aac",
+    "-ar", "16000",
+    "-ac", "1",
+    "-b:a", "64k",
+    "-strict", "experimental",
 
     // HLS output
     "-f", "hls",
