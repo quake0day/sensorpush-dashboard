@@ -4,3 +4,4 @@ node_modules/
 pond-alarm-log.json
 data/gardens/*.json
 hls-cam/
+data/bird-detections/
