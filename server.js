@@ -310,27 +310,133 @@ app.delete("/api/garden/:name", (req, res) => {
   res.json({ ok: true });
 });
 
-// ============ Reolink Camera (Koi Pond) ============
+// ============ Reolink Camera (Koi Pond) - RTSP/HLS ============
+const { spawn } = require("child_process");
 const REOLINK_IP = process.env.REOLINK_IP || "192.168.68.96";
 const REOLINK_USER = process.env.REOLINK_USER || "admin";
 const REOLINK_PASS = process.env.REOLINK_PASSWORD || "";
+const HLS_DIR = path.join(__dirname, "hls-cam");
 
+// Ensure HLS output directory exists
+if (!fs.existsSync(HLS_DIR)) fs.mkdirSync(HLS_DIR, { recursive: true });
+
+// Serve HLS segments with proper headers
+app.use("/hls", (req, res, next) => {
+  res.set("Cache-Control", "no-cache, no-store");
+  res.set("Access-Control-Allow-Origin", "*");
+  next();
+}, express.static(HLS_DIR));
+
+let ffmpegProc = null;
+let ffmpegStream = "sub"; // "sub" or "main"
+let ffmpegStartTime = 0;
+let ffmpegRestarts = 0;
+
+function rtspUrl(stream) {
+  const profile = stream === "main" ? "h264Preview_01_main" : "h264Preview_01_sub";
+  return `rtsp://${encodeURIComponent(REOLINK_USER)}:${encodeURIComponent(REOLINK_PASS)}@${REOLINK_IP}:554/${profile}`;
+}
+
+function startFFmpeg(stream) {
+  if (ffmpegProc) {
+    ffmpegProc.kill("SIGTERM");
+    ffmpegProc = null;
+  }
+  // Clean old segments
+  try {
+    fs.readdirSync(HLS_DIR).forEach(f => fs.unlinkSync(path.join(HLS_DIR, f)));
+  } catch (e) {}
+
+  ffmpegStream = stream || ffmpegStream;
+  ffmpegStartTime = Date.now();
+  const url = rtspUrl(ffmpegStream);
+  console.log(`Starting ffmpeg: RTSP ${ffmpegStream} stream → HLS`);
+
+  const args = [
+    "-rtsp_transport", "tcp",
+    "-i", url,
+    "-c:v", "copy",
+    "-an",
+    "-f", "hls",
+    "-hls_time", "2",
+    "-hls_list_size", "4",
+    "-hls_flags", "delete_segments+append_list",
+    "-hls_segment_filename", path.join(HLS_DIR, "seg%05d.ts"),
+    path.join(HLS_DIR, "stream.m3u8"),
+  ];
+
+  ffmpegProc = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+
+  ffmpegProc.stderr.on("data", (data) => {
+    const line = data.toString().trim();
+    if (line.includes("error") || line.includes("Error")) {
+      console.error("ffmpeg:", line);
+    }
+  });
+
+  ffmpegProc.on("exit", (code) => {
+    console.log(`ffmpeg exited with code ${code}`);
+    ffmpegProc = null;
+    // Auto-restart if it crashed (max 10 restarts)
+    if (code !== 0 && ffmpegRestarts < 10) {
+      ffmpegRestarts++;
+      console.log(`ffmpeg auto-restart #${ffmpegRestarts} in 3s...`);
+      setTimeout(() => startFFmpeg(ffmpegStream), 3000);
+    }
+  });
+
+  // Reset restart counter after 60s of stable operation
+  setTimeout(() => { ffmpegRestarts = Math.max(0, ffmpegRestarts - 1); }, 60000);
+}
+
+// Auto-start ffmpeg on server boot
+startFFmpeg("sub");
+
+// API: stream status
+app.get("/api/camera/status", (req, res) => {
+  const m3u8Exists = fs.existsSync(path.join(HLS_DIR, "stream.m3u8"));
+  const segments = fs.readdirSync(HLS_DIR).filter(f => f.endsWith(".ts")).length;
+  res.json({
+    running: !!ffmpegProc,
+    stream: ffmpegStream,
+    hlsReady: m3u8Exists && segments > 0,
+    segments,
+    uptime: ffmpegProc ? Math.floor((Date.now() - ffmpegStartTime) / 1000) : 0,
+    restarts: ffmpegRestarts,
+  });
+});
+
+// API: switch stream quality
+app.post("/api/camera/stream", (req, res) => {
+  const { quality } = req.body;
+  if (!["main", "sub"].includes(quality)) return res.status(400).json({ error: "Invalid quality: main or sub" });
+  startFFmpeg(quality);
+  res.json({ ok: true, stream: quality });
+});
+
+// API: restart stream
+app.post("/api/camera/restart", (req, res) => {
+  ffmpegRestarts = 0;
+  startFFmpeg(ffmpegStream);
+  res.json({ ok: true });
+});
+
+// API: snapshot (grab from RTSP directly)
 app.get("/api/camera/snap", async (req, res) => {
   try {
     const url = `http://${REOLINK_IP}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=${Date.now()}&user=${encodeURIComponent(REOLINK_USER)}&password=${encodeURIComponent(REOLINK_PASS)}`;
     const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw new Error(`Camera returned ${response.status}`);
-    const contentType = response.headers.get("content-type") || "image/jpeg";
-    res.set("Content-Type", contentType);
+    res.set("Content-Type", response.headers.get("content-type") || "image/jpeg");
     res.set("Cache-Control", "no-cache, no-store");
-    const buffer = Buffer.from(await response.arrayBuffer());
-    res.send(buffer);
+    res.send(Buffer.from(await response.arrayBuffer()));
   } catch (err) {
     console.error("camera snap error:", err.message);
-    res.status(502).json({ error: "Camera unreachable: " + err.message });
+    res.status(502).json({ error: err.message });
   }
 });
 
+// API: PTZ control
 app.post("/api/camera/ptz", async (req, res) => {
   try {
     const { command, speed } = req.body;
@@ -348,14 +454,14 @@ app.post("/api/camera/ptz", async (req, res) => {
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(3000),
     });
-    const data = await response.json();
-    res.json(data);
+    res.json(await response.json());
   } catch (err) {
     console.error("camera ptz error:", err.message);
     res.status(502).json({ error: err.message });
   }
 });
 
+// API: camera device info
 app.get("/api/camera/info", async (req, res) => {
   try {
     const body = [{ cmd: "GetDevInfo", action: 0, param: { channel: 0 } }];
@@ -373,6 +479,10 @@ app.get("/api/camera/info", async (req, res) => {
     res.status(502).json({ error: err.message });
   }
 });
+
+// Cleanup ffmpeg on exit
+process.on("SIGTERM", () => { if (ffmpegProc) ffmpegProc.kill(); process.exit(0); });
+process.on("SIGINT", () => { if (ffmpegProc) ffmpegProc.kill(); process.exit(0); });
 
 // ============ Page Routes ============
 app.get("/cn", (req, res) => {
