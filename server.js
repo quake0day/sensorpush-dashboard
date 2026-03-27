@@ -559,6 +559,96 @@ app.get("/api/birds/latest", (req, res) => {
   }
 });
 
+// Daily detections by date
+app.get("/api/birds/daily/:date?", (req, res) => {
+  try {
+    const dateStr = req.params.date || new Date().toISOString().slice(0, 10);
+    const file = path.join(BIRD_DIR, "daily", `${dateStr}.json`);
+    if (!fs.existsSync(file)) return res.json({ date: dateStr, detections: [] });
+    const data = JSON.parse(fs.readFileSync(file, "utf8"));
+    res.json({ date: dateStr, detections: data });
+  } catch (e) {
+    res.json({ date: req.params.date, detections: [] });
+  }
+});
+
+// Available dates that have detections
+app.get("/api/birds/dates", (req, res) => {
+  try {
+    const dailyDir = path.join(BIRD_DIR, "daily");
+    if (!fs.existsSync(dailyDir)) return res.json({ dates: [] });
+    const files = fs.readdirSync(dailyDir).filter(f => f.endsWith(".json")).sort().reverse();
+    const dates = files.map(f => {
+      const date = f.replace(".json", "");
+      const data = JSON.parse(fs.readFileSync(path.join(dailyDir, f), "utf8"));
+      return { date, count: data.length };
+    });
+    res.json({ dates });
+  } catch (e) {
+    res.json({ dates: [] });
+  }
+});
+
+// Stats/leaderboard for a date range
+app.get("/api/birds/stats", (req, res) => {
+  try {
+    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const days = parseInt(req.query.days) || 1;
+    const allDetections = [];
+
+    for (let i = 0; i < days; i++) {
+      const d = new Date(date);
+      d.setDate(d.getDate() - i);
+      const ds = d.toISOString().slice(0, 10);
+      const file = path.join(BIRD_DIR, "daily", `${ds}.json`);
+      if (fs.existsSync(file)) {
+        try {
+          const data = JSON.parse(fs.readFileSync(file, "utf8"));
+          allDetections.push(...data);
+        } catch (e) {}
+      }
+    }
+
+    // Build species leaderboard
+    const speciesMap = {};
+    for (const d of allDetections) {
+      const key = d.common_name;
+      if (!speciesMap[key]) {
+        speciesMap[key] = { common_name: d.common_name, scientific_name: d.scientific_name, count: 0, total_conf: 0, first_seen: d.time, last_seen: d.time, best_clip: null };
+      }
+      speciesMap[key].count++;
+      speciesMap[key].total_conf += d.confidence;
+      if (d.time < speciesMap[key].first_seen) speciesMap[key].first_seen = d.time;
+      if (d.time > speciesMap[key].last_seen) speciesMap[key].last_seen = d.time;
+      if (d.has_clip && (!speciesMap[key].best_clip || d.confidence > (speciesMap[key].best_conf || 0))) {
+        speciesMap[key].best_clip = d.id;
+        speciesMap[key].best_conf = d.confidence;
+      }
+    }
+
+    const leaderboard = Object.values(speciesMap)
+      .map(s => ({ ...s, avg_conf: Math.round((s.total_conf / s.count) * 1000) / 1000 }))
+      .sort((a, b) => b.count - a.count);
+
+    // Hourly activity
+    const hourly = Array(24).fill(0);
+    for (const d of allDetections) {
+      const h = new Date(d.time).getHours();
+      hourly[h]++;
+    }
+
+    res.json({
+      total_detections: allDetections.length,
+      unique_species: leaderboard.length,
+      leaderboard,
+      hourly,
+      period: { date, days },
+    });
+  } catch (e) {
+    res.json({ total_detections: 0, unique_species: 0, leaderboard: [], hourly: Array(24).fill(0) });
+  }
+});
+
 // Bird detector process management
 let birdProc = null;
 function startBirdDetector() {
@@ -648,6 +738,10 @@ app.get("/edit", (req, res) => {
 
 app.get("/koi", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "koi.html"));
+});
+
+app.get("/bird", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "bird.html"));
 });
 
 const PORT = process.env.PORT || 3000;
