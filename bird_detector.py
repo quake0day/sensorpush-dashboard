@@ -18,8 +18,8 @@ AUDIO_DIR = DETECT_DIR / "clips"
 DAILY_DIR = DETECT_DIR / "daily"
 LATEST_FILE = DETECT_DIR / "latest.json"
 LAT, LON = 39.957, -75.603
-MIN_CONFIDENCE = 0.40
-CHUNK_SECONDS = 6
+MIN_CONFIDENCE = 0.15
+CHUNK_SECONDS = 9  # longer chunks = better detection
 POLL_INTERVAL = 10
 MAX_LATEST = 50
 
@@ -66,11 +66,16 @@ def save_daily(entries, d=None):
 
 
 def extract_audio(output_path):
+    """Extract audio from HLS with volume boost for better detection."""
     try:
         result = subprocess.run([
-            "ffmpeg", "-y", "-i", HLS_URL,
+            "ffmpeg", "-y",
+            "-i", HLS_URL,
             "-t", str(CHUNK_SECONDS),
-            "-vn", "-ar", "48000", "-ac", "1", "-f", "wav",
+            "-vn",
+            "-af", "highpass=f=500,lowpass=f=12000,volume=6.0",  # boost + bandpass for bird range
+            "-acodec", "pcm_s16le",
+            "-ar", "48000", "-ac", "1",
             output_path
         ], capture_output=True, text=True, timeout=30)
         return result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 1000
