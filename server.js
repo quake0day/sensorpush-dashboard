@@ -537,9 +537,100 @@ app.get("/api/camera/info", async (req, res) => {
   }
 });
 
-// Cleanup ffmpeg on exit
-process.on("SIGTERM", () => { if (ffmpegProc) ffmpegProc.kill(); process.exit(0); });
-process.on("SIGINT", () => { if (ffmpegProc) ffmpegProc.kill(); process.exit(0); });
+// ============ Bird Detection API ============
+const BIRD_DIR = path.join(__dirname, "data", "bird-detections");
+const BIRD_CLIPS = path.join(BIRD_DIR, "clips");
+const BIRD_FILE = path.join(BIRD_DIR, "latest.json");
+if (!fs.existsSync(BIRD_CLIPS)) fs.mkdirSync(BIRD_CLIPS, { recursive: true });
+
+// Serve bird audio clips
+app.use("/api/birds/clip", express.static(BIRD_CLIPS));
+
+// Latest detections
+app.get("/api/birds/latest", (req, res) => {
+  const since = parseInt(req.query.since) || 0;
+  try {
+    if (!fs.existsSync(BIRD_FILE)) return res.json({ detections: [] });
+    const all = JSON.parse(fs.readFileSync(BIRD_FILE, "utf8"));
+    const filtered = since ? all.filter(d => d.timestamp > since) : all.slice(-20);
+    res.json({ detections: filtered });
+  } catch (e) {
+    res.json({ detections: [] });
+  }
+});
+
+// Bird detector process management
+let birdProc = null;
+function startBirdDetector() {
+  if (birdProc) return;
+  const script = path.join(__dirname, "bird_detector.py");
+  if (!fs.existsSync(script)) return;
+  console.log("Starting bird detector...");
+  birdProc = spawn("python3", [script], {
+    cwd: __dirname,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  birdProc.stdout.on("data", d => {
+    const line = d.toString().trim();
+    if (line) console.log("bird:", line);
+  });
+  birdProc.stderr.on("data", d => {
+    const line = d.toString().trim();
+    if (line && !line.startsWith("INFO:")) console.error("bird-err:", line);
+  });
+  birdProc.on("exit", (code) => {
+    console.log(`Bird detector exited (code ${code})`);
+    birdProc = null;
+    // Auto-restart after 30s
+    setTimeout(startBirdDetector, 30000);
+  });
+}
+
+// Start bird detector 15s after server boot (wait for HLS)
+setTimeout(startBirdDetector, 15000);
+
+app.get("/api/birds/status", (req, res) => {
+  res.json({ running: !!birdProc });
+});
+
+// Wikipedia image proxy for bird photos
+const birdImageCache = {};
+app.get("/api/birds/image/:name", async (req, res) => {
+  const name = req.params.name;
+  if (birdImageCache[name]) {
+    return res.json(birdImageCache[name]);
+  }
+  try {
+    // Search Wikipedia for bird image
+    const searchUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name)}`;
+    const resp = await fetch(searchUrl, { signal: AbortSignal.timeout(5000) });
+    if (resp.ok) {
+      const data = await resp.json();
+      const result = {
+        image: data.thumbnail?.source || data.originalimage?.source || null,
+        extract: data.extract || "",
+        url: data.content_urls?.desktop?.page || "",
+      };
+      birdImageCache[name] = result;
+      return res.json(result);
+    }
+    res.json({ image: null, extract: "", url: "" });
+  } catch (e) {
+    res.json({ image: null, extract: "", url: "" });
+  }
+});
+
+// Cleanup on exit
+process.on("SIGTERM", () => {
+  if (ffmpegProc) ffmpegProc.kill();
+  if (birdProc) birdProc.kill();
+  process.exit(0);
+});
+process.on("SIGINT", () => {
+  if (ffmpegProc) ffmpegProc.kill();
+  if (birdProc) birdProc.kill();
+  process.exit(0);
+});
 
 // ============ Page Routes ============
 app.get("/cn", (req, res) => {

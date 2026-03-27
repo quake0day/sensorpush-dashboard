@@ -145,9 +145,31 @@
       .weather-now .wx-main .wx-temp-lg { font-size: 32px; }
       .forecast-grid { grid-template-columns: repeat(auto-fit, minmax(75px, 1fr)); gap: 6px; }
     }
+    /* Bird Notification */
+    .bird-toast-container { position: fixed; top: 80px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 12px; pointer-events: none; max-width: 380px; }
+    .bird-toast { pointer-events: auto; background: var(--surface); border: 1px solid var(--accent); border-radius: 14px; padding: 16px; display: flex; gap: 14px; box-shadow: 0 8px 32px rgba(74,222,128,0.15), 0 2px 8px rgba(0,0,0,0.4); animation: birdSlideIn 0.5s ease-out; position: relative; overflow: hidden; }
+    .bird-toast::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--orange)); }
+    .bird-toast.hiding { animation: birdSlideOut 0.4s ease-in forwards; }
+    @keyframes birdSlideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes birdSlideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(120%); opacity: 0; } }
+    .bird-toast .bird-img { width: 80px; height: 80px; border-radius: 10px; object-fit: cover; background: var(--surface2); flex-shrink: 0; }
+    .bird-toast .bird-info { flex: 1; min-width: 0; }
+    .bird-toast .bird-label { font-size: 10px; color: var(--accent); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+    .bird-toast .bird-name { font-size: 16px; font-weight: 700; line-height: 1.2; }
+    .bird-toast .bird-sci { font-size: 11px; color: var(--text3); font-style: italic; margin-top: 2px; }
+    .bird-toast .bird-conf { font-size: 11px; color: var(--text2); margin-top: 4px; }
+    .bird-toast .bird-desc { font-size: 11px; color: var(--text2); margin-top: 4px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .bird-toast .bird-audio { margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+    .bird-toast .bird-play-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--accent); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+    .bird-toast .bird-play-btn:hover { background: var(--accent); color: var(--bg); }
+    .bird-toast .bird-close { position: absolute; top: 8px; right: 10px; background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 2px; line-height: 1; }
+    .bird-toast .bird-close:hover { color: var(--text); }
+    @media (max-width: 640px) { .bird-toast-container { left: 12px; right: 12px; max-width: none; top: 70px; } .bird-toast .bird-img { width: 60px; height: 60px; } }
   </style>
 </head>
 <body>
+  <!-- Bird notification container -->
+  <div class="bird-toast-container" id="birdToasts"></div>
   <div class="header">
     <div class="header-left">
       <h1><span class="leaf">&#127793;</span> <span id="title"></span></h1>
@@ -1725,6 +1747,127 @@ window.addEventListener('load', () => {
     });
   }, 2000);
 });
+
+// ============ Bird Detection Notifications ============
+const BIRD_T = {
+  en: { detected: 'Bird Detected', confidence: 'Confidence', listen: 'Listen', wiki: 'Learn more' },
+  cn: { detected: '检测到鸟类', confidence: '置信度', listen: '收听', wiki: '了解更多' },
+}[LANG];
+
+// Common bird name translations (EN→CN)
+const BIRD_CN = {
+  "American Robin": "美洲知更鸟", "Northern Cardinal": "北美红雀", "Blue Jay": "冠蓝鸦",
+  "American Goldfinch": "美洲金翅雀", "House Sparrow": "家麻雀", "European Starling": "紫翅椋鸟",
+  "Mourning Dove": "哀鸽", "American Crow": "美洲乌鸦", "Black-capped Chickadee": "黑顶山雀",
+  "White-breasted Nuthatch": "白胸鳾", "Tufted Titmouse": "簇绒山雀", "Red-bellied Woodpecker": "红腹啄木鸟",
+  "Downy Woodpecker": "绒啄木鸟", "Song Sparrow": "歌带鹀", "House Finch": "家朱雀",
+  "Carolina Wren": "卡罗莱纳鹪鹩", "Red-winged Blackbird": "红翅黑鹂", "Common Grackle": "普通拟八哥",
+  "Brown-headed Cowbird": "褐头牛鹂", "Chipping Sparrow": "栗肩雀鹀", "Eastern Bluebird": "东蓝鸲",
+  "Northern Mockingbird": "北方嘲鸫", "Eastern Phoebe": "东方菲比霸鹟", "Cedar Waxwing": "雪松太平鸟",
+  "Ruby-throated Hummingbird": "红喉蜂鸟", "Baltimore Oriole": "巴尔的摩金莺", "Indigo Bunting": "靛蓝彩鹀",
+  "Great Blue Heron": "大蓝鹭", "Canada Goose": "加拿大雁", "Mallard": "绿头鸭",
+  "Rock Pigeon": "原鸽", "Barn Swallow": "家燕", "Chimney Swift": "烟囱雨燕",
+  "Cooper's Hawk": "库柏鹰", "Red-tailed Hawk": "红尾鵟", "Turkey Vulture": "红头美洲鹫",
+  "Wild Turkey": "野火鸡", "Killdeer": "双领鸻", "Eastern Wood-Pewee": "东部丛林霸鹟",
+  "Hairy Woodpecker": "毛啄木鸟", "Pileated Woodpecker": "北美黑啄木鸟", "Northern Flicker": "扑动鴷",
+  "Gray Catbird": "灰猫嘲鸫", "Brown Thrasher": "褐弯嘴嘲鸫", "Wood Thrush": "林鸫",
+  "Hermit Thrush": "隐士夜鸫", "Eastern Towhee": "棕胁唧鹀", "Dark-eyed Junco": "暗眼灯草鹀",
+  "White-throated Sparrow": "白喉带鹀", "Fox Sparrow": "狐色雀鹀",
+  "Barred Owl": "横斑林鸮", "Great Horned Owl": "大角鸮", "Eastern Screech-Owl": "东美角鸮",
+};
+
+let birdLastTimestamp = 0;
+let birdSeenIds = new Set();
+const birdInfoCache = {};
+
+async function fetchBirdImage(commonName, sciName) {
+  const key = sciName || commonName;
+  if (birdInfoCache[key]) return birdInfoCache[key];
+  try {
+    const res = await fetch(`/api/birds/image/${encodeURIComponent(commonName)}`);
+    const data = await res.json();
+    if (!data.image && sciName) {
+      const res2 = await fetch(`/api/birds/image/${encodeURIComponent(sciName)}`);
+      const data2 = await res2.json();
+      Object.assign(data, { image: data2.image || data.image, extract: data2.extract || data.extract });
+    }
+    birdInfoCache[key] = data;
+    return data;
+  } catch { return { image: null, extract: "", url: "" }; }
+}
+
+function showBirdToast(detection, wikiData) {
+  const container = document.getElementById('birdToasts');
+  const toast = document.createElement('div');
+  toast.className = 'bird-toast';
+
+  const cnName = BIRD_CN[detection.common_name] || detection.common_name;
+  const displayName = LANG === 'cn' ? cnName : detection.common_name;
+  const confPct = Math.round(detection.confidence * 100);
+
+  let descText = wikiData.extract || '';
+  if (LANG === 'cn' && descText && descText.length > 10) {
+    descText = ''; // Skip English description for CN, show name only
+  }
+
+  toast.innerHTML = `
+    <button class="bird-close" onclick="this.parentElement.classList.add('hiding');setTimeout(()=>this.parentElement.remove(),400)">&times;</button>
+    ${wikiData.image ? `<img class="bird-img" src="${wikiData.image}" alt="${displayName}" onerror="this.style.display='none'">` : '<div class="bird-img" style="display:flex;align-items:center;justify-content:center;font-size:32px">🐦</div>'}
+    <div class="bird-info">
+      <div class="bird-label">🎵 ${BIRD_T.detected}</div>
+      <div class="bird-name">${displayName}</div>
+      <div class="bird-sci">${detection.scientific_name}</div>
+      <div class="bird-conf">${BIRD_T.confidence}: ${confPct}%</div>
+      ${descText ? `<div class="bird-desc">${descText}</div>` : ''}
+      <div class="bird-audio">
+        ${detection.has_clip ? `<button class="bird-play-btn" onclick="playBirdClip(this,'${detection.id}')" title="${BIRD_T.listen}">&#9654;</button><span style="font-size:10px;color:var(--text3)">${BIRD_T.listen}</span>` : ''}
+        ${wikiData.url ? `<a href="${wikiData.url}" target="_blank" style="font-size:10px;color:var(--accent);margin-left:auto">${BIRD_T.wiki} →</a>` : ''}
+      </div>
+    </div>
+  `;
+
+  container.appendChild(toast);
+  // Auto-remove after 15s
+  setTimeout(() => {
+    if (toast.parentElement) {
+      toast.classList.add('hiding');
+      setTimeout(() => toast.remove(), 400);
+    }
+  }, 15000);
+
+  // Keep max 3 visible
+  while (container.children.length > 3) {
+    container.children[0].remove();
+  }
+}
+
+let birdAudio = null;
+function playBirdClip(btn, id) {
+  if (birdAudio) { birdAudio.pause(); birdAudio = null; }
+  birdAudio = new Audio(`/api/birds/clip/${id}.mp3`);
+  birdAudio.play().catch(() => {});
+  btn.textContent = '⏸';
+  birdAudio.onended = () => { btn.textContent = '▶'; birdAudio = null; };
+  birdAudio.onerror = () => { btn.textContent = '▶'; birdAudio = null; };
+}
+
+async function pollBirds() {
+  try {
+    const res = await fetch(`/api/birds/latest?since=${birdLastTimestamp}`);
+    const data = await res.json();
+    for (const det of (data.detections || [])) {
+      if (birdSeenIds.has(det.id)) continue;
+      birdSeenIds.add(det.id);
+      birdLastTimestamp = Math.max(birdLastTimestamp, det.timestamp || 0);
+      const wiki = await fetchBirdImage(det.common_name, det.scientific_name);
+      showBirdToast(det, wiki);
+    }
+  } catch (e) {}
+}
+
+// Poll for birds every 15 seconds
+setInterval(pollBirds, 15000);
+setTimeout(pollBirds, 5000); // first check after 5s
 
 init();
 </script>
