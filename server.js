@@ -310,6 +310,70 @@ app.delete("/api/garden/:name", (req, res) => {
   res.json({ ok: true });
 });
 
+// ============ Reolink Camera (Koi Pond) ============
+const REOLINK_IP = process.env.REOLINK_IP || "192.168.68.96";
+const REOLINK_USER = process.env.REOLINK_USER || "admin";
+const REOLINK_PASS = process.env.REOLINK_PASSWORD || "";
+
+app.get("/api/camera/snap", async (req, res) => {
+  try {
+    const url = `http://${REOLINK_IP}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=${Date.now()}&user=${encodeURIComponent(REOLINK_USER)}&password=${encodeURIComponent(REOLINK_PASS)}`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw new Error(`Camera returned ${response.status}`);
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    res.set("Content-Type", contentType);
+    res.set("Cache-Control", "no-cache, no-store");
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.send(buffer);
+  } catch (err) {
+    console.error("camera snap error:", err.message);
+    res.status(502).json({ error: "Camera unreachable: " + err.message });
+  }
+});
+
+app.post("/api/camera/ptz", async (req, res) => {
+  try {
+    const { command, speed } = req.body;
+    const ptzMap = {
+      left: "Left", right: "Right", up: "Up", down: "Down",
+      zoomin: "ZoomInc", zoomout: "ZoomDec", stop: "Stop"
+    };
+    const op = ptzMap[command];
+    if (!op) return res.status(400).json({ error: "Invalid PTZ command" });
+    const body = [{ cmd: "PtzCtrl", action: 0, param: { channel: 0, op, speed: speed || 10 } }];
+    const url = `http://${REOLINK_IP}/cgi-bin/api.cgi?token=null&user=${encodeURIComponent(REOLINK_USER)}&password=${encodeURIComponent(REOLINK_PASS)}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(3000),
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error("camera ptz error:", err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.get("/api/camera/info", async (req, res) => {
+  try {
+    const body = [{ cmd: "GetDevInfo", action: 0, param: { channel: 0 } }];
+    const url = `http://${REOLINK_IP}/cgi-bin/api.cgi?token=null&user=${encodeURIComponent(REOLINK_USER)}&password=${encodeURIComponent(REOLINK_PASS)}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(5000),
+    });
+    const data = await response.json();
+    res.json(data[0]?.value?.DevInfo || {});
+  } catch (err) {
+    console.error("camera info error:", err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
 // ============ Page Routes ============
 app.get("/cn", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
@@ -321,6 +385,10 @@ app.get("/pin", (req, res) => {
 
 app.get("/edit", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "edit.html"));
+});
+
+app.get("/koi", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "koi.html"));
 });
 
 const PORT = process.env.PORT || 3000;
