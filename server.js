@@ -328,16 +328,23 @@ app.use("/hls", (req, res, next) => {
 }, express.static(HLS_DIR));
 
 let ffmpegProc = null;
-let ffmpegStream = "sub"; // "sub" or "main"
+let ffmpegStream = "main"; // always use main for audio + quality
+let ffmpegQuality = "1080p"; // "1080p", "720p", "4k"
 let ffmpegStartTime = 0;
 let ffmpegRestarts = 0;
 
-function rtspUrl(stream) {
-  const profile = stream === "main" ? "h264Preview_01_main" : "h264Preview_01_sub";
-  return `rtsp://${encodeURIComponent(REOLINK_USER)}:${encodeURIComponent(REOLINK_PASS)}@${REOLINK_IP}:554/${profile}`;
+function rtspUrl() {
+  // Always use main stream (has audio; sub stream has NO audio)
+  return `rtsp://${encodeURIComponent(REOLINK_USER)}:${encodeURIComponent(REOLINK_PASS)}@${REOLINK_IP}:554/h264Preview_01_main`;
 }
 
-function startFFmpeg(stream) {
+const QUALITY_PRESETS = {
+  "4k":    { scale: null, vbr: "8000k",  maxrate: "10000k", bufsize: "16000k" },
+  "1080p": { scale: "1920:-2", vbr: "3000k", maxrate: "4000k", bufsize: "6000k" },
+  "720p":  { scale: "1280:-2", vbr: "1500k", maxrate: "2000k", bufsize: "3000k" },
+};
+
+function startFFmpeg(quality) {
   if (ffmpegProc) {
     ffmpegProc.kill("SIGTERM");
     ffmpegProc = null;
@@ -347,33 +354,72 @@ function startFFmpeg(stream) {
     fs.readdirSync(HLS_DIR).forEach(f => fs.unlinkSync(path.join(HLS_DIR, f)));
   } catch (e) {}
 
-  ffmpegStream = stream || ffmpegStream;
+  ffmpegQuality = quality || ffmpegQuality;
   ffmpegStartTime = Date.now();
-  const url = rtspUrl(ffmpegStream);
-  console.log(`Starting ffmpeg: RTSP ${ffmpegStream} stream → HLS`);
+  const url = rtspUrl();
+  const preset = QUALITY_PRESETS[ffmpegQuality] || QUALITY_PRESETS["1080p"];
+  console.log(`Starting ffmpeg: RTSP main → H.264 ${ffmpegQuality} + AAC → HLS`);
 
   const args = [
+    // Input: RTSP over TCP with generous timeouts to prevent drops
     "-rtsp_transport", "tcp",
+    "-rtsp_flags", "prefer_tcp",
+    "-stimeout", "5000000",       // 5s socket timeout (microseconds)
+    "-timeout", "5000000",
+    "-buffer_size", "4194304",    // 4MB UDP buffer
+    "-max_delay", "500000",       // 500ms max delay
+    "-reorder_queue_size", "1024",
     "-i", url,
-    "-c:v", "copy",
+
+    // Video: transcode HEVC→H.264 (browser-compatible)
+    "-c:v", "libx264",
+    "-preset", "fast",
+    "-tune", "zerolatency",
+    "-profile:v", "high",
+    "-level", "4.1",
+    "-b:v", preset.vbr,
+    "-maxrate", preset.maxrate,
+    "-bufsize", preset.bufsize,
+  ];
+
+  // Scale if not 4K passthrough
+  if (preset.scale) {
+    args.push("-vf", `scale=${preset.scale}`);
+  }
+
+  args.push(
+    "-r", "25",                    // Output 25fps
+    "-g", "50",                    // Keyframe every 2s (25fps * 2)
+    "-sc_threshold", "0",
+
+    // Audio: copy AAC (already AAC from camera)
     "-c:a", "aac",
+    "-b:a", "64k",
     "-ac", "1",
     "-ar", "16000",
-    "-b:a", "64k",
+
+    // HLS output
     "-f", "hls",
     "-hls_time", "2",
-    "-hls_list_size", "4",
-    "-hls_flags", "delete_segments+append_list",
+    "-hls_list_size", "6",
+    "-hls_flags", "delete_segments+append_list+independent_segments",
+    "-hls_segment_type", "mpegts",
     "-hls_segment_filename", path.join(HLS_DIR, "seg%05d.ts"),
     path.join(HLS_DIR, "stream.m3u8"),
-  ];
+  );
 
   ffmpegProc = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
 
+  let stderrBuf = "";
   ffmpegProc.stderr.on("data", (data) => {
-    const line = data.toString().trim();
-    if (line.includes("error") || line.includes("Error")) {
-      console.error("ffmpeg:", line);
+    stderrBuf += data.toString();
+    // Log errors and periodic status
+    const lines = stderrBuf.split("\n");
+    stderrBuf = lines.pop(); // keep incomplete line
+    for (const line of lines) {
+      if (line.includes("error") || line.includes("Error") || line.includes("Opening") || line.includes("Output #0")) {
+        console.log("ffmpeg:", line.trim());
+      }
     }
   });
 
@@ -384,7 +430,7 @@ function startFFmpeg(stream) {
     if (code !== 0 && ffmpegRestarts < 10) {
       ffmpegRestarts++;
       console.log(`ffmpeg auto-restart #${ffmpegRestarts} in 3s...`);
-      setTimeout(() => startFFmpeg(ffmpegStream), 3000);
+      setTimeout(() => startFFmpeg(ffmpegQuality), 3000);
     }
   });
 
@@ -392,8 +438,8 @@ function startFFmpeg(stream) {
   setTimeout(() => { ffmpegRestarts = Math.max(0, ffmpegRestarts - 1); }, 60000);
 }
 
-// Auto-start ffmpeg on server boot
-startFFmpeg("sub");
+// Auto-start ffmpeg on server boot (1080p with audio)
+startFFmpeg("1080p");
 
 // API: stream status
 app.get("/api/camera/status", (req, res) => {
@@ -401,7 +447,7 @@ app.get("/api/camera/status", (req, res) => {
   const segments = fs.readdirSync(HLS_DIR).filter(f => f.endsWith(".ts")).length;
   res.json({
     running: !!ffmpegProc,
-    stream: ffmpegStream,
+    quality: ffmpegQuality,
     hlsReady: m3u8Exists && segments > 0,
     segments,
     uptime: ffmpegProc ? Math.floor((Date.now() - ffmpegStartTime) / 1000) : 0,
@@ -409,12 +455,12 @@ app.get("/api/camera/status", (req, res) => {
   });
 });
 
-// API: switch stream quality
+// API: switch output quality (always from main RTSP stream)
 app.post("/api/camera/stream", (req, res) => {
   const { quality } = req.body;
-  if (!["main", "sub"].includes(quality)) return res.status(400).json({ error: "Invalid quality: main or sub" });
+  if (!["4k", "1080p", "720p"].includes(quality)) return res.status(400).json({ error: "Invalid quality: 4k, 1080p, or 720p" });
   startFFmpeg(quality);
-  res.json({ ok: true, stream: quality });
+  res.json({ ok: true, quality });
 });
 
 // API: restart stream

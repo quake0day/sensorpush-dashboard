@@ -38,12 +38,11 @@
 
     .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 
-    /* Video */
     .cam-wrapper { display: flex; justify-content: center; margin-bottom: 20px; }
     .cam-frame { border: 3px solid var(--border); border-radius: 16px; overflow: hidden; background: #000; box-shadow: 0 4px 40px rgba(74,222,128,0.08); max-width: 960px; width: 100%; position: relative; }
     .cam-frame video { display: block; width: 100%; height: auto; min-height: 300px; background: #000; }
     .cam-frame .overlay-time { position: absolute; top: 12px; right: 14px; background: rgba(0,0,0,0.6); color: #fff; font-size: 12px; padding: 3px 10px; border-radius: 4px; font-family: monospace; pointer-events: none; }
-    .cam-frame .overlay-live { position: absolute; top: 12px; left: 14px; background: rgba(220,38,38,0.85); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 4px; letter-spacing: 1px; display: flex; align-items: center; gap: 5px; pointer-events: none; }
+    .cam-frame .overlay-live { position: absolute; top: 12px; left: 14px; background: rgba(220,38,38,0.85); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 4px; letter-spacing: 1px; display: none; align-items: center; gap: 5px; pointer-events: none; }
     .cam-frame .overlay-live .rec-dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; animation: blink 1s infinite; }
     .cam-frame .overlay-quality { position: absolute; bottom: 12px; right: 14px; background: rgba(0,0,0,0.6); color: var(--accent); font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 4px; font-family: monospace; pointer-events: none; }
     @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
@@ -53,27 +52,22 @@
     .cam-error .retry-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 20px; border-radius: 8px; cursor: pointer; font-size: 13px; margin-top: 6px; }
     .cam-error .retry-btn:hover { background: var(--border); }
 
-    /* Controls */
     .controls { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; justify-content: center; }
     .ctrl-group { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; gap: 10px; }
     .ctrl-group .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
     .ctrl-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); width: 36px; height: 36px; border-radius: 8px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
     .ctrl-btn:hover { background: var(--border); color: var(--text); }
     .ctrl-btn:active { background: var(--accent); color: var(--bg); }
-    .ctrl-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
     .ctrl-btn.wide { width: auto; padding: 0 14px; font-size: 13px; }
 
-    /* PTZ Pad */
     .ptz-pad { display: grid; grid-template-columns: 36px 36px 36px; grid-template-rows: 36px 36px 36px; gap: 3px; }
     .ptz-pad .ctrl-btn { border-radius: 6px; }
 
-    /* Quality Toggle */
     .quality-btns { display: flex; gap: 4px; }
     .quality-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text3); padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.15s; }
     .quality-btn:hover { color: var(--text2); }
     .quality-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
 
-    /* Info Panel */
     .info-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
     .info-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
     .info-card .info-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
@@ -84,9 +78,11 @@
     .section-head { font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); margin-bottom: 14px; padding-left: 2px; display: flex; align-items: center; gap: 8px; }
     .section-head::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-    /* Fullscreen */
     .cam-frame:fullscreen, .cam-frame:-webkit-full-screen { border: none; border-radius: 0; max-width: none; background: #000; display: flex; align-items: center; justify-content: center; }
     .cam-frame:fullscreen video, .cam-frame:-webkit-full-screen video { max-height: 100vh; width: auto; max-width: 100vw; }
+
+    .audio-hint { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; text-align: center; font-size: 13px; color: var(--text2); margin-bottom: 20px; display: none; }
+    .audio-hint b { color: var(--accent); }
 
     @media (max-width: 600px) {
       .header { padding: 12px 16px; }
@@ -100,7 +96,7 @@
   <div class="header">
     <div class="header-left">
       <h1><span class="fish">&#x1F41F;</span> Koi Pond Camera</h1>
-      <div class="subtitle">Reolink RLC-811A &mdash; RTSP/HLS Stream</div>
+      <div class="subtitle">Reolink RLC-811A &mdash; RTSP &rarr; HLS (H.264 + AAC)</div>
     </div>
     <div class="header-right">
       <div class="status" id="camStatus">
@@ -119,7 +115,7 @@
           <video id="camVideo" autoplay muted playsinline></video>
           <div class="overlay-live" id="overlayLive"><span class="rec-dot"></span> LIVE</div>
           <div class="overlay-time" id="overlayTime">--:--:--</div>
-          <div class="overlay-quality" id="overlayQuality">SUB</div>
+          <div class="overlay-quality" id="overlayQuality">1080p</div>
           <div class="cam-error" id="camError">
             <div style="font-size:36px">&#x1F4F7;</div>
             <div id="errorTitle">Stream Offline</div>
@@ -128,6 +124,9 @@
           </div>
         </div>
       </div>
+      <div class="audio-hint" id="audioHint">
+        Click <b>Unmute</b> or press <b>M</b> to hear pond audio from the camera microphone
+      </div>
     </div>
 
     <div class="controls">
@@ -135,8 +134,9 @@
       <div class="ctrl-group">
         <span class="label">Quality</span>
         <div class="quality-btns">
-          <button class="quality-btn active" data-quality="sub">SD (Sub)</button>
-          <button class="quality-btn" data-quality="main">4K (Main)</button>
+          <button class="quality-btn" data-quality="720p">720p</button>
+          <button class="quality-btn active" data-quality="1080p">1080p</button>
+          <button class="quality-btn" data-quality="4k">4K</button>
         </div>
       </div>
 
@@ -144,15 +144,15 @@
       <div class="ctrl-group">
         <span class="label">PTZ</span>
         <div class="ptz-pad">
-          <div class="ctrl-btn" style="visibility:hidden"></div>
+          <div style="width:36px;height:36px"></div>
           <button class="ctrl-btn ptz-btn" data-cmd="up" title="Tilt Up">&#x25B2;</button>
-          <div class="ctrl-btn" style="visibility:hidden"></div>
+          <div style="width:36px;height:36px"></div>
           <button class="ctrl-btn ptz-btn" data-cmd="left" title="Pan Left">&#x25C0;</button>
           <div style="width:36px;height:36px"></div>
           <button class="ctrl-btn ptz-btn" data-cmd="right" title="Pan Right">&#x25B6;</button>
-          <div class="ctrl-btn" style="visibility:hidden"></div>
+          <div style="width:36px;height:36px"></div>
           <button class="ctrl-btn ptz-btn" data-cmd="down" title="Tilt Down">&#x25BC;</button>
-          <div class="ctrl-btn" style="visibility:hidden"></div>
+          <div style="width:36px;height:36px"></div>
         </div>
       </div>
 
@@ -166,10 +166,10 @@
       <!-- Actions -->
       <div class="ctrl-group">
         <span class="label">Actions</span>
-        <button class="ctrl-btn wide" id="btnSnapshot" title="Save Snapshot">&#x1F4BE; Snap</button>
-        <button class="ctrl-btn wide" id="btnFullscreen" title="Fullscreen">&#x26F6; Full</button>
-        <button class="ctrl-btn wide" id="btnMute" title="Unmute">&#x1F507; Mute</button>
-        <button class="ctrl-btn wide" id="btnRestart" title="Restart Stream">&#x21BB; Restart</button>
+        <button class="ctrl-btn wide" id="btnSnapshot" title="Save Snapshot [S]">&#x1F4BE; Snap</button>
+        <button class="ctrl-btn wide" id="btnFullscreen" title="Fullscreen [F]">&#x26F6; Full</button>
+        <button class="ctrl-btn wide" id="btnMute" title="Toggle Audio [M]">&#x1F507; Unmute</button>
+        <button class="ctrl-btn wide" id="btnRestart" title="Restart Stream [R]">&#x21BB; Restart</button>
       </div>
     </div>
 
@@ -182,9 +182,9 @@
           <div class="info-sub">IP: 192.168.68.96 | MAC: ec:71:db:c4:e3:20</div>
         </div>
         <div class="info-card">
-          <div class="info-label">Stream</div>
-          <div class="info-value" id="infoStream">RTSP &rarr; HLS</div>
-          <div class="info-sub" id="infoProtocol">Port 554 (RTSP) &rarr; ffmpeg &rarr; HLS</div>
+          <div class="info-label">Pipeline</div>
+          <div class="info-value">RTSP &rarr; H.264 + AAC</div>
+          <div class="info-sub">Port 554 &rarr; ffmpeg transcode &rarr; HLS.js</div>
         </div>
         <div class="info-card">
           <div class="info-label">Status</div>
@@ -210,27 +210,42 @@
     const overlayTime = document.getElementById("overlayTime");
     const overlayQuality = document.getElementById("overlayQuality");
     const overlayLive = document.getElementById("overlayLive");
+    const audioHint = document.getElementById("audioHint");
 
     let hls = null;
-    let currentQuality = "sub";
-    let statusPollTimer = null;
+    let currentQuality = "1080p";
+    let retryTimer = null;
+    let retryCount = 0;
+    const MAX_RETRY = 30;
 
     // ---- HLS Player ----
     function initHLS() {
       destroyHLS();
+      clearTimeout(retryTimer);
       setStatus("wait", "Buffering...");
       camError.classList.remove("show");
 
-      const hlsUrl = "/hls/stream.m3u8?t=" + Date.now();
+      const hlsUrl = "/hls/stream.m3u8";
 
       if (Hls.isSupported()) {
         hls = new Hls({
-          liveSyncDurationCount: 2,
-          liveMaxLatencyDurationCount: 5,
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: 6,
           liveDurationInfinity: true,
           enableWorker: true,
-          lowLatencyMode: true,
-          backBufferLength: 0,
+          lowLatencyMode: false,
+          backBufferLength: 10,
+          maxBufferLength: 10,
+          maxMaxBufferLength: 30,
+          manifestLoadingTimeOut: 10000,
+          manifestLoadingMaxRetry: 6,
+          manifestLoadingRetryDelay: 2000,
+          levelLoadingTimeOut: 10000,
+          levelLoadingMaxRetry: 6,
+          levelLoadingRetryDelay: 2000,
+          fragLoadingTimeOut: 20000,
+          fragLoadingMaxRetry: 6,
+          fragLoadingRetryDelay: 2000,
         });
         hls.loadSource(hlsUrl);
         hls.attachMedia(video);
@@ -239,21 +254,19 @@
           video.play().catch(() => {});
           setStatus("on", "Live");
           camError.classList.remove("show");
+          retryCount = 0;
+          audioHint.style.display = video.muted ? "block" : "none";
         });
 
         hls.on(Hls.Events.ERROR, (event, data) => {
+          console.warn("HLS error:", data.type, data.details, data.fatal);
           if (data.fatal) {
-            console.error("HLS fatal error:", data.type, data.details);
-            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-              showError("Stream Unavailable", "HLS segments not ready. ffmpeg may be starting...");
-              // Auto-retry in 5s
-              setTimeout(() => {
-                if (hls) hls.loadSource(hlsUrl);
-              }, 5000);
-            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              console.log("Attempting media error recovery...");
               hls.recoverMediaError();
             } else {
-              showError("Stream Error", data.details);
+              // Network error or other fatal - schedule retry
+              scheduleRetry();
             }
           }
         });
@@ -261,6 +274,7 @@
         hls.on(Hls.Events.FRAG_LOADED, () => {
           setStatus("on", "Live");
           camError.classList.remove("show");
+          retryCount = 0;
         });
 
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -269,10 +283,9 @@
         video.addEventListener("loadedmetadata", () => {
           video.play().catch(() => {});
           setStatus("on", "Live");
+          audioHint.style.display = video.muted ? "block" : "none";
         });
-        video.addEventListener("error", () => {
-          showError("Stream Error", "Failed to load HLS stream");
-        });
+        video.addEventListener("error", () => scheduleRetry());
       } else {
         showError("Not Supported", "Your browser does not support HLS playback");
       }
@@ -283,6 +296,18 @@
         hls.destroy();
         hls = null;
       }
+    }
+
+    function scheduleRetry() {
+      retryCount++;
+      if (retryCount > MAX_RETRY) {
+        showError("Stream Failed", "Too many retries. Click Retry or press R.");
+        return;
+      }
+      const delay = Math.min(2000 + retryCount * 1000, 10000);
+      setStatus("wait", `Reconnecting (${retryCount})...`);
+      console.log(`Retry #${retryCount} in ${delay}ms`);
+      retryTimer = setTimeout(initHLS, delay);
     }
 
     function showError(title, detail) {
@@ -306,16 +331,17 @@
         document.querySelectorAll(".quality-btn").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
         currentQuality = q;
-        overlayQuality.textContent = q === "main" ? "4K" : "SUB";
-        setStatus("wait", "Switching...");
+        overlayQuality.textContent = q.toUpperCase();
+        setStatus("wait", "Switching to " + q + "...");
+        destroyHLS();
         try {
           await fetch("/api/camera/stream", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ quality: q }),
           });
-          // Wait for ffmpeg to produce segments
-          setTimeout(initHLS, 4000);
+          // Give ffmpeg time to produce first segments
+          setTimeout(initHLS, 5000);
         } catch (e) {
           showError("Switch Failed", e.message);
         }
@@ -352,12 +378,10 @@
 
     // ---- Snapshot ----
     document.getElementById("btnSnapshot").addEventListener("click", () => {
-      // Try to capture from video element
       const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth || 1920;
       canvas.height = video.videoHeight || 1080;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0);
+      canvas.getContext("2d").drawImage(video, 0, 0);
       const link = document.createElement("a");
       const ts = new Date().toISOString().replace(/[:.]/g, "-");
       link.download = `koi-pond-${ts}.jpg`;
@@ -375,25 +399,29 @@
       }
     });
 
-    // ---- Mute toggle ----
+    // ---- Mute/Unmute ----
     const btnMute = document.getElementById("btnMute");
     btnMute.addEventListener("click", () => {
       video.muted = !video.muted;
-      btnMute.innerHTML = video.muted ? "&#x1F507; Mute" : "&#x1F50A; Sound";
+      btnMute.innerHTML = video.muted ? "&#x1F507; Unmute" : "&#x1F50A; Muted";
+      audioHint.style.display = "none";
     });
 
     // ---- Restart ----
     document.getElementById("btnRestart").addEventListener("click", async () => {
       setStatus("wait", "Restarting...");
+      destroyHLS();
+      retryCount = 0;
       try {
         await fetch("/api/camera/restart", { method: "POST" });
-        setTimeout(initHLS, 4000);
+        setTimeout(initHLS, 5000);
       } catch (e) {
         showError("Restart Failed", e.message);
       }
     });
 
     document.getElementById("btnRetry").addEventListener("click", () => {
+      retryCount = 0;
       initHLS();
     });
 
@@ -402,8 +430,8 @@
       try {
         const res = await fetch("/api/camera/status");
         const data = await res.json();
-        document.getElementById("infoStatus").textContent =
-          data.running ? (data.hlsReady ? "Streaming" : "Starting...") : "Stopped";
+        const statusStr = data.running ? (data.hlsReady ? "Streaming" : "Starting...") : "Stopped";
+        document.getElementById("infoStatus").textContent = statusStr + ` (${data.quality || "?"})`;
         document.getElementById("infoUptime").textContent =
           data.running ? `Uptime: ${formatDuration(data.uptime)} | Segments: ${data.segments} | Restarts: ${data.restarts}` : "Not running";
       } catch (e) {}
@@ -416,7 +444,6 @@
       return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${sec}s` : `${sec}s`;
     }
 
-    // ---- Camera info ----
     async function fetchCameraInfo() {
       try {
         const res = await fetch("/api/camera/info");
@@ -429,9 +456,7 @@
     }
 
     // ---- Time overlay ----
-    setInterval(() => {
-      overlayTime.textContent = new Date().toLocaleTimeString();
-    }, 1000);
+    setInterval(() => { overlayTime.textContent = new Date().toLocaleTimeString(); }, 1000);
 
     // ---- Keyboard shortcuts ----
     document.addEventListener("keydown", (e) => {
@@ -450,17 +475,32 @@
       }
     });
     document.addEventListener("keyup", (e) => {
-      if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","+","=","-"].includes(e.key)) {
-        ptzCmd("stop");
-      }
+      if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","+","=","-"].includes(e.key)) ptzCmd("stop");
     });
 
     // ---- Init ----
-    // Wait a moment for HLS to be ready, then connect
-    setTimeout(initHLS, 1000);
+    // Check if stream is ready before connecting
+    async function waitAndConnect() {
+      setStatus("wait", "Waiting for stream...");
+      for (let i = 0; i < 15; i++) {
+        try {
+          const res = await fetch("/api/camera/status");
+          const data = await res.json();
+          if (data.hlsReady) {
+            initHLS();
+            return;
+          }
+        } catch (e) {}
+        await new Promise(r => setTimeout(r, 2000));
+      }
+      // Try anyway after waiting
+      initHLS();
+    }
+
+    waitAndConnect();
     fetchCameraInfo();
     pollStatus();
-    statusPollTimer = setInterval(pollStatus, 10000);
+    setInterval(pollStatus, 10000);
   </script>
 </body>
 </html>
