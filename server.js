@@ -377,19 +377,19 @@ function startFFmpeg(quality) {
     "-map", "0:a:0",
 
     // Video: transcode HEVC→H.264 (browser-compatible)
-    "-c:v", "libx264",
+    "-c:v:0", "libx264",
     "-preset", "fast",
     "-tune", "zerolatency",
     "-profile:v", "high",
     "-level", "4.1",
-    "-b:v", preset.vbr,
-    "-maxrate", preset.maxrate,
-    "-bufsize", preset.bufsize,
+    "-b:v:0", preset.vbr,
+    "-maxrate:v", preset.maxrate,
+    "-bufsize:v", preset.bufsize,
   ];
 
-  // Scale if not 4K passthrough
+  // Scale if not 4K passthrough — use filter_complex to avoid affecting audio
   if (preset.scale) {
-    args.push("-vf", `scale=${preset.scale}`);
+    args.push("-filter:v", `scale=${preset.scale}`);
   }
 
   args.push(
@@ -399,10 +399,10 @@ function startFFmpeg(quality) {
     "-flags", "+cgop",             // Closed GOP for HLS
 
     // Audio: re-encode AAC with explicit params (copy loses channel metadata)
-    "-c:a", "aac",
+    "-c:a:0", "aac",
     "-ar", "16000",
     "-ac", "1",
-    "-b:a", "64k",
+    "-b:a:0", "64k",
     "-strict", "experimental",
 
     // HLS output
