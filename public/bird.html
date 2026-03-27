@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bird Detection Log</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    :root { --bg:#0a1a10; --surface:#12261a; --surface2:#1a3326; --border:#24432e; --text:#e8f0e8; --text2:#8aaa96; --text3:#5a7a66; --accent:#4ade80; --orange:#f97316; --blue:#38bdf8; --red:#ef4444; --green:#22c55e; --yellow:#facc15; --purple:#a78bfa; }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+    .header-left h1{font-size:22px;font-weight:700}
+    .header-left h1 .icon{color:var(--orange)}
+    .header-left .subtitle{font-size:12px;color:var(--text2);margin-top:2px}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .nav-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:13px;text-decoration:none;transition:all .15s}
+    .nav-btn:hover{background:var(--border);color:var(--text)}
+    .nav-btn.active{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
+    .status{font-size:12px;color:var(--text3);display:flex;align-items:center;gap:5px}
+    .status .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+    .status .dot.on{background:var(--green)} .status .dot.off{background:var(--red)}
+    .container{max-width:1200px;margin:0 auto;padding:24px 20px}
+    .section{margin-bottom:28px}
+    .section-head{font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+    .section-head::after{content:'';flex:1;height:1px;background:var(--border)}
+
+    /* Date Picker */
+    .date-bar{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+    .date-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px}
+    .date-btn:hover{background:var(--border);color:var(--text)}
+    .date-btn.active{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
+    .date-input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 12px;border-radius:6px;font-size:13px;font-family:inherit}
+    .date-input::-webkit-calendar-picker-indicator{filter:invert(0.7)}
+
+    /* Summary Cards */
+    .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+    .summary-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;text-align:center}
+    .summary-card .num{font-size:32px;font-weight:700;line-height:1}
+    .summary-card .lbl{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:6px}
+
+    /* Leaderboard */
+    .lb-list{display:flex;flex-direction:column;gap:8px}
+    .lb-row{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:14px;transition:background .15s}
+    .lb-row:hover{background:var(--surface2)}
+    .lb-rank{font-size:22px;font-weight:700;color:var(--text3);width:36px;text-align:center;flex-shrink:0}
+    .lb-rank.gold{color:var(--yellow)} .lb-rank.silver{color:var(--text2)} .lb-rank.bronze{color:var(--orange)}
+    .lb-img{width:52px;height:52px;border-radius:10px;object-fit:cover;background:var(--surface2);flex-shrink:0}
+    .lb-info{flex:1;min-width:0}
+    .lb-name{font-size:15px;font-weight:600}
+    .lb-sci{font-size:11px;color:var(--text3);font-style:italic}
+    .lb-meta{font-size:11px;color:var(--text2);margin-top:3px}
+    .lb-count{font-size:24px;font-weight:700;color:var(--accent);text-align:right;min-width:50px}
+    .lb-count-lbl{font-size:10px;color:var(--text3);text-align:right}
+    .lb-bar{height:4px;background:var(--border);border-radius:2px;margin-top:4px;overflow:hidden}
+    .lb-bar-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .5s}
+    .lb-play{background:var(--surface2);border:1px solid var(--border);color:var(--accent);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .lb-play:hover{background:var(--accent);color:var(--bg)}
+
+    /* Activity Chart */
+    .chart-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px}
+    .chart-box canvas{max-height:200px}
+
+    /* Detection Timeline */
+    .timeline{display:flex;flex-direction:column;gap:6px}
+    .tl-row{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:12px;font-size:13px}
+    .tl-time{color:var(--text3);font-family:monospace;font-size:12px;min-width:70px;flex-shrink:0}
+    .tl-img{width:36px;height:36px;border-radius:8px;object-fit:cover;background:var(--surface2);flex-shrink:0}
+    .tl-name{font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tl-conf{color:var(--text2);font-size:12px;min-width:40px;text-align:right}
+    .tl-play{background:none;border:none;color:var(--accent);cursor:pointer;font-size:14px;padding:4px}
+    .tl-play:hover{color:var(--text)}
+    .empty-state{text-align:center;padding:40px 20px;color:var(--text3);font-size:14px}
+    .empty-state .big{font-size:48px;margin-bottom:12px}
+
+    /* Lang toggle */
+    .lang-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:13px;text-decoration:none}
+    .lang-btn:hover{background:var(--border);color:var(--text)}
+
+    @media(max-width:640px){.header{padding:12px 16px}.container{padding:16px 12px}.lb-row{padding:10px 12px}.lb-img{width:40px;height:40px}.summary-grid{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <h1><span class="icon">&#x1F426;</span> <span id="pageTitle">Bird Detection Log</span></h1>
+      <div class="subtitle" id="pageSubtitle">BirdNET-powered real-time identification</div>
+    </div>
+    <div class="header-right">
+      <div class="status" id="detectorStatus"><span class="dot off"></span> <span>--</span></div>
+      <a class="lang-btn" id="langBtn" href="#">EN</a>
+      <a href="/koi" class="nav-btn">Koi Cam</a>
+      <a href="/" class="nav-btn">Dashboard</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Date Controls -->
+    <div class="date-bar">
+      <button class="date-btn active" id="btnToday" data-days="1">Today</button>
+      <button class="date-btn" data-days="7">7 Days</button>
+      <button class="date-btn" data-days="30">30 Days</button>
+      <input type="date" class="date-input" id="datePicker">
+    </div>
+
+    <!-- Summary -->
+    <div class="summary-grid" id="summaryGrid">
+      <div class="summary-card"><div class="num" id="statTotal">--</div><div class="lbl" id="lblTotal">Detections</div></div>
+      <div class="summary-card"><div class="num" id="statSpecies">--</div><div class="lbl" id="lblSpecies">Species</div></div>
+      <div class="summary-card"><div class="num" id="statTop">--</div><div class="lbl" id="lblTop">Most Seen</div></div>
+      <div class="summary-card"><div class="num" id="statPeak">--</div><div class="lbl" id="lblPeak">Peak Hour</div></div>
+    </div>
+
+    <!-- Hourly Activity -->
+    <div class="section">
+      <div class="section-head" id="headActivity">Hourly Activity</div>
+      <div class="chart-box"><canvas id="hourlyChart"></canvas></div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="section">
+      <div class="section-head" id="headLeaderboard">Species Leaderboard</div>
+      <div class="lb-list" id="leaderboard"></div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="section">
+      <div class="section-head" id="headTimeline">Detection Timeline</div>
+      <div class="timeline" id="timeline"></div>
+    </div>
+  </div>
+
+<script>
+// ============ Language ============
+let LANG = localStorage.getItem('birdLang') || 'en';
+const T = {
+  en: {
+    title: 'Bird Detection Log', subtitle: 'BirdNET-powered real-time identification',
+    today: 'Today', days7: '7 Days', days30: '30 Days',
+    detections: 'Detections', species: 'Species', mostSeen: 'Most Seen', peakHour: 'Peak Hour',
+    activity: 'Hourly Activity', leaderboard: 'Species Leaderboard', timeline: 'Detection Timeline',
+    times: 'times', avgConf: 'Avg confidence', firstSeen: 'First', lastSeen: 'Last',
+    noData: 'No bird detections yet', noDataSub: 'Birds will appear here when detected by the camera microphone',
+    listening: 'Listening', offline: 'Offline', switchLang: '中文',
+  },
+  cn: {
+    title: '鸟类检测日志', subtitle: 'BirdNET 实时鸟鸣识别',
+    today: '今天', days7: '7天', days30: '30天',
+    detections: '检测次数', species: '鸟种数', mostSeen: '最常见', peakHour: '高峰时段',
+    activity: '每小时活动', leaderboard: '鸟种排行榜', timeline: '检测时间线',
+    times: '次', avgConf: '平均置信度', firstSeen: '首次', lastSeen: '最后',
+    noData: '暂无鸟类检测记录', noDataSub: '当摄像头麦克风检测到鸟叫声时，记录会显示在这里',
+    listening: '监听中', offline: '离线', switchLang: 'EN',
+  }
+};
+const BIRD_CN = {
+  "American Robin":"美洲知更鸟","Northern Cardinal":"北美红雀","Blue Jay":"冠蓝鸦",
+  "American Goldfinch":"美洲金翅雀","House Sparrow":"家麻雀","European Starling":"紫翅椋鸟",
+  "Mourning Dove":"哀鸽","American Crow":"美洲乌鸦","Black-capped Chickadee":"黑顶山雀",
+  "White-breasted Nuthatch":"白胸鳾","Tufted Titmouse":"簇绒山雀","Red-bellied Woodpecker":"红腹啄木鸟",
+  "Downy Woodpecker":"绒啄木鸟","Song Sparrow":"歌带鹀","House Finch":"家朱雀",
+  "Carolina Wren":"卡罗莱纳鹪鹩","Red-winged Blackbird":"红翅黑鹂","Common Grackle":"普通拟八哥",
+  "Brown-headed Cowbird":"褐头牛鹂","Chipping Sparrow":"栗肩雀鹀","Eastern Bluebird":"东蓝鸲",
+  "Northern Mockingbird":"北方嘲鸫","Eastern Phoebe":"东方菲比霸鹟","Cedar Waxwing":"雪松太平鸟",
+  "Ruby-throated Hummingbird":"红喉蜂鸟","Baltimore Oriole":"巴尔的摩金莺","Indigo Bunting":"靛蓝彩鹀",
+  "Great Blue Heron":"大蓝鹭","Canada Goose":"加拿大雁","Mallard":"绿头鸭",
+  "Rock Pigeon":"原鸽","Barn Swallow":"家燕","Chimney Swift":"烟囱雨燕",
+  "Cooper's Hawk":"库柏鹰","Red-tailed Hawk":"红尾鵟","Turkey Vulture":"红头美洲鹫",
+  "Wild Turkey":"野火鸡","Killdeer":"双领鸻","Eastern Wood-Pewee":"东部丛林霸鹟",
+  "Hairy Woodpecker":"毛啄木鸟","Pileated Woodpecker":"北美黑啄木鸟","Northern Flicker":"扑动鴷",
+  "Gray Catbird":"灰猫嘲鸫","Brown Thrasher":"褐弯嘴嘲鸫","Wood Thrush":"林鸫",
+  "Hermit Thrush":"隐士夜鸫","Eastern Towhee":"棕胁唧鹀","Dark-eyed Junco":"暗眼灯草鹀",
+  "White-throated Sparrow":"白喉带鹀","Fox Sparrow":"狐色雀鹀",
+  "Barred Owl":"横斑林鸮","Great Horned Owl":"大角鸮","Eastern Screech-Owl":"东美角鸮",
+};
+function birdName(en) { return LANG === 'cn' ? (BIRD_CN[en] || en) : en; }
+function t(key) { return T[LANG][key] || T.en[key] || key; }
+
+function applyLang() {
+  const L = T[LANG];
+  document.getElementById('pageTitle').textContent = L.title;
+  document.getElementById('pageSubtitle').textContent = L.subtitle;
+  document.getElementById('langBtn').textContent = L.switchLang;
+  document.getElementById('lblTotal').textContent = L.detections;
+  document.getElementById('lblSpecies').textContent = L.species;
+  document.getElementById('lblTop').textContent = L.mostSeen;
+  document.getElementById('lblPeak').textContent = L.peakHour;
+  document.getElementById('headActivity').childNodes[0].textContent = L.activity + ' ';
+  document.getElementById('headLeaderboard').childNodes[0].textContent = L.leaderboard + ' ';
+  document.getElementById('headTimeline').childNodes[0].textContent = L.timeline + ' ';
+  document.querySelectorAll('.date-btn').forEach(b => {
+    if (b.dataset.days === '1') b.textContent = L.today;
+    if (b.dataset.days === '7') b.textContent = L.days7;
+    if (b.dataset.days === '30') b.textContent = L.days30;
+  });
+}
+document.getElementById('langBtn').addEventListener('click', (e) => {
+  e.preventDefault();
+  LANG = LANG === 'en' ? 'cn' : 'en';
+  localStorage.setItem('birdLang', LANG);
+  applyLang();
+  loadData();
+});
+
+// ============ State ============
+let currentDate = new Date().toISOString().slice(0, 10);
+let currentDays = 1;
+let hourlyChart = null;
+const imgCache = {};
+let currentAudio = null;
+
+// ============ Data Loading ============
+async function loadData() {
+  const stats = await (await fetch(`/api/birds/stats?date=${currentDate}&days=${currentDays}`)).json();
+  renderSummary(stats);
+  renderHourlyChart(stats.hourly);
+  await renderLeaderboard(stats.leaderboard);
+
+  // Load timeline for single day
+  if (currentDays === 1) {
+    const daily = await (await fetch(`/api/birds/daily/${currentDate}`)).json();
+    await renderTimeline(daily.detections);
+  } else {
+    document.getElementById('timeline').innerHTML = '';
+  }
+
+  // Detector status
+  try {
+    const st = await (await fetch('/api/birds/status')).json();
+    const dot = document.querySelector('#detectorStatus .dot');
+    const txt = document.querySelector('#detectorStatus span:last-child');
+    dot.className = 'dot ' + (st.running ? 'on' : 'off');
+    txt.textContent = st.running ? t('listening') : t('offline');
+  } catch {}
+}
+
+function renderSummary(stats) {
+  document.getElementById('statTotal').textContent = stats.total_detections;
+  document.getElementById('statSpecies').textContent = stats.unique_species;
+  document.getElementById('statTop').textContent = stats.leaderboard[0] ? birdName(stats.leaderboard[0].common_name) : '--';
+  const peakH = stats.hourly.indexOf(Math.max(...stats.hourly));
+  document.getElementById('statPeak').textContent = stats.total_detections > 0 ? `${peakH}:00` : '--';
+}
+
+function renderHourlyChart(hourly) {
+  const ctx = document.getElementById('hourlyChart').getContext('2d');
+  if (hourlyChart) hourlyChart.destroy();
+  hourlyChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: Array.from({length:24}, (_,i) => `${i}:00`),
+      datasets: [{
+        data: hourly,
+        backgroundColor: hourly.map((v,i) => {
+          const max = Math.max(...hourly);
+          return v === max && v > 0 ? '#f97316' : 'rgba(74,222,128,0.6)';
+        }),
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(36,67,46,0.5)' }, ticks: { color: '#5a7a66', font: { size: 10 } } },
+        y: { beginAtZero: true, grid: { color: 'rgba(36,67,46,0.3)' }, ticks: { color: '#5a7a66', stepSize: 1 } },
+      }
+    }
+  });
+}
+
+async function getBirdImage(name) {
+  if (imgCache[name]) return imgCache[name];
+  try {
+    const r = await fetch(`/api/birds/image/${encodeURIComponent(name)}`);
+    const d = await r.json();
+    imgCache[name] = d;
+    return d;
+  } catch { return { image: null }; }
+}
+
+async function renderLeaderboard(lb) {
+  const el = document.getElementById('leaderboard');
+  if (!lb.length) {
+    el.innerHTML = `<div class="empty-state"><div class="big">&#x1F54A;</div><div>${t('noData')}</div><div style="font-size:12px;margin-top:6px">${t('noDataSub')}</div></div>`;
+    return;
+  }
+  const maxCount = lb[0].count;
+  let html = '';
+  for (let i = 0; i < lb.length; i++) {
+    const s = lb[i];
+    const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+    const wiki = await getBirdImage(s.common_name);
+    const img = wiki.image ? `<img class="lb-img" src="${wiki.image}" alt="${birdName(s.common_name)}" onerror="this.style.display='none'">` : `<div class="lb-img" style="display:flex;align-items:center;justify-content:center;font-size:24px">&#x1F426;</div>`;
+    const first = new Date(s.first_seen).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    const last = new Date(s.last_seen).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    html += `
+      <div class="lb-row">
+        <div class="lb-rank ${rankClass}">#${i+1}</div>
+        ${img}
+        <div class="lb-info">
+          <div class="lb-name">${birdName(s.common_name)}</div>
+          <div class="lb-sci">${s.scientific_name}</div>
+          <div class="lb-meta">${t('avgConf')}: ${Math.round(s.avg_conf*100)}% &middot; ${t('firstSeen')} ${first} &middot; ${t('lastSeen')} ${last}</div>
+          <div class="lb-bar"><div class="lb-bar-fill" style="width:${Math.round(s.count/maxCount*100)}%"></div></div>
+        </div>
+        ${s.best_clip ? `<button class="lb-play" onclick="playClip(this,'${s.best_clip}')" title="Play">&#9654;</button>` : ''}
+        <div style="text-align:right;min-width:50px">
+          <div class="lb-count">${s.count}</div>
+          <div class="lb-count-lbl">${t('times')}</div>
+        </div>
+      </div>`;
+  }
+  el.innerHTML = html;
+}
+
+async function renderTimeline(detections) {
+  const el = document.getElementById('timeline');
+  if (!detections || !detections.length) {
+    el.innerHTML = `<div class="empty-state"><div class="big">&#x1F54A;</div><div>${t('noData')}</div></div>`;
+    return;
+  }
+  // Show newest first
+  const sorted = [...detections].reverse();
+  let html = '';
+  for (const d of sorted) {
+    const time = new Date(d.time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const wiki = await getBirdImage(d.common_name);
+    const img = wiki.image ? `<img class="tl-img" src="${wiki.image}" onerror="this.style.display='none'">` : `<div class="tl-img" style="display:flex;align-items:center;justify-content:center;font-size:16px">&#x1F426;</div>`;
+    html += `
+      <div class="tl-row">
+        <span class="tl-time">${time}</span>
+        ${img}
+        <span class="tl-name">${birdName(d.common_name)}</span>
+        <span class="tl-conf">${Math.round(d.confidence*100)}%</span>
+        ${d.has_clip ? `<button class="tl-play" onclick="playClip(this,'${d.id}')">&#9654;</button>` : ''}
+      </div>`;
+  }
+  el.innerHTML = html;
+}
+
+function playClip(btn, id) {
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  currentAudio = new Audio(`/api/birds/clip/${id}.mp3`);
+  currentAudio.play().catch(() => {});
+  const orig = btn.innerHTML;
+  btn.innerHTML = '&#9724;';
+  currentAudio.onended = () => { btn.innerHTML = orig; currentAudio = null; };
+  currentAudio.onerror = () => { btn.innerHTML = orig; currentAudio = null; };
+}
+
+// ============ Date Controls ============
+document.querySelectorAll('.date-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentDays = parseInt(btn.dataset.days);
+    currentDate = new Date().toISOString().slice(0, 10);
+    document.getElementById('datePicker').value = currentDate;
+    loadData();
+  });
+});
+
+document.getElementById('datePicker').addEventListener('change', (e) => {
+  currentDate = e.target.value;
+  currentDays = 1;
+  document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
+  loadData();
+});
+
+// ============ Init ============
+document.getElementById('datePicker').value = currentDate;
+applyLang();
+loadData();
+setInterval(loadData, 30000); // Refresh every 30s
+</script>
+</body>
+</html>
