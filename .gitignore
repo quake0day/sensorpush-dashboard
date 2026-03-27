@@ -3,3 +3,4 @@ node_modules/
 .DS_Store
 pond-alarm-log.json
 data/gardens/*.json
+hls-cam/
