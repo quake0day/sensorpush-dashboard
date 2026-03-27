@@ -566,9 +566,10 @@ function startBirdDetector() {
   const script = path.join(__dirname, "bird_detector.py");
   if (!fs.existsSync(script)) return;
   console.log("Starting bird detector...");
-  birdProc = spawn("python3", [script], {
+  birdProc = spawn("python3", ["-u", script], {
     cwd: __dirname,
     stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, PYTHONUNBUFFERED: "1" },
   });
   birdProc.stdout.on("data", d => {
     const line = d.toString().trim();
