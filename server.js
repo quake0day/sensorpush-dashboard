@@ -364,9 +364,7 @@ function startFFmpeg(quality) {
     // Input: RTSP over TCP with generous timeouts to prevent drops
     "-rtsp_transport", "tcp",
     "-rtsp_flags", "prefer_tcp",
-    "-stimeout", "5000000",       // 5s socket timeout (microseconds)
-    "-timeout", "5000000",
-    "-buffer_size", "4194304",    // 4MB UDP buffer
+    "-buffer_size", "4194304",    // 4MB input buffer
     "-max_delay", "500000",       // 500ms max delay
     "-reorder_queue_size", "1024",
     "-i", url,
