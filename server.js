@@ -361,12 +361,15 @@ function startFFmpeg(quality) {
   console.log(`Starting ffmpeg: RTSP main → H.264 ${ffmpegQuality} + AAC → HLS`);
 
   const args = [
-    // Input: RTSP over TCP with generous timeouts to prevent drops
+    // Input: RTSP over TCP, stable connection
+    "-fflags", "+genpts+discardcorrupt",
     "-rtsp_transport", "tcp",
     "-rtsp_flags", "prefer_tcp",
-    "-buffer_size", "4194304",    // 4MB input buffer
-    "-max_delay", "500000",       // 500ms max delay
-    "-reorder_queue_size", "1024",
+    "-buffer_size", "8388608",    // 8MB input buffer
+    "-max_delay", "1000000",      // 1s max delay
+    "-reorder_queue_size", "2048",
+    "-analyzeduration", "5000000",
+    "-probesize", "5000000",
     "-i", url,
 
     // Video: transcode HEVC→H.264 (browser-compatible)
@@ -389,19 +392,18 @@ function startFFmpeg(quality) {
     "-r", "25",                    // Output 25fps
     "-g", "50",                    // Keyframe every 2s (25fps * 2)
     "-sc_threshold", "0",
+    "-flags", "+cgop",             // Closed GOP for HLS
 
-    // Audio: copy AAC (already AAC from camera)
-    "-c:a", "aac",
-    "-b:a", "64k",
-    "-ac", "1",
-    "-ar", "16000",
+    // Audio: copy AAC directly from camera (re-encoding corrupts metadata)
+    "-c:a", "copy",
 
     // HLS output
     "-f", "hls",
-    "-hls_time", "2",
-    "-hls_list_size", "6",
+    "-hls_time", "4",             // 4s segments (more stable than 2s)
+    "-hls_list_size", "5",
     "-hls_flags", "delete_segments+append_list+independent_segments",
     "-hls_segment_type", "mpegts",
+    "-hls_start_number_source", "datetime",
     "-hls_segment_filename", path.join(HLS_DIR, "seg%05d.ts"),
     path.join(HLS_DIR, "stream.m3u8"),
   );
