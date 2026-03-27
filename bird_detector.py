@@ -78,18 +78,24 @@ def save_clip(wav_path, detection_id):
     except:
         return False
 
+_analyzer = None
+
+def get_analyzer():
+    global _analyzer
+    if _analyzer is None:
+        print("Loading BirdNET model...")
+        from birdnetlib.analyzer import Analyzer
+        _analyzer = Analyzer()
+        print("BirdNET model loaded.")
+    return _analyzer
+
 def analyze_audio(wav_path):
     """Run BirdNET analysis on audio file."""
     from birdnetlib import Recording
-    from birdnetlib.analyzer import Analyzer
 
-    if not hasattr(analyze_audio, '_analyzer'):
-        print("Loading BirdNET model...")
-        analyze_audio._analyzer = Analyzer()
-        print("BirdNET model loaded.")
-
+    analyzer = get_analyzer()
     recording = Recording(
-        analyze_audio._analyzer,
+        analyzer,
         wav_path,
         lat=LAT, lon=LON,
         min_conf=MIN_CONFIDENCE,
@@ -107,8 +113,8 @@ def main():
     print(f"HLS source: {HLS_URL}")
     print(f"Location: {LAT}, {LON}")
 
-    # Pre-load the analyzer
-    analyze_audio("/dev/null")  # triggers model load (will fail gracefully)
+    # Pre-load the model
+    get_analyzer()
 
     wav_path = str(DETECT_DIR / "current_chunk.wav")
     consecutive_errors = 0
