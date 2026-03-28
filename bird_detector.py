@@ -172,8 +172,6 @@ def main():
                     now = datetime.now()
                     detection_id = now.strftime("%Y%m%d_%H%M%S") + f"_{det['common_name'].replace(' ', '_')}"
 
-                    has_clip = save_clip(wav_path, detection_id)
-
                     entry = {
                         "id": detection_id,
                         "time": now.isoformat(),
@@ -181,7 +179,6 @@ def main():
                         "common_name": det["common_name"],
                         "scientific_name": det["scientific_name"],
                         "confidence": round(det["confidence"], 3),
-                        "has_clip": has_clip,
                     }
 
                     # Add to latest (for real-time notifications)
