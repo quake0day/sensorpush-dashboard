@@ -36,8 +36,6 @@ ANIMAL_CONFIDENCE = 0.40      # min confidence for animal detection
 ANIMAL_CLASSES = {
     16: "bird", 17: "cat", 18: "dog", 19: "horse",
     21: "bear", 22: "zebra", 23: "giraffe",
-    # Also detect person for security
-    1: "person",
 }
 
 # Chinese translations
