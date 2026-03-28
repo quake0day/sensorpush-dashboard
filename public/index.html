@@ -1754,27 +1754,13 @@ const BIRD_T = {
   cn: { detected: '检测到鸟类', confidence: '置信度', listen: '收听', wiki: '了解更多' },
 }[LANG];
 
-// Common bird name translations (EN→CN)
-const BIRD_CN = {
-  "American Robin": "美洲知更鸟", "Northern Cardinal": "北美红雀", "Blue Jay": "冠蓝鸦",
-  "American Goldfinch": "美洲金翅雀", "House Sparrow": "家麻雀", "European Starling": "紫翅椋鸟",
-  "Mourning Dove": "哀鸽", "American Crow": "美洲乌鸦", "Black-capped Chickadee": "黑顶山雀",
-  "White-breasted Nuthatch": "白胸鳾", "Tufted Titmouse": "簇绒山雀", "Red-bellied Woodpecker": "红腹啄木鸟",
-  "Downy Woodpecker": "绒啄木鸟", "Song Sparrow": "歌带鹀", "House Finch": "家朱雀",
-  "Carolina Wren": "卡罗莱纳鹪鹩", "Red-winged Blackbird": "红翅黑鹂", "Common Grackle": "普通拟八哥",
-  "Brown-headed Cowbird": "褐头牛鹂", "Chipping Sparrow": "栗肩雀鹀", "Eastern Bluebird": "东蓝鸲",
-  "Northern Mockingbird": "北方嘲鸫", "Eastern Phoebe": "东方菲比霸鹟", "Cedar Waxwing": "雪松太平鸟",
-  "Ruby-throated Hummingbird": "红喉蜂鸟", "Baltimore Oriole": "巴尔的摩金莺", "Indigo Bunting": "靛蓝彩鹀",
-  "Great Blue Heron": "大蓝鹭", "Canada Goose": "加拿大雁", "Mallard": "绿头鸭",
-  "Rock Pigeon": "原鸽", "Barn Swallow": "家燕", "Chimney Swift": "烟囱雨燕",
-  "Cooper's Hawk": "库柏鹰", "Red-tailed Hawk": "红尾鵟", "Turkey Vulture": "红头美洲鹫",
-  "Wild Turkey": "野火鸡", "Killdeer": "双领鸻", "Eastern Wood-Pewee": "东部丛林霸鹟",
-  "Hairy Woodpecker": "毛啄木鸟", "Pileated Woodpecker": "北美黑啄木鸟", "Northern Flicker": "扑动鴷",
-  "Gray Catbird": "灰猫嘲鸫", "Brown Thrasher": "褐弯嘴嘲鸫", "Wood Thrush": "林鸫",
-  "Hermit Thrush": "隐士夜鸫", "Eastern Towhee": "棕胁唧鹀", "Dark-eyed Junco": "暗眼灯草鹀",
-  "White-throated Sparrow": "白喉带鹀", "Fox Sparrow": "狐色雀鹀",
-  "Barred Owl": "横斑林鸮", "Great Horned Owl": "大角鸮", "Eastern Screech-Owl": "东美角鸮",
-};
+// Bird translation cache (loaded from server, auto-populated by Claude API)
+let BIRD_TRANS = {};
+fetch('/api/birds/translations').then(r => r.json()).then(d => { BIRD_TRANS = d; }).catch(() => {});
+
+function getBirdCnName(en) {
+  return BIRD_TRANS[en]?.cn_name || en;
+}
 
 let birdLastTimestamp = 0;
 let birdSeenIds = new Set();
@@ -1798,13 +1784,15 @@ function showBirdToast(detection, wikiData) {
   const toast = document.createElement('div');
   toast.className = 'bird-toast';
 
-  const cnName = BIRD_CN[detection.common_name] || detection.common_name;
-  const displayName = LANG === 'cn' ? cnName : detection.common_name;
+  const displayName = LANG === 'cn' ? getBirdCnName(detection.common_name) : detection.common_name;
   const confPct = Math.round(detection.confidence * 100);
 
-  let descText = wikiData.extract || '';
-  if (LANG === 'cn' && descText && descText.length > 10) {
-    descText = ''; // Skip English description for CN, show name only
+  let descText = '';
+  if (LANG === 'cn' && BIRD_TRANS[detection.common_name]?.cn_desc) {
+    descText = BIRD_TRANS[detection.common_name].cn_desc;
+  } else if (LANG === 'en') {
+    descText = wikiData.extract || '';
+    if (descText.length > 120) descText = descText.slice(0, 120).replace(/\s\S*$/, '') + '...';
   }
 
   toast.innerHTML = `
@@ -1856,6 +1844,14 @@ async function pollBirds() {
       if (birdSeenIds.has(det.id)) continue;
       birdSeenIds.add(det.id);
       birdLastTimestamp = Math.max(birdLastTimestamp, det.timestamp || 0);
+      // Pre-fetch translation if Chinese and not cached
+      if (LANG === 'cn' && !BIRD_TRANS[det.common_name]) {
+        try {
+          const tr = await fetch(`/api/birds/translate/${encodeURIComponent(det.common_name)}?sci=${encodeURIComponent(det.scientific_name)}`);
+          const td = await tr.json();
+          if (td.cn_name) BIRD_TRANS[det.common_name] = td;
+        } catch {}
+      }
       const wiki = await fetchBirdImage(det.common_name, det.scientific_name);
       showBirdToast(det, wiki);
     }

@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const crypto = require("crypto");
 const path = require("path");
+const Anthropic = require("@anthropic-ai/sdk");
 
 const app = express();
 app.use(express.json());
@@ -748,6 +749,78 @@ app.get("/api/birds/image/:name", async (req, res) => {
   } catch (e) {
     res.json({ image: null, extract: "", url: "" });
   }
+});
+
+// ============ Bird Translation (Claude API + local cache) ============
+const BIRD_TRANS_FILE = path.join(BIRD_DIR, "translations.json");
+let birdTranslations = {};
+try {
+  if (fs.existsSync(BIRD_TRANS_FILE)) {
+    birdTranslations = JSON.parse(fs.readFileSync(BIRD_TRANS_FILE, "utf8"));
+  }
+} catch (e) { birdTranslations = {}; }
+
+function saveBirdTranslations() {
+  fs.writeFileSync(BIRD_TRANS_FILE, JSON.stringify(birdTranslations, null, 2));
+}
+
+const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
+
+async function translateBird(commonName, scientificName) {
+  if (!anthropic) return null;
+  try {
+    const msg = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 500,
+      messages: [{
+        role: "user",
+        content: `Translate this bird species info to Chinese. Return ONLY valid JSON, no markdown.
+
+Bird: ${commonName} (${scientificName})
+
+Return JSON format:
+{"cn_name": "中文名", "cn_desc": "50-80字的中文简介，包含外观特征、习性、分布等"}`,
+      }],
+    });
+    const text = msg.content[0].text.trim();
+    const json = JSON.parse(text);
+    return json;
+  } catch (e) {
+    console.error("Translation error:", e.message);
+    return null;
+  }
+}
+
+// Get or create translation for a bird
+app.get("/api/birds/translate/:name", async (req, res) => {
+  const name = req.params.name;
+  const sci = req.query.sci || "";
+
+  // Check cache first
+  if (birdTranslations[name]) {
+    return res.json(birdTranslations[name]);
+  }
+
+  // Call Claude API
+  const result = await translateBird(name, sci);
+  if (result) {
+    birdTranslations[name] = {
+      cn_name: result.cn_name,
+      cn_desc: result.cn_desc,
+      common_name: name,
+      scientific_name: sci,
+      translated_at: new Date().toISOString(),
+    };
+    saveBirdTranslations();
+    return res.json(birdTranslations[name]);
+  }
+
+  res.json({ cn_name: name, cn_desc: "" });
+});
+
+// Bulk: get all cached translations
+app.get("/api/birds/translations", (req, res) => {
+  res.json(birdTranslations);
 });
 
 // Cleanup on exit

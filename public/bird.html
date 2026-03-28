@@ -153,27 +153,39 @@ const T = {
     listening: '监听中', offline: '离线', switchLang: 'EN',
   }
 };
-const BIRD_CN = {
-  "American Robin":"美洲知更鸟","Northern Cardinal":"北美红雀","Blue Jay":"冠蓝鸦",
-  "American Goldfinch":"美洲金翅雀","House Sparrow":"家麻雀","European Starling":"紫翅椋鸟",
-  "Mourning Dove":"哀鸽","American Crow":"美洲乌鸦","Black-capped Chickadee":"黑顶山雀",
-  "White-breasted Nuthatch":"白胸鳾","Tufted Titmouse":"簇绒山雀","Red-bellied Woodpecker":"红腹啄木鸟",
-  "Downy Woodpecker":"绒啄木鸟","Song Sparrow":"歌带鹀","House Finch":"家朱雀",
-  "Carolina Wren":"卡罗莱纳鹪鹩","Red-winged Blackbird":"红翅黑鹂","Common Grackle":"普通拟八哥",
-  "Brown-headed Cowbird":"褐头牛鹂","Chipping Sparrow":"栗肩雀鹀","Eastern Bluebird":"东蓝鸲",
-  "Northern Mockingbird":"北方嘲鸫","Eastern Phoebe":"东方菲比霸鹟","Cedar Waxwing":"雪松太平鸟",
-  "Ruby-throated Hummingbird":"红喉蜂鸟","Baltimore Oriole":"巴尔的摩金莺","Indigo Bunting":"靛蓝彩鹀",
-  "Great Blue Heron":"大蓝鹭","Canada Goose":"加拿大雁","Mallard":"绿头鸭",
-  "Rock Pigeon":"原鸽","Barn Swallow":"家燕","Chimney Swift":"烟囱雨燕",
-  "Cooper's Hawk":"库柏鹰","Red-tailed Hawk":"红尾鵟","Turkey Vulture":"红头美洲鹫",
-  "Wild Turkey":"野火鸡","Killdeer":"双领鸻","Eastern Wood-Pewee":"东部丛林霸鹟",
-  "Hairy Woodpecker":"毛啄木鸟","Pileated Woodpecker":"北美黑啄木鸟","Northern Flicker":"扑动鴷",
-  "Gray Catbird":"灰猫嘲鸫","Brown Thrasher":"褐弯嘴嘲鸫","Wood Thrush":"林鸫",
-  "Hermit Thrush":"隐士夜鸫","Eastern Towhee":"棕胁唧鹀","Dark-eyed Junco":"暗眼灯草鹀",
-  "White-throated Sparrow":"白喉带鹀","Fox Sparrow":"狐色雀鹀",
-  "Barred Owl":"横斑林鸮","Great Horned Owl":"大角鸮","Eastern Screech-Owl":"东美角鸮",
-};
-function birdName(en) { return LANG === 'cn' ? (BIRD_CN[en] || en) : en; }
+// Translation cache: loaded from server, auto-populated by Claude API
+let birdTransCache = {};
+async function loadTranslations() {
+  try {
+    const r = await fetch('/api/birds/translations');
+    birdTransCache = await r.json();
+  } catch {}
+}
+
+async function getBirdTranslation(en, sci) {
+  if (birdTransCache[en]) return birdTransCache[en];
+  // Request translation (Claude API call with server-side cache)
+  try {
+    const url = `/api/birds/translate/${encodeURIComponent(en)}${sci ? '?sci=' + encodeURIComponent(sci) : ''}`;
+    const r = await fetch(url);
+    const d = await r.json();
+    if (d.cn_name) birdTransCache[en] = d;
+    return d;
+  } catch { return { cn_name: en, cn_desc: '' }; }
+}
+
+function birdName(en) {
+  if (LANG !== 'cn') return en;
+  const cached = birdTransCache[en];
+  return cached ? cached.cn_name : en;
+}
+
+function birdDesc(en) {
+  if (LANG !== 'cn') return null;
+  const cached = birdTransCache[en];
+  return cached ? cached.cn_desc : null;
+}
+
 function t(key) { return T[LANG][key] || T.en[key] || key; }
 
 function applyLang() {
@@ -217,6 +229,12 @@ let currentAudio = null;
 // ============ Data Loading ============
 async function loadData() {
   const stats = await (await fetch(`/api/birds/stats?date=${currentDate}&days=${currentDays}`)).json();
+
+  // Pre-fetch translations for all species (parallel, cached by server)
+  if (LANG === 'cn') {
+    await Promise.all(stats.leaderboard.map(s => getBirdTranslation(s.common_name, s.scientific_name)));
+  }
+
   renderSummary(stats);
   renderHourlyChart(stats.hourly);
   await renderLeaderboard(stats.leaderboard);
@@ -302,9 +320,15 @@ async function renderLeaderboard(lb) {
     const img = wiki.image ? `<img class="lb-img" src="${wiki.image}" alt="${birdName(s.common_name)}" onerror="this.src='';this.style.cssText='display:flex;align-items:center;justify-content:center;font-size:24px;width:52px;height:52px';this.textContent='🐦'">` : `<div class="lb-img" style="display:flex;align-items:center;justify-content:center;font-size:24px">&#x1F426;</div>`;
     const first = new Date(s.first_seen).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
     const last = new Date(s.last_seen).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-    // Truncate description for display
-    let desc = wiki.extract || '';
-    if (desc.length > 150) desc = desc.slice(0, 150).replace(/\s\S*$/, '') + '...';
+    // Use Chinese description if available, otherwise English from Wikipedia
+    let desc = '';
+    const cnDesc = birdDesc(s.common_name);
+    if (LANG === 'cn' && cnDesc) {
+      desc = cnDesc;
+    } else {
+      desc = wiki.extract || '';
+      if (desc.length > 150) desc = desc.slice(0, 150).replace(/\s\S*$/, '') + '...';
+    }
     html += `
       <div class="lb-row">
         <div class="lb-rank ${rankClass}">#${i+1}</div>
@@ -383,8 +407,9 @@ document.getElementById('datePicker').addEventListener('change', (e) => {
 // ============ Init ============
 document.getElementById('datePicker').value = currentDate;
 applyLang();
-loadData();
-setInterval(loadData, 30000); // Refresh every 30s
+// Load cached translations first, then data
+loadTranslations().then(() => loadData());
+setInterval(loadData, 30000);
 </script>
 </body>
 </html>
