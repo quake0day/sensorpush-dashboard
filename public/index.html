@@ -217,6 +217,12 @@
       </div>
     </div>
 
+    <!-- Camera Water Level -->
+    <div class="section" id="camWaterSection" style="display:none;">
+      <div class="section-head" id="camWaterHead">Camera Water Level</div>
+      <div class="water-card" id="camWaterCard" style="justify-content:center;gap:30px;"></div>
+    </div>
+
     <!-- Charts -->
     <div class="section">
       <div class="section-head" id="chartsHead"></div>
@@ -1875,7 +1881,62 @@ async function pollBirds() {
 
 // Poll for birds every 15 seconds
 setInterval(pollBirds, 15000);
-setTimeout(pollBirds, 5000); // first check after 5s
+setTimeout(pollBirds, 5000);
+
+// ============ Camera Water Level ============
+async function loadCamWater() {
+  try {
+    const res = await fetch('/api/water/current');
+    const d = await res.json();
+    if (d.level_pct == null) return;
+
+    document.getElementById('camWaterSection').style.display = '';
+    document.getElementById('camWaterHead').textContent = LANG === 'cn' ? '鱼塘水位（摄像头检测）' : 'Koi Pond Water Level (Camera)';
+
+    const pct = Math.round(d.level_pct);
+    const status = d.status || '--';
+    const statusCN = {High:'偏高',Normal:'正常',Low:'偏低',Critical:'危险'}[status] || status;
+    const dispStatus = LANG === 'cn' ? statusCN : status;
+    const statusColor = status === 'Normal' || status === 'High' ? 'var(--green)' : status === 'Low' ? 'var(--orange)' : 'var(--red)';
+    const updated = d.time ? new Date(d.time).toLocaleTimeString(LANG === 'cn' ? 'zh-CN' : 'en-US') : '--';
+
+    // Water tank SVG
+    const fillH = Math.max(2, Math.min(98, pct));
+    const waveY = 100 - fillH;
+    const fillColor = pct >= 40 ? '#38bdf8' : pct >= 20 ? '#f97316' : '#ef4444';
+
+    const svg = `<svg viewBox="0 0 120 140" width="120" style="flex-shrink:0">
+      <defs>
+        <clipPath id="tankClip"><rect x="10" y="10" width="100" height="110" rx="8"/></clipPath>
+      </defs>
+      <rect x="10" y="10" width="100" height="110" rx="8" fill="none" stroke="var(--border)" stroke-width="2.5"/>
+      <g clip-path="url(#tankClip)">
+        <rect x="10" y="${10 + 110*(1-fillH/100)}" width="100" height="${110*fillH/100}" fill="${fillColor}" opacity="0.3"/>
+        <path d="M10,${10+110*waveY/100} Q35,${10+110*waveY/100-4} 60,${10+110*waveY/100} Q85,${10+110*waveY/100+4} 110,${10+110*waveY/100}" fill="none" stroke="${fillColor}" stroke-width="2" opacity="0.7">
+          <animate attributeName="d" dur="3s" repeatCount="indefinite"
+            values="M10,${10+110*waveY/100} Q35,${10+110*waveY/100-4} 60,${10+110*waveY/100} Q85,${10+110*waveY/100+4} 110,${10+110*waveY/100};M10,${10+110*waveY/100} Q35,${10+110*waveY/100+4} 60,${10+110*waveY/100} Q85,${10+110*waveY/100-4} 110,${10+110*waveY/100};M10,${10+110*waveY/100} Q35,${10+110*waveY/100-4} 60,${10+110*waveY/100} Q85,${10+110*waveY/100+4} 110,${10+110*waveY/100}"/>
+        </path>
+      </g>
+      <text x="60" y="75" text-anchor="middle" font-size="28" font-weight="bold" fill="var(--text)">${pct}%</text>
+      <text x="60" y="95" text-anchor="middle" font-size="12" fill="var(--text3)">Water Level</text>
+      <!-- Scale marks -->
+      ${[0,25,50,75,100].map(v => `<line x1="6" y1="${10+110*(1-v/100)}" x2="10" y2="${10+110*(1-v/100)}" stroke="var(--text3)" stroke-width="1"/><text x="4" y="${14+110*(1-v/100)}" font-size="7" fill="var(--text3)" text-anchor="end">${v}</text>`).join('')}
+    </svg>`;
+
+    document.getElementById('camWaterCard').innerHTML = `
+      ${svg}
+      <div class="water-info">
+        <div class="water-status" style="color:${statusColor};font-size:20px">${dispStatus}</div>
+        <div class="water-detail" style="margin-top:8px;font-size:14px">${LANG==='cn'?'水位':'Level'}: <b>${pct}%</b></div>
+        <div class="water-detail" style="margin-top:4px">${LANG==='cn'?'检测方式':'Source'}: ${LANG==='cn'?'摄像头 CV 检测':'Camera CV Detection'}</div>
+        <div class="water-detail">${T.updated}: ${updated}</div>
+        <a href="${LANG==='cn'?'/cn/water':'/water'}" style="font-size:12px;color:var(--accent);margin-top:8px;display:inline-block">${LANG==='cn'?'标定设置 →':'Calibration →'}</a>
+      </div>`;
+  } catch (e) {}
+}
+
+loadCamWater();
+setInterval(loadCamWater, 60000);
 
 init();
 </script>
