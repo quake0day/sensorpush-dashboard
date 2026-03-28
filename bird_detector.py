@@ -8,11 +8,13 @@ import os
 import subprocess
 import time
 import signal
+import urllib.request
 from datetime import datetime, date
 from pathlib import Path
 
 # Config
 RTSP_URL = "rtsp://admin:%40Lara4chensi@192.168.68.96:554/h264Preview_01_main"
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "quake0day-koi-pond-alerts")
 DETECT_DIR = Path(__file__).parent / "data" / "bird-detections"
 AUDIO_DIR = DETECT_DIR / "clips"
 DAILY_DIR = DETECT_DIR / "daily"
@@ -200,6 +202,19 @@ def main():
                     save_daily(today_detections, today_str)
 
                     print(f"BIRD: {det['common_name']} ({det['scientific_name']}) conf={det['confidence']:.2f}")
+
+                    # Push notification
+                    try:
+                        msg = f"{det['common_name']} ({det['scientific_name']}) — {det['confidence']:.0%} confidence"
+                        req = urllib.request.Request(
+                            f"https://ntfy.sh/{NTFY_TOPIC}",
+                            data=msg.encode("utf-8"), method="POST")
+                        req.add_header("Title", f"🐦 Bird: {det['common_name']}")
+                        req.add_header("Tags", "bird")
+                        req.add_header("Click", "http://192.168.68.110:3088/bird")
+                        urllib.request.urlopen(req, timeout=5)
+                    except Exception as ne:
+                        print(f"Notify error: {ne}")
 
             time.sleep(POLL_INTERVAL)
 

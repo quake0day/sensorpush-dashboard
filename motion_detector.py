@@ -8,14 +8,16 @@ import os
 import subprocess
 import time
 import signal
+import urllib.request
 import cv2
 import numpy as np
 from datetime import datetime, date
 from pathlib import Path
 
 # Config
-RTSP_URL = "rtsp://admin:%40Lara4chensi@192.168.68.96:554/h264Preview_01_sub"  # sub stream for detection (lighter)
-RTSP_MAIN = "rtsp://admin:%40Lara4chensi@192.168.68.96:554/h264Preview_01_main"  # main stream for recording
+RTSP_URL = "rtsp://admin:%40Lara4chensi@192.168.68.96:554/h264Preview_01_sub"
+RTSP_MAIN = "rtsp://admin:%40Lara4chensi@192.168.68.96:554/h264Preview_01_main"
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "quake0day-koi-pond-alerts")
 BASE_DIR = Path(__file__).parent
 MODEL_PATH = str(BASE_DIR / "models" / "detect.tflite")
 LABELS_PATH = str(BASE_DIR / "models" / "labelmap.txt")
@@ -60,6 +62,26 @@ signal.signal(signal.SIGINT, handle_signal)
 def load_labels():
     with open(LABELS_PATH, 'r') as f:
         return [line.strip() for line in f.readlines()]
+
+
+def notify(title, body, thumb_path=None, tags=None):
+    """Send push notification via ntfy.sh."""
+    try:
+        url = f"https://ntfy.sh/{NTFY_TOPIC}"
+        data = body.encode("utf-8")
+        req = urllib.request.Request(url, data=data, method="POST")
+        req.add_header("Title", title)
+        if tags:
+            req.add_header("Tags", tags)
+        # Attach thumbnail if available
+        if thumb_path and os.path.exists(thumb_path):
+            # Use multipart for image — simpler: just send as click URL
+            dashboard_url = f"http://192.168.68.110:3088/koi"
+            req.add_header("Click", dashboard_url)
+            req.add_header("Actions", f"view, Open Camera, {dashboard_url}")
+        urllib.request.urlopen(req, timeout=5)
+    except Exception as e:
+        print(f"Notify error: {e}")
 
 
 def load_model():
@@ -253,6 +275,15 @@ def main():
             has_thumb = save_thumbnail(frame, event_id, detections)
 
             # Record video clip (runs in background-ish, blocks for duration)
+            # Send notification immediately (before recording)
+            animal_label = ANIMAL_CN.get(best_class, best_class) if best_class != "motion" else "Unknown"
+            notify_title = f"🎥 Koi Pond: {best_class}" if best_class != "motion" else "🎥 Koi Pond: Movement detected"
+            notify_body = f"Motion {motion_pct:.0f}%"
+            if detections:
+                notify_body += f" — {', '.join(d['class'] + ' ' + str(round(d['confidence']*100)) + '%' for d in detections)}"
+            thumb_path = str(THUMBS_DIR / f"{event_id}.jpg")
+            notify(notify_title, notify_body, thumb_path, tags="camera,warning")
+
             print(f"Recording {RECORD_DURATION}s clip...")
             last_record_time = now
             has_clip = record_clip(event_id)
