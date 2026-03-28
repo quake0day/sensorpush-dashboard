@@ -559,10 +559,16 @@ app.get("/api/birds/latest", (req, res) => {
   }
 });
 
+// Helper: local date string (not UTC)
+function localDateStr(d) {
+  const dd = d || new Date();
+  return dd.getFullYear() + '-' + String(dd.getMonth()+1).padStart(2,'0') + '-' + String(dd.getDate()).padStart(2,'0');
+}
+
 // Daily detections by date
 app.get("/api/birds/daily/:date?", (req, res) => {
   try {
-    const dateStr = req.params.date || new Date().toISOString().slice(0, 10);
+    const dateStr = req.params.date || localDateStr();
     const file = path.join(BIRD_DIR, "daily", `${dateStr}.json`);
     if (!fs.existsSync(file)) return res.json({ date: dateStr, detections: [] });
     const data = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -592,7 +598,7 @@ app.get("/api/birds/dates", (req, res) => {
 // Stats/leaderboard for a date range
 app.get("/api/birds/stats", (req, res) => {
   try {
-    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const date = req.query.date || localDateStr();
     const days = parseInt(req.query.days) || 1;
     const allDetections = [];
 

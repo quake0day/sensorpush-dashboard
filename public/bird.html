@@ -203,7 +203,12 @@ document.getElementById('langBtn').addEventListener('click', (e) => {
 });
 
 // ============ State ============
-let currentDate = new Date().toISOString().slice(0, 10);
+// Use local date, not UTC (server stores in local time)
+function localDateStr(d) {
+  const dd = d || new Date();
+  return dd.getFullYear() + '-' + String(dd.getMonth()+1).padStart(2,'0') + '-' + String(dd.getDate()).padStart(2,'0');
+}
+let currentDate = localDateStr();
 let currentDays = 1;
 let hourlyChart = null;
 const imgCache = {};
@@ -355,7 +360,7 @@ document.querySelectorAll('.date-btn').forEach(btn => {
     document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentDays = parseInt(btn.dataset.days);
-    currentDate = new Date().toISOString().slice(0, 10);
+    currentDate = localDateStr();
     document.getElementById('datePicker').value = currentDate;
     loadData();
   });
