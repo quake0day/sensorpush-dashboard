@@ -771,7 +771,7 @@ async function translateBird(commonName, scientificName) {
   try {
     const msg = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 500,
+      max_tokens: 600,
       messages: [{
         role: "user",
         content: `Translate this bird species info to Chinese. Return ONLY valid JSON, no markdown.
@@ -779,11 +779,10 @@ async function translateBird(commonName, scientificName) {
 Bird: ${commonName} (${scientificName})
 
 Return JSON format:
-{"cn_name": "中文名", "cn_desc": "50-80字的中文简介，包含外观特征、习性、分布等"}`,
+{"cn_name": "中文名", "cn_desc": "50-80字的中文简介，包含外观特征、习性、分布等", "call_desc": "20-30字描述该鸟叫声特征", "call_desc_en": "20-30 word description of this bird's call/song in English"}`,
       }],
     });
     let text = msg.content[0].text.trim();
-    // Strip markdown code fences if present
     text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
     const json = JSON.parse(text);
     return json;
@@ -791,6 +790,12 @@ Return JSON format:
     console.error("Translation error:", e.message);
     return null;
   }
+}
+
+// Generate AllAboutBirds sound page URL
+function allAboutBirdsUrl(commonName) {
+  const slug = commonName.replace(/['']/g, "").replace(/\s+/g, "_");
+  return `https://www.allaboutbirds.org/guide/${slug}/sounds`;
 }
 
 // Get or create translation for a bird
@@ -809,6 +814,9 @@ app.get("/api/birds/translate/:name", async (req, res) => {
     birdTranslations[name] = {
       cn_name: result.cn_name,
       cn_desc: result.cn_desc,
+      call_desc: result.call_desc || "",
+      call_desc_en: result.call_desc_en || "",
+      sound_url: allAboutBirdsUrl(name),
       common_name: name,
       scientific_name: sci,
       translated_at: new Date().toISOString(),

@@ -337,10 +337,11 @@ async function renderLeaderboard(lb) {
           <div class="lb-name">${birdName(s.common_name)}${wiki.url ? ` <a href="${wiki.url}" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none">↗</a>` : ''}</div>
           <div class="lb-sci">${s.scientific_name}</div>
           ${desc ? `<div class="lb-desc" style="font-size:11px;color:var(--text2);margin-top:3px;line-height:1.4">${desc}</div>` : ''}
+          ${(() => { const cd = LANG === 'cn' ? birdTransCache[s.common_name]?.call_desc : birdTransCache[s.common_name]?.call_desc_en; return cd ? `<div style="font-size:11px;color:var(--accent);margin-top:2px">🔊 ${cd}</div>` : ''; })()}
           <div class="lb-meta">${t('avgConf')}: ${Math.round(s.avg_conf*100)}% &middot; ${t('firstSeen')} ${first} &middot; ${t('lastSeen')} ${last}</div>
           <div class="lb-bar"><div class="lb-bar-fill" style="width:${Math.round(s.count/maxCount*100)}%"></div></div>
         </div>
-        ${s.best_clip ? `<button class="lb-play" onclick="playClip(this,'${s.best_clip}')" title="Play">&#9654;</button>` : ''}
+        <a class="lb-play" href="https://www.allaboutbirds.org/guide/${s.common_name.replace(/['']/g,'').replace(/\s+/g,'_')}/sounds" target="_blank" title="Listen" style="text-decoration:none">🔊</a>
         <div style="text-align:right;min-width:50px">
           <div class="lb-count">${s.count}</div>
           <div class="lb-count-lbl">${t('times')}</div>
@@ -369,21 +370,13 @@ async function renderTimeline(detections) {
         ${img}
         <span class="tl-name">${birdName(d.common_name)}</span>
         <span class="tl-conf">${Math.round(d.confidence*100)}%</span>
-        ${d.has_clip ? `<button class="tl-play" onclick="playClip(this,'${d.id}')">&#9654;</button>` : ''}
+        <a class="tl-play" href="https://www.allaboutbirds.org/guide/${d.common_name.replace(/['']/g,'').replace(/\s+/g,'_')}/sounds" target="_blank" style="text-decoration:none">🔊</a>
       </div>`;
   }
   el.innerHTML = html;
 }
 
-function playClip(btn, id) {
-  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-  currentAudio = new Audio(`/api/birds/clip/${id}.mp3`);
-  currentAudio.play().catch(() => {});
-  const orig = btn.innerHTML;
-  btn.innerHTML = '&#9724;';
-  currentAudio.onended = () => { btn.innerHTML = orig; currentAudio = null; };
-  currentAudio.onerror = () => { btn.innerHTML = orig; currentAudio = null; };
-}
+// Audio clips removed for privacy - use AllAboutBirds links instead
 
 // ============ Date Controls ============
 document.querySelectorAll('.date-btn').forEach(btn => {

@@ -1765,6 +1765,8 @@ function getBirdCnName(en) {
 let birdLastTimestamp = 0;
 let birdSeenIds = new Set();
 const birdInfoCache = {};
+const birdCooldowns = {}; // species -> last toast timestamp
+const BIRD_COOLDOWN_MS = 5 * 60 * 1000; // 5 min cooldown per species
 
 async function fetchBirdImage(commonName, sciName) {
   const key = commonName + (sciName || '');
@@ -1784,16 +1786,22 @@ function showBirdToast(detection, wikiData) {
   const toast = document.createElement('div');
   toast.className = 'bird-toast';
 
-  const displayName = LANG === 'cn' ? getBirdCnName(detection.common_name) : detection.common_name;
+  const trans = BIRD_TRANS[detection.common_name] || {};
+  const displayName = LANG === 'cn' ? (trans.cn_name || detection.common_name) : detection.common_name;
   const confPct = Math.round(detection.confidence * 100);
 
   let descText = '';
-  if (LANG === 'cn' && BIRD_TRANS[detection.common_name]?.cn_desc) {
-    descText = BIRD_TRANS[detection.common_name].cn_desc;
-  } else if (LANG === 'en') {
-    descText = wikiData.extract || '';
+  if (LANG === 'cn' && trans.cn_desc) {
+    descText = trans.cn_desc;
+  } else if (wikiData.extract) {
+    descText = wikiData.extract;
     if (descText.length > 120) descText = descText.slice(0, 120).replace(/\s\S*$/, '') + '...';
   }
+
+  // Call description
+  const callDesc = LANG === 'cn' ? (trans.call_desc || '') : (trans.call_desc_en || '');
+  // AllAboutBirds sound page
+  const soundUrl = trans.sound_url || `https://www.allaboutbirds.org/guide/${detection.common_name.replace(/['']/g,'').replace(/\s+/g,'_')}/sounds`;
 
   toast.innerHTML = `
     <button class="bird-close" onclick="this.parentElement.classList.add('hiding');setTimeout(()=>this.parentElement.remove(),400)">&times;</button>
@@ -1804,8 +1812,10 @@ function showBirdToast(detection, wikiData) {
       <div class="bird-sci">${detection.scientific_name}</div>
       <div class="bird-conf">${BIRD_T.confidence}: ${confPct}%</div>
       ${descText ? `<div class="bird-desc">${descText}</div>` : ''}
+      ${callDesc ? `<div class="bird-desc" style="color:var(--accent)">🔊 ${callDesc}</div>` : ''}
       <div class="bird-audio">
-        ${detection.has_clip ? `<button class="bird-play-btn" onclick="playBirdClip(this,'${detection.id}')" title="${BIRD_T.listen}">&#9654;</button><span style="font-size:10px;color:var(--text3)">${BIRD_T.listen}</span>` : ''}
+        <a href="${soundUrl}" target="_blank" class="bird-play-btn" title="${BIRD_T.listen}" style="text-decoration:none">🔊</a>
+        <span style="font-size:10px;color:var(--text3)">${BIRD_T.listen}</span>
         ${wikiData.url ? `<a href="${wikiData.url}" target="_blank" style="font-size:10px;color:var(--accent);margin-left:auto">${BIRD_T.wiki} →</a>` : ''}
       </div>
     </div>
@@ -1826,16 +1836,6 @@ function showBirdToast(detection, wikiData) {
   }
 }
 
-let birdAudio = null;
-function playBirdClip(btn, id) {
-  if (birdAudio) { birdAudio.pause(); birdAudio = null; }
-  birdAudio = new Audio(`/api/birds/clip/${id}.mp3`);
-  birdAudio.play().catch(() => {});
-  btn.textContent = '⏸';
-  birdAudio.onended = () => { btn.textContent = '▶'; birdAudio = null; };
-  birdAudio.onerror = () => { btn.textContent = '▶'; birdAudio = null; };
-}
-
 async function pollBirds() {
   try {
     const res = await fetch(`/api/birds/latest?since=${birdLastTimestamp}`);
@@ -1844,8 +1844,16 @@ async function pollBirds() {
       if (birdSeenIds.has(det.id)) continue;
       birdSeenIds.add(det.id);
       birdLastTimestamp = Math.max(birdLastTimestamp, det.timestamp || 0);
-      // Pre-fetch translation if Chinese and not cached
-      if (LANG === 'cn' && !BIRD_TRANS[det.common_name]) {
+
+      // Cooldown: skip toast if same species shown within 5 minutes
+      const now = Date.now();
+      if (birdCooldowns[det.common_name] && (now - birdCooldowns[det.common_name]) < BIRD_COOLDOWN_MS) {
+        continue;
+      }
+      birdCooldowns[det.common_name] = now;
+
+      // Fetch translation if needed (also triggers Claude API for new species)
+      if (!BIRD_TRANS[det.common_name]) {
         try {
           const tr = await fetch(`/api/birds/translate/${encodeURIComponent(det.common_name)}?sci=${encodeURIComponent(det.scientific_name)}`);
           const td = await tr.json();
