@@ -232,10 +232,8 @@ const imgCache = {};
 async function loadData() {
   const stats = await (await fetch(`/api/birds/stats?date=${currentDate}&days=${currentDays}`)).json();
 
-  // Pre-fetch translations for all species (parallel, cached by server)
-  if (LANG === 'cn') {
-    await Promise.all(stats.leaderboard.map(s => getBirdTranslation(s.common_name, s.scientific_name)));
-  }
+  // Pre-fetch translations for all species (always, so they're cached for CN toggle)
+  await Promise.all(stats.leaderboard.map(s => getBirdTranslation(s.common_name, s.scientific_name)));
 
   renderSummary(stats);
   renderHourlyChart(stats.hourly);
