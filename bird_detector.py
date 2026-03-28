@@ -205,11 +205,11 @@ def main():
 
                     # Push notification
                     try:
-                        msg = f"{det['common_name']} ({det['scientific_name']}) — {det['confidence']:.0%} confidence"
+                        msg = f"{det['common_name']} ({det['scientific_name']}) - {det['confidence']:.0%} confidence"
                         req = urllib.request.Request(
                             f"https://ntfy.sh/{NTFY_TOPIC}",
                             data=msg.encode("utf-8"), method="POST")
-                        req.add_header("Title", f"🐦 Bird: {det['common_name']}")
+                        req.add_header("Title", f"Bird: {det['common_name']}")
                         req.add_header("Tags", "bird")
                         req.add_header("Click", "http://192.168.68.110:3088/bird")
                         urllib.request.urlopen(req, timeout=5)

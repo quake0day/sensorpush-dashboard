@@ -70,9 +70,11 @@ def notify(title, body, thumb_path=None, tags=None):
         url = f"https://ntfy.sh/{NTFY_TOPIC}"
         data = body.encode("utf-8")
         req = urllib.request.Request(url, data=data, method="POST")
-        req.add_header("Title", title)
+        # Title must be ASCII only (no emoji - causes UnicodeEncodeError)
+        req.add_header("Title", title.encode("ascii", "ignore").decode())
         if tags:
             req.add_header("Tags", tags)
+        req.add_header("Priority", "4")
         # Attach thumbnail if available
         if thumb_path and os.path.exists(thumb_path):
             # Use multipart for image — simpler: just send as click URL
@@ -276,11 +278,10 @@ def main():
 
             # Record video clip (runs in background-ish, blocks for duration)
             # Send notification immediately (before recording)
-            animal_label = ANIMAL_CN.get(best_class, best_class) if best_class != "motion" else "Unknown"
-            notify_title = f"🎥 Koi Pond: {best_class}" if best_class != "motion" else "🎥 Koi Pond: Movement detected"
+            notify_title = f"Koi Pond: {best_class}" if best_class != "motion" else "Koi Pond: Movement detected"
             notify_body = f"Motion {motion_pct:.0f}%"
             if detections:
-                notify_body += f" — {', '.join(d['class'] + ' ' + str(round(d['confidence']*100)) + '%' for d in detections)}"
+                notify_body += f" - {', '.join(d['class'] + ' ' + str(round(d['confidence']*100)) + '%' for d in detections)}"
             thumb_path = str(THUMBS_DIR / f"{event_id}.jpg")
             notify(notify_title, notify_body, thumb_path, tags="camera,warning")
 
