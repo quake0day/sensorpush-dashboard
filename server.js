@@ -772,19 +772,25 @@ async function translateBird(commonName, scientificName) {
     const msg = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 600,
+      system: "You are a JSON API. Return ONLY valid JSON with no extra text, no markdown, no code fences.",
       messages: [{
         role: "user",
-        content: `Translate this bird species info to Chinese. Return ONLY valid JSON, no markdown.
+        content: `Bird: ${commonName} (${scientificName})
 
-Bird: ${commonName} (${scientificName})
-
-Return JSON format:
-{"cn_name": "中文名", "cn_desc": "50-80字的中文简介，包含外观特征、习性、分布等", "call_desc": "20-30字描述该鸟叫声特征", "call_desc_en": "20-30 word description of this bird's call/song in English"}`,
+Return a JSON object with these exact keys:
+- cn_name: Chinese common name for this bird
+- cn_desc: 50-80 character Chinese description (appearance, habits, habitat)
+- call_desc: 20-30 character Chinese description of this bird's call
+- call_desc_en: 20-30 word English description of this bird's call`,
       }],
     });
     let text = msg.content[0].text.trim();
+    // Strip any markdown fences or extra text
     text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-    const json = JSON.parse(text);
+    // Extract JSON object if surrounded by other text
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) { console.error("No JSON found in:", text.slice(0, 200)); return null; }
+    const json = JSON.parse(match[0]);
     return json;
   } catch (e) {
     console.error("Translation error:", e.message);
