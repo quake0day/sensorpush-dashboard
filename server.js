@@ -840,14 +840,87 @@ app.get("/api/birds/translations", (req, res) => {
 });
 
 // Cleanup on exit
+// ============ Water Level Detector ============
+let waterProc = null;
+function startWaterDetector() {
+  if (waterProc) return;
+  const script = path.join(__dirname, "water_detector.py");
+  if (!fs.existsSync(script)) return;
+  console.log("Starting water level detector...");
+  waterProc = spawn("python3", ["-u", script], {
+    cwd: __dirname,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, PYTHONUNBUFFERED: "1" },
+  });
+  waterProc.stdout.on("data", d => {
+    const line = d.toString().trim();
+    if (line) console.log("water:", line);
+  });
+  waterProc.stderr.on("data", d => {
+    const line = d.toString().trim();
+    if (line && !line.startsWith("INFO:")) console.error("water-err:", line);
+  });
+  waterProc.on("exit", (code) => {
+    console.log(`Water detector exited (code ${code})`);
+    waterProc = null;
+    setTimeout(startWaterDetector, 30000);
+  });
+}
+setTimeout(startWaterDetector, 25000);
+
 function cleanup() {
   if (ffmpegProc) ffmpegProc.kill();
   if (birdProc) birdProc.kill();
   if (motionProc) motionProc.kill();
+  if (waterProc) waterProc.kill();
   process.exit(0);
 }
 process.on("SIGTERM", cleanup);
 process.on("SIGINT", cleanup);
+
+// ============ Water Level API ============
+const WATER_DIR = path.join(__dirname, "data", "water-level");
+if (!fs.existsSync(WATER_DIR)) fs.mkdirSync(WATER_DIR, { recursive: true });
+const WATER_CAL_FILE = path.join(WATER_DIR, "calibration.json");
+const WATER_READINGS_FILE = path.join(WATER_DIR, "readings.json");
+
+// Save/load calibration
+app.get("/api/water/calibration", (req, res) => {
+  try {
+    if (!fs.existsSync(WATER_CAL_FILE)) return res.json({ roi: null, levels: [] });
+    res.json(JSON.parse(fs.readFileSync(WATER_CAL_FILE, "utf8")));
+  } catch (e) { res.json({ roi: null, levels: [] }); }
+});
+
+app.post("/api/water/calibration", (req, res) => {
+  try {
+    fs.writeFileSync(WATER_CAL_FILE, JSON.stringify(req.body, null, 2));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Snapshot for calibration
+app.get("/api/water/snapshot", async (req, res) => {
+  try {
+    const url = `http://${REOLINK_IP}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=${Date.now()}&user=${encodeURIComponent(REOLINK_USER)}&password=${encodeURIComponent(REOLINK_PASS)}`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw new Error(`Camera returned ${response.status}`);
+    res.set("Content-Type", response.headers.get("content-type") || "image/jpeg");
+    res.set("Cache-Control", "no-cache");
+    res.send(Buffer.from(await response.arrayBuffer()));
+  } catch (err) { res.status(502).json({ error: err.message }); }
+});
+
+// Water level readings
+app.get("/api/water/readings", (req, res) => {
+  try {
+    if (!fs.existsSync(WATER_READINGS_FILE)) return res.json({ readings: [] });
+    const all = JSON.parse(fs.readFileSync(WATER_READINGS_FILE, "utf8"));
+    const hours = parseInt(req.query.hours) || 24;
+    const cutoff = Date.now() - hours * 3600000;
+    res.json({ readings: all.filter(r => r.timestamp > cutoff) });
+  } catch (e) { res.json({ readings: [] }); }
+});
 
 // ============ Motion Detection API ============
 const MOTION_DIR = path.join(__dirname, "data", "motion-events");
@@ -941,6 +1014,13 @@ app.get("/bird", (req, res) => {
 });
 app.get("/cn/bird", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "bird.html"));
+});
+
+app.get("/water", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "water.html"));
+});
+app.get("/cn/water", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "water.html"));
 });
 
 const PORT = process.env.PORT || 3000;
