@@ -1928,9 +1928,7 @@ async function loadCamWater() {
       <div class="water-info">
         <div class="water-status" style="color:${statusColor};font-size:20px">${dispStatus}</div>
         <div class="water-detail" style="margin-top:8px;font-size:14px">${LANG==='cn'?'水位':'Level'}: <b>${pct}%</b></div>
-        <div class="water-detail" style="margin-top:4px">${LANG==='cn'?'检测方式':'Source'}: ${LANG==='cn'?'摄像头 CV 检测':'Camera CV Detection'}</div>
         <div class="water-detail">${T.updated}: ${updated}</div>
-        <a href="${LANG==='cn'?'/cn/water':'/water'}" style="font-size:12px;color:var(--accent);margin-top:8px;display:inline-block">${LANG==='cn'?'标定设置 →':'Calibration →'}</a>
       </div>`;
   } catch (e) {}
 }
