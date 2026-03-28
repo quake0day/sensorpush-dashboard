@@ -73,10 +73,9 @@ def extract_audio(output_path):
         # 2. Lowpass at 10kHz — remove high-freq hiss
         # 3. Volume boost 3x — compensate for quiet mic (no clipping)
         audio_filter = (
-            "highpass=f=800:poles=2,"
-            "highpass=f=800:poles=2,"
-            "lowpass=f=10000,"
-            "volume=3.0"
+            "highpass=f=500,"
+            "lowpass=f=12000,"
+            "volume=8.0"
         )
         result = subprocess.run([
             "ffmpeg", "-y",
