@@ -6,4 +6,5 @@ data/gardens/*.json
 hls-cam/
 data/bird-detections/
 data/motion-events/
+data/water-level/
 models/
