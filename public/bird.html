@@ -274,14 +274,17 @@ function renderHourlyChart(hourly) {
   });
 }
 
-async function getBirdImage(name) {
-  if (imgCache[name]) return imgCache[name];
+async function getBirdImage(name, sci) {
+  const key = name + (sci || '');
+  if (imgCache[key]) return imgCache[key];
   try {
-    const r = await fetch(`/api/birds/image/${encodeURIComponent(name)}`);
+    let url = `/api/birds/image/${encodeURIComponent(name)}`;
+    if (sci) url += `?sci=${encodeURIComponent(sci)}`;
+    const r = await fetch(url);
     const d = await r.json();
-    imgCache[name] = d;
+    imgCache[key] = d;
     return d;
-  } catch { return { image: null }; }
+  } catch { return { image: null, extract: '' }; }
 }
 
 async function renderLeaderboard(lb) {
@@ -295,17 +298,21 @@ async function renderLeaderboard(lb) {
   for (let i = 0; i < lb.length; i++) {
     const s = lb[i];
     const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
-    const wiki = await getBirdImage(s.common_name);
-    const img = wiki.image ? `<img class="lb-img" src="${wiki.image}" alt="${birdName(s.common_name)}" onerror="this.style.display='none'">` : `<div class="lb-img" style="display:flex;align-items:center;justify-content:center;font-size:24px">&#x1F426;</div>`;
+    const wiki = await getBirdImage(s.common_name, s.scientific_name);
+    const img = wiki.image ? `<img class="lb-img" src="${wiki.image}" alt="${birdName(s.common_name)}" onerror="this.src='';this.style.cssText='display:flex;align-items:center;justify-content:center;font-size:24px;width:52px;height:52px';this.textContent='🐦'">` : `<div class="lb-img" style="display:flex;align-items:center;justify-content:center;font-size:24px">&#x1F426;</div>`;
     const first = new Date(s.first_seen).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
     const last = new Date(s.last_seen).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    // Truncate description for display
+    let desc = wiki.extract || '';
+    if (desc.length > 150) desc = desc.slice(0, 150).replace(/\s\S*$/, '') + '...';
     html += `
       <div class="lb-row">
         <div class="lb-rank ${rankClass}">#${i+1}</div>
         ${img}
         <div class="lb-info">
-          <div class="lb-name">${birdName(s.common_name)}</div>
+          <div class="lb-name">${birdName(s.common_name)}${wiki.url ? ` <a href="${wiki.url}" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none">↗</a>` : ''}</div>
           <div class="lb-sci">${s.scientific_name}</div>
+          ${desc ? `<div class="lb-desc" style="font-size:11px;color:var(--text2);margin-top:3px;line-height:1.4">${desc}</div>` : ''}
           <div class="lb-meta">${t('avgConf')}: ${Math.round(s.avg_conf*100)}% &middot; ${t('firstSeen')} ${first} &middot; ${t('lastSeen')} ${last}</div>
           <div class="lb-bar"><div class="lb-bar-fill" style="width:${Math.round(s.count/maxCount*100)}%"></div></div>
         </div>
@@ -330,7 +337,7 @@ async function renderTimeline(detections) {
   let html = '';
   for (const d of sorted) {
     const time = new Date(d.time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    const wiki = await getBirdImage(d.common_name);
+    const wiki = await getBirdImage(d.common_name, d.scientific_name);
     const img = wiki.image ? `<img class="tl-img" src="${wiki.image}" onerror="this.style.display='none'">` : `<div class="tl-img" style="display:flex;align-items:center;justify-content:center;font-size:16px">&#x1F426;</div>`;
     html += `
       <div class="tl-row">

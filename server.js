@@ -690,28 +690,61 @@ app.get("/api/birds/status", (req, res) => {
   res.json({ running: !!birdProc });
 });
 
-// Wikipedia image proxy for bird photos
+// Wikipedia image + info proxy for bird photos
 const birdImageCache = {};
+
+async function wikiLookup(term) {
+  // Wikipedia REST API needs underscores, not spaces
+  const slug = term.replace(/ /g, "_");
+  const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`;
+  const resp = await fetch(url, {
+    headers: { "User-Agent": "SmartGardenDashboard/1.0" },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  if (data.type === "disambiguation" || !data.extract) return null;
+  // Use originalimage for higher quality, fall back to thumbnail
+  const img = data.originalimage?.source || data.thumbnail?.source || null;
+  // Make thumbnail URL larger (replace /XXXpx- with /400px-)
+  const image = img ? img.replace(/\/\d+px-/, "/400px-") : null;
+  return {
+    image,
+    extract: data.extract || "",
+    extract_html: data.extract_html || "",
+    url: data.content_urls?.desktop?.page || "",
+    title: data.title || term,
+  };
+}
+
 app.get("/api/birds/image/:name", async (req, res) => {
   const name = req.params.name;
   if (birdImageCache[name]) {
     return res.json(birdImageCache[name]);
   }
   try {
-    // Search Wikipedia for bird image
-    const searchUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name)}`;
-    const resp = await fetch(searchUrl, { signal: AbortSignal.timeout(5000) });
-    if (resp.ok) {
-      const data = await resp.json();
-      const result = {
-        image: data.thumbnail?.source || data.originalimage?.source || null,
-        extract: data.extract || "",
-        url: data.content_urls?.desktop?.page || "",
-      };
-      birdImageCache[name] = result;
-      return res.json(result);
+    // Try common name first, then scientific name via query param
+    let result = await wikiLookup(name);
+    // If common name fails, try with " (bird)" suffix
+    if (!result || !result.image) {
+      result = await wikiLookup(name + " (bird)") || result;
     }
-    res.json({ image: null, extract: "", url: "" });
+    // Try scientific name if provided
+    const sci = req.query.sci;
+    if ((!result || !result.image) && sci) {
+      const sciResult = await wikiLookup(sci);
+      if (sciResult) {
+        result = {
+          image: sciResult.image || result?.image || null,
+          extract: result?.extract || sciResult.extract || "",
+          url: result?.url || sciResult.url || "",
+          title: result?.title || sciResult.title || name,
+        };
+      }
+    }
+    const final = result || { image: null, extract: "", url: "" };
+    birdImageCache[name] = final;
+    res.json(final);
   } catch (e) {
     res.json({ image: null, extract: "", url: "" });
   }
