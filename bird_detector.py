@@ -14,7 +14,7 @@ from pathlib import Path
 
 # Config
 RTSP_URL = "rtsp://admin:%40Lara4chensi@192.168.68.96:554/h264Preview_01_main"
-NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "quake0day-koi-pond-alerts")
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "koipond2026")
 DETECT_DIR = Path(__file__).parent / "data" / "bird-detections"
 AUDIO_DIR = DETECT_DIR / "clips"
 DAILY_DIR = DETECT_DIR / "daily"
