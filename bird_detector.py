@@ -12,7 +12,7 @@ from datetime import datetime, date
 from pathlib import Path
 
 # Config
-HLS_DIR = Path(__file__).parent / "hls-cam"
+RTSP_URL = "rtsp://admin:%40Lara4chensi@192.168.68.96:554/h264Preview_01_main"
 DETECT_DIR = Path(__file__).parent / "data" / "bird-detections"
 AUDIO_DIR = DETECT_DIR / "clips"
 DAILY_DIR = DETECT_DIR / "daily"
@@ -66,36 +66,29 @@ def save_daily(entries, d=None):
 
 
 def extract_audio(output_path):
-    """Extract audio from latest TS segments with noise reduction for bird detection."""
+    """Extract audio directly from RTSP with noise filtering for bird detection."""
     try:
-        # Grab latest TS segments directly from disk (fast, no network)
-        segments = sorted(HLS_DIR.glob("seg*.ts"), key=lambda f: f.stat().st_mtime)
-        if len(segments) < 2:
-            return False
-        # Use last 3 segments (~12s of audio)
-        recent = segments[-3:]
-        concat = "|".join(str(s) for s in recent)
         # Audio filter chain optimized for bird detection:
-        # 1. Double highpass at 800Hz — aggressively remove water/wind/traffic noise
+        # 1. Double highpass at 800Hz — remove water/wind/traffic noise
         # 2. Lowpass at 10kHz — remove high-freq hiss
-        # 3. anlmdn — non-local means denoising for residual noise
-        # 4. Volume boost 10x — compensate for quiet camera mic
+        # 3. Volume boost 3x — compensate for quiet mic (no clipping)
         audio_filter = (
             "highpass=f=800:poles=2,"
             "highpass=f=800:poles=2,"
             "lowpass=f=10000,"
-            "anlmdn=s=0.001:p=0.002:r=0.01,"
-            "volume=10.0"
+            "volume=3.0"
         )
         result = subprocess.run([
             "ffmpeg", "-y",
-            "-i", f"concat:{concat}",
+            "-rtsp_transport", "tcp",
+            "-i", RTSP_URL,
+            "-t", str(CHUNK_SECONDS),
             "-vn",
             "-af", audio_filter,
             "-acodec", "pcm_s16le",
             "-ar", "48000", "-ac", "1",
             output_path
-        ], capture_output=True, text=True, timeout=15)
+        ], capture_output=True, text=True, timeout=20)
         return result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 1000
     except Exception as e:
         print(f"Audio extraction error: {e}")
