@@ -840,15 +840,80 @@ app.get("/api/birds/translations", (req, res) => {
 });
 
 // Cleanup on exit
-process.on("SIGTERM", () => {
+function cleanup() {
   if (ffmpegProc) ffmpegProc.kill();
   if (birdProc) birdProc.kill();
+  if (motionProc) motionProc.kill();
   process.exit(0);
+}
+process.on("SIGTERM", cleanup);
+process.on("SIGINT", cleanup);
+
+// ============ Motion Detection API ============
+const MOTION_DIR = path.join(__dirname, "data", "motion-events");
+const MOTION_CLIPS = path.join(MOTION_DIR, "clips");
+const MOTION_THUMBS = path.join(MOTION_DIR, "thumbs");
+const MOTION_FILE = path.join(MOTION_DIR, "latest.json");
+if (!fs.existsSync(MOTION_CLIPS)) fs.mkdirSync(MOTION_CLIPS, { recursive: true });
+if (!fs.existsSync(MOTION_THUMBS)) fs.mkdirSync(MOTION_THUMBS, { recursive: true });
+
+app.use("/api/motion/clip", express.static(MOTION_CLIPS));
+app.use("/api/motion/thumb", express.static(MOTION_THUMBS));
+
+app.get("/api/motion/latest", (req, res) => {
+  const since = parseInt(req.query.since) || 0;
+  const limit = parseInt(req.query.limit) || 20;
+  try {
+    if (!fs.existsSync(MOTION_FILE)) return res.json({ events: [] });
+    const all = JSON.parse(fs.readFileSync(MOTION_FILE, "utf8"));
+    const filtered = since ? all.filter(e => e.timestamp > since) : all.slice(-limit);
+    res.json({ events: filtered });
+  } catch (e) {
+    res.json({ events: [] });
+  }
 });
-process.on("SIGINT", () => {
-  if (ffmpegProc) ffmpegProc.kill();
-  if (birdProc) birdProc.kill();
-  process.exit(0);
+
+app.get("/api/motion/daily/:date?", (req, res) => {
+  try {
+    const dateStr = req.params.date || localDateStr();
+    const file = path.join(MOTION_DIR, "daily", `${dateStr}.json`);
+    if (!fs.existsSync(file)) return res.json({ date: dateStr, events: [] });
+    res.json({ date: dateStr, events: JSON.parse(fs.readFileSync(file, "utf8")) });
+  } catch (e) {
+    res.json({ events: [] });
+  }
+});
+
+// Motion detector process
+let motionProc = null;
+function startMotionDetector() {
+  if (motionProc) return;
+  const script = path.join(__dirname, "motion_detector.py");
+  if (!fs.existsSync(script)) return;
+  console.log("Starting motion detector...");
+  motionProc = spawn("python3", ["-u", script], {
+    cwd: __dirname,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, PYTHONUNBUFFERED: "1" },
+  });
+  motionProc.stdout.on("data", d => {
+    const line = d.toString().trim();
+    if (line) console.log("motion:", line);
+  });
+  motionProc.stderr.on("data", d => {
+    const line = d.toString().trim();
+    if (line && !line.startsWith("INFO:")) console.error("motion-err:", line);
+  });
+  motionProc.on("exit", (code) => {
+    console.log(`Motion detector exited (code ${code})`);
+    motionProc = null;
+    setTimeout(startMotionDetector, 30000);
+  });
+}
+setTimeout(startMotionDetector, 20000);
+
+app.get("/api/motion/status", (req, res) => {
+  res.json({ running: !!motionProc });
 });
 
 // ============ Page Routes ============

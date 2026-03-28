@@ -84,6 +84,29 @@
     .audio-hint { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; text-align: center; font-size: 13px; color: var(--text2); margin-bottom: 20px; display: none; }
     .audio-hint b { color: var(--accent); }
 
+    /* Motion Events */
+    .events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .event-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: border-color 0.2s; }
+    .event-card:hover { border-color: var(--accent); }
+    .event-thumb { position: relative; aspect-ratio: 16/9; background: #000; cursor: pointer; }
+    .event-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .event-thumb .play-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); opacity: 0; transition: opacity 0.2s; }
+    .event-thumb:hover .play-overlay { opacity: 1; }
+    .event-thumb .play-circle { width: 48px; height: 48px; border-radius: 50%; background: rgba(74,222,128,0.9); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #000; }
+    .event-tag { position: absolute; top: 8px; left: 8px; background: rgba(220,38,38,0.85); color: #fff; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+    .event-tag.bird { background: rgba(74,222,128,0.85); color: #000; }
+    .event-time { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.7); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+    .event-info { padding: 10px 12px; }
+    .event-info .animal-name { font-weight: 600; font-size: 14px; }
+    .event-info .event-meta { font-size: 11px; color: var(--text3); margin-top: 3px; }
+    .event-empty { text-align: center; padding: 30px; color: var(--text3); font-size: 13px; }
+
+    /* Video Modal */
+    .video-modal { display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; }
+    .video-modal.show { display: flex; }
+    .video-modal video { max-width: 90vw; max-height: 85vh; border-radius: 12px; }
+    .video-modal .close-modal { position: absolute; top: 20px; right: 24px; background: none; border: none; color: #fff; font-size: 32px; cursor: pointer; }
+
     @media (max-width: 600px) {
       .header { padding: 12px 16px; }
       .container { padding: 16px 12px; }
@@ -174,8 +197,22 @@
       </div>
     </div>
 
+    <!-- Motion Events -->
     <div class="section">
-      <div class="section-head">Stream Info</div>
+      <div class="section-head" id="headEvents">Motion Events</div>
+      <div class="events-grid" id="eventsGrid">
+        <div class="event-empty" id="eventsEmpty">No motion events detected yet</div>
+      </div>
+    </div>
+
+    <!-- Video Modal -->
+    <div class="video-modal" id="videoModal">
+      <button class="close-modal" onclick="closeModal()">&times;</button>
+      <video id="modalVideo" controls autoplay></video>
+    </div>
+
+    <div class="section">
+      <div class="section-head" id="headStreamInfo">Stream Info</div>
       <div class="info-panel">
         <div class="info-card">
           <div class="info-label">Camera</div>
@@ -559,6 +596,85 @@
     fetchCameraInfo();
     pollStatus();
     setInterval(pollStatus, 10000);
+
+    // ---- Motion Events ----
+    const ANIMAL_CN = { bird: '鸟类', cat: '猫', dog: '狗', bear: '熊/浣熊', person: '人', horse: '马', unknown: '未知' };
+    function animalName(en) { return LANG === 'cn' ? (ANIMAL_CN[en] || en) : en; }
+
+    async function loadMotionEvents() {
+      try {
+        const res = await fetch('/api/motion/latest?limit=12');
+        const data = await res.json();
+        const grid = document.getElementById('eventsGrid');
+        const empty = document.getElementById('eventsEmpty');
+
+        if (!data.events || !data.events.length) {
+          empty.style.display = 'block';
+          empty.textContent = LANG === 'cn' ? '暂无运动检测事件' : 'No motion events detected yet';
+          return;
+        }
+        empty.style.display = 'none';
+
+        // Show newest first, keep existing cards if same
+        const sorted = [...data.events].reverse();
+        let html = '';
+        for (const e of sorted) {
+          const t = new Date(e.time);
+          const timeStr = t.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+          const dateStr = t.toLocaleDateString([], {month:'short',day:'numeric'});
+          const tagClass = e.best_class === 'bird' ? 'bird' : '';
+          const thumbUrl = e.has_thumb ? `/api/motion/thumb/${e.id}.jpg` : '';
+          const animals = e.animals.map(a => `${animalName(a.class)} ${Math.round(a.confidence*100)}%`).join(', ');
+
+          html += `
+            <div class="event-card">
+              <div class="event-thumb" ${e.has_clip ? `onclick="playEvent('${e.id}')"` : ''}>
+                ${thumbUrl ? `<img src="${thumbUrl}" alt="${e.best_class}" loading="lazy">` : '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:32px;color:var(--text3)">📷</div>'}
+                <span class="event-tag ${tagClass}">${animalName(e.best_class)}</span>
+                <span class="event-time">${dateStr} ${timeStr}</span>
+                ${e.has_clip ? '<div class="play-overlay"><div class="play-circle">▶</div></div>' : ''}
+              </div>
+              <div class="event-info">
+                <div class="animal-name">${animals}</div>
+                <div class="event-meta">${LANG === 'cn' ? '运动' : 'Motion'}: ${e.motion_percent}% · ${e.duration}s ${LANG === 'cn' ? '录像' : 'clip'}</div>
+              </div>
+            </div>`;
+        }
+        grid.innerHTML = html;
+      } catch (err) {}
+    }
+
+    function playEvent(id) {
+      const modal = document.getElementById('videoModal');
+      const video = document.getElementById('modalVideo');
+      video.src = `/api/motion/clip/${id}.mp4`;
+      modal.classList.add('show');
+      video.play().catch(() => {});
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('videoModal');
+      const video = document.getElementById('modalVideo');
+      video.pause();
+      video.src = '';
+      modal.classList.remove('show');
+    }
+
+    document.getElementById('videoModal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+
+    // Update labels
+    if (LANG === 'cn') {
+      document.getElementById('headEvents').childNodes[0].textContent = '运动检测事件 ';
+      document.getElementById('headStreamInfo').childNodes[0].textContent = '流信息 ';
+    }
+
+    loadMotionEvents();
+    setInterval(loadMotionEvents, 15000);
   </script>
 </body>
 </html>
