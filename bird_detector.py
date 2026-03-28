@@ -12,7 +12,7 @@ from datetime import datetime, date
 from pathlib import Path
 
 # Config
-HLS_URL = "http://localhost:3088/hls/stream.m3u8"
+HLS_DIR = Path(__file__).parent / "hls-cam"
 DETECT_DIR = Path(__file__).parent / "data" / "bird-detections"
 AUDIO_DIR = DETECT_DIR / "clips"
 DAILY_DIR = DETECT_DIR / "daily"
@@ -66,18 +66,25 @@ def save_daily(entries, d=None):
 
 
 def extract_audio(output_path):
-    """Extract audio from HLS with volume boost for better detection."""
+    """Extract audio from latest TS segments with volume boost."""
     try:
+        # Grab latest TS segments directly (much faster than HLS URL)
+        segments = sorted(HLS_DIR.glob("seg*.ts"), key=lambda f: f.stat().st_mtime)
+        if len(segments) < 2:
+            return False
+        # Use last 3 segments (~12s of audio)
+        recent = segments[-3:]
+        # Concat segments and extract audio
+        concat = "|".join(str(s) for s in recent)
         result = subprocess.run([
             "ffmpeg", "-y",
-            "-i", HLS_URL,
-            "-t", str(CHUNK_SECONDS),
+            "-i", f"concat:{concat}",
             "-vn",
-            "-af", "highpass=f=500,lowpass=f=12000,volume=6.0",  # boost + bandpass for bird range
+            "-af", "highpass=f=500,lowpass=f=12000,volume=8.0",
             "-acodec", "pcm_s16le",
             "-ar", "48000", "-ac", "1",
             output_path
-        ], capture_output=True, text=True, timeout=30)
+        ], capture_output=True, text=True, timeout=15)
         return result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 1000
     except Exception as e:
         print(f"Audio extraction error: {e}")
