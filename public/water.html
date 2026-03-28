@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Water Level Monitor</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <style>
     :root { --bg:#0a1a10; --surface:#12261a; --surface2:#1a3326; --border:#24432e; --text:#e8f0e8; --text2:#8aaa96; --text3:#5a7a66; --accent:#4ade80; --orange:#f97316; --blue:#38bdf8; --red:#ef4444; --green:#22c55e; --yellow:#facc15; }
     *{margin:0;padding:0;box-sizing:border-box}
@@ -16,60 +15,54 @@
     .header-right{display:flex;align-items:center;gap:10px}
     .nav-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:13px;text-decoration:none;transition:all .15s}
     .nav-btn:hover{background:var(--border);color:var(--text)}
-    .container{max-width:1200px;margin:0 auto;padding:24px 20px}
+    .container{max-width:1300px;margin:0 auto;padding:24px 20px}
     .section{margin-bottom:28px}
     .section-head{font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);margin-bottom:14px;display:flex;align-items:center;gap:8px}
     .section-head::after{content:'';flex:1;height:1px;background:var(--border)}
 
-    /* Calibration Canvas */
+    /* Layout */
     .cal-wrapper{display:flex;gap:20px;flex-wrap:wrap}
-    .cal-canvas-wrap{position:relative;flex:1;min-width:300px;border:2px solid var(--border);border-radius:12px;overflow:hidden;background:#000;cursor:crosshair}
-    .cal-canvas-wrap img{display:block;width:100%;height:auto}
-    .cal-canvas-wrap canvas{position:absolute;top:0;left:0;width:100%;height:100%}
+    .cal-main{flex:1;min-width:400px}
+    .cal-sidebar{width:300px;flex-shrink:0}
 
-    /* Sidebar */
-    .cal-sidebar{width:320px;flex-shrink:0}
-    .cal-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
-    .cal-card h3{font-size:14px;margin-bottom:10px;color:var(--accent)}
-    .cal-card .help{font-size:11px;color:var(--text3);line-height:1.5;margin-bottom:10px}
+    /* Canvas */
+    .canvas-wrap{position:relative;border:2px solid var(--border);border-radius:12px;overflow:hidden;background:#000}
+    .canvas-wrap img{display:block;width:100%;height:auto;user-select:none;-webkit-user-drag:none}
+    .canvas-wrap canvas{position:absolute;top:0;left:0;width:100%;height:100%;cursor:crosshair}
 
-    /* Levels list */
-    .level-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
-    .level-color{width:14px;height:14px;border-radius:3px;flex-shrink:0}
-    .level-inputs{flex:1;display:flex;flex-direction:column;gap:4px}
-    .level-inputs input,.level-inputs select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px;font-size:12px;font-family:inherit}
-    .level-inputs input:focus{outline:none;border-color:var(--accent)}
-    .level-row{display:flex;gap:6px;align-items:center}
-    .level-row label{font-size:10px;color:var(--text3);min-width:30px}
-    .level-del{background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:2px 6px}
+    /* Toolbar */
+    .toolbar{display:flex;align-items:center;gap:8px;padding:10px 0;flex-wrap:wrap}
+    .tool-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;transition:all .15s;display:flex;align-items:center;gap:5px}
+    .tool-btn:hover{background:var(--border);color:var(--text)}
+    .tool-btn.active{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
+    .tool-btn.primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+    .tool-btn.danger{color:var(--red);border-color:var(--red)}
+    .brush-size{width:60px;accent-color:var(--accent)}
+    .tool-sep{width:1px;height:24px;background:var(--border)}
 
-    /* Buttons */
-    .btn{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;transition:all .15s}
-    .btn:hover{background:var(--border);color:var(--text)}
-    .btn.primary{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
-    .btn.primary:hover{background:#3bcc6e}
-    .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    /* Sidebar cards */
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+    .card h3{font-size:13px;margin-bottom:8px;color:var(--accent)}
+    .card .help{font-size:11px;color:var(--text3);line-height:1.6}
 
-    /* ROI */
-    .roi-info{font-size:11px;color:var(--text3);margin-top:6px}
+    /* Levels */
+    .level-item{background:var(--surface2);border-radius:8px;padding:10px 12px;margin-bottom:8px;border-left:4px solid}
+    .level-header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .level-name{font-weight:600;font-size:13px}
+    .level-actions{display:flex;gap:4px}
+    .level-actions button{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 5px;color:var(--text3)}
+    .level-actions button:hover{color:var(--text)}
+    .level-meta{font-size:11px;color:var(--text3);margin-top:4px}
+    .level-inputs{display:flex;gap:6px;margin-top:6px;align-items:center}
+    .level-inputs label{font-size:10px;color:var(--text3)}
+    .level-inputs input{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;font-size:12px;width:70px;font-family:inherit}
+    .level-inputs input.wide{width:120px}
 
-    /* Current Level */
-    .level-display{text-align:center;padding:20px}
-    .level-display .current{font-size:48px;font-weight:700}
-    .level-display .label{font-size:13px;color:var(--text3);margin-top:4px}
-    .level-display .status{font-size:16px;font-weight:600;margin-top:8px;padding:6px 16px;border-radius:20px;display:inline-block}
-    .level-display .status.ok{background:rgba(34,197,94,0.15);color:var(--green)}
-    .level-display .status.warn{background:rgba(249,115,22,0.15);color:var(--orange)}
-    .level-display .status.critical{background:rgba(239,68,68,0.15);color:var(--red)}
-
-    /* Chart */
-    .chart-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
-    .chart-box canvas{max-height:200px}
-
-    .info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
-    .info-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;text-align:center}
-    .info-card .val{font-size:24px;font-weight:700}
-    .info-card .lbl{font-size:11px;color:var(--text3);margin-top:4px}
+    /* Status display */
+    .status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+    .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center}
+    .stat-card .val{font-size:28px;font-weight:700}
+    .stat-card .lbl{font-size:10px;color:var(--text3);margin-top:3px;text-transform:uppercase}
 
     @media(max-width:768px){.cal-wrapper{flex-direction:column}.cal-sidebar{width:100%}}
   </style>
@@ -78,7 +71,7 @@
   <div class="header">
     <div class="header-left">
       <h1><span class="icon">&#x1F4A7;</span> <span id="pageTitle">Water Level Monitor</span></h1>
-      <div class="subtitle" id="pageSub">Camera-based water level detection for koi pond</div>
+      <div class="subtitle" id="pageSub">Draw water edges on pond rocks to calibrate levels</div>
     </div>
     <div class="header-right">
       <a class="nav-btn" id="langBtn" href="#">CN</a>
@@ -88,58 +81,54 @@
   </div>
 
   <div class="container">
-    <!-- Current Status -->
-    <div class="section" id="statusSection" style="display:none">
-      <div class="section-head" id="headStatus">Current Water Level</div>
-      <div class="info-grid" style="margin-bottom:16px">
-        <div class="info-card"><div class="val" id="curLevel">--</div><div class="lbl" id="lblLevel">Estimated Level</div></div>
-        <div class="info-card"><div class="val" id="curStatus">--</div><div class="lbl" id="lblStatus">Status</div></div>
-        <div class="info-card"><div class="val" id="curTime">--</div><div class="lbl" id="lblUpdated">Last Updated</div></div>
-      </div>
-      <div class="chart-box"><canvas id="levelChart"></canvas></div>
-    </div>
-
-    <!-- Calibration -->
     <div class="section">
-      <div class="section-head" id="headCal">Calibration</div>
+      <div class="section-head">Calibration</div>
       <div class="cal-wrapper">
-        <div class="cal-canvas-wrap" id="calWrap">
-          <img id="calImg" src="" alt="Camera snapshot">
-          <canvas id="calCanvas"></canvas>
+        <div class="cal-main">
+          <!-- Toolbar -->
+          <div class="toolbar">
+            <button class="tool-btn" id="btnRefresh" onclick="refreshSnap()">&#x1F4F7; Refresh</button>
+            <div class="tool-sep"></div>
+            <button class="tool-btn" id="btnDraw" onclick="setTool('draw')">&#x270F; Draw</button>
+            <button class="tool-btn" id="btnErase" onclick="setTool('erase')">&#x1F9F9; Erase</button>
+            <label style="font-size:11px;color:var(--text3)">Size:</label>
+            <input type="range" class="brush-size" id="brushSize" min="2" max="20" value="4">
+            <div class="tool-sep"></div>
+            <button class="tool-btn primary" id="btnSave" onclick="saveCalibration()">&#x1F4BE; Save</button>
+            <button class="tool-btn danger" id="btnUndo" onclick="undoStroke()">&#x21A9; Undo</button>
+          </div>
+
+          <!-- Canvas -->
+          <div class="canvas-wrap" id="canvasWrap">
+            <img id="snapImg" src="" alt="Pond snapshot">
+            <canvas id="drawCanvas"></canvas>
+          </div>
         </div>
+
         <div class="cal-sidebar">
-          <div class="cal-card">
-            <h3 id="calTitle">How to Calibrate</h3>
-            <div class="help" id="calHelp">
-              1. Click <b>Refresh Snapshot</b> to get current camera image<br>
-              2. Click <b>Add Level</b> then click on the image to place a reference line<br>
-              3. Set the label and height for each line<br>
-              4. Draw at least 2 levels (e.g. "Normal" and "Low")<br>
-              5. Click <b>Save Calibration</b>
-            </div>
-            <div class="btn-row">
-              <button class="btn" id="btnRefresh" onclick="refreshSnap()">Refresh Snapshot</button>
-              <button class="btn" id="btnAddLevel" onclick="startAddLevel()">+ Add Level</button>
+          <div class="card">
+            <h3 id="howTitle">How to Calibrate</h3>
+            <div class="help" id="howHelp">
+              1. Click <b>Refresh</b> to load a camera snapshot<br>
+              2. Click <b>New Level</b> below, then use the <b>Draw</b> tool to trace the water edge along the rocks<br>
+              3. Set a label (e.g. "Normal") and height in cm<br>
+              4. Repeat for other water levels (wait for water to change, or use photos from different times)<br>
+              5. Click <b>Save</b> to store calibration
             </div>
           </div>
 
-          <div class="cal-card">
-            <h3 id="levelsTitle">Reference Levels</h3>
+          <div class="card">
+            <h3>Water Levels</h3>
             <div id="levelsList"></div>
-            <div class="btn-row">
-              <button class="btn primary" id="btnSave" onclick="saveCalibration()">Save Calibration</button>
-              <button class="btn" id="btnClear" onclick="clearAll()">Clear All</button>
-            </div>
+            <button class="tool-btn" onclick="addLevel()" style="width:100%;justify-content:center;margin-top:6px">+ New Level</button>
           </div>
 
-          <div class="cal-card" id="roiCard">
-            <h3>Detection Zone (ROI)</h3>
-            <div class="help" id="roiHelp">
-              Optional: Click <b>Set ROI</b> then drag on the image to define the measurement area.
-              This narrows the detection to a specific region.
+          <div class="card" id="statusCard" style="display:none">
+            <h3>Current Reading</h3>
+            <div class="status-grid">
+              <div class="stat-card"><div class="val" id="curLevel">--</div><div class="lbl">Level</div></div>
+              <div class="stat-card"><div class="val" id="curStatus">--</div><div class="lbl">Status</div></div>
             </div>
-            <button class="btn" id="btnRoi" onclick="startSetRoi()">Set ROI</button>
-            <div class="roi-info" id="roiInfo">No ROI set (using full image)</div>
           </div>
         </div>
       </div>
@@ -148,260 +137,281 @@
 
 <script>
 const LANG = window.location.pathname.startsWith('/cn') ? 'cn' : 'en';
-const T = {
-  en: { title:'Water Level Monitor', sub:'Camera-based water level detection for koi pond',
-    status:'Current Water Level', cal:'Calibration', howTo:'How to Calibrate',
-    help:'1. Click <b>Refresh Snapshot</b> to get current camera image<br>2. Click <b>Add Level</b> then click on the image to place a reference line<br>3. Set the label and height for each line<br>4. Draw at least 2 levels (e.g. "Normal" and "Low")<br>5. Click <b>Save Calibration</b>',
-    refresh:'Refresh Snapshot', addLevel:'+ Add Level', levels:'Reference Levels',
-    save:'Save Calibration', clear:'Clear All', setRoi:'Set ROI',
-    noRoi:'No ROI set (using full image)', roiSet:'ROI set',
-    roiHelp:'Optional: Click <b>Set ROI</b> then drag on the image to define the measurement area.',
-    label:'Label', height:'Height', placing:'Click on image to place line...',
-    level:'Estimated Level', statusLbl:'Status', updated:'Last Updated',
-    saved:'Calibration saved!', switchLang:'中文', switchUrl:'/cn/water',
-    dash:'Dashboard', koi:'Koi Cam',
-    normal:'Normal', low:'Low', high:'High', critical:'Critical' },
-  cn: { title:'水位监测', sub:'基于摄像头的锦鲤池塘水位检测',
-    status:'当前水位', cal:'标定', howTo:'标定方法',
-    help:'1. 点击 <b>刷新快照</b> 获取当前摄像头画面<br>2. 点击 <b>添加水位线</b> 然后在图上点击放置参考线<br>3. 设置每条线的标签和高度<br>4. 至少标定 2 个水位（如"正常"和"偏低"）<br>5. 点击 <b>保存标定</b>',
-    refresh:'刷新快照', addLevel:'+ 添加水位线', levels:'参考水位线',
-    save:'保存标定', clear:'清除全部', setRoi:'设置检测区域',
-    noRoi:'未设置检测区域（使用全图）', roiSet:'检测区域已设置',
-    roiHelp:'可选：点击 <b>设置检测区域</b> 然后在图上拖拽定义检测范围。',
-    label:'标签', height:'高度', placing:'点击图像放置水位线...',
-    level:'预估水位', statusLbl:'状态', updated:'更新时间',
-    saved:'标定已保存！', switchLang:'EN', switchUrl:'/water',
-    dash:'仪表板', koi:'锦鲤摄像头',
-    normal:'正常', low:'偏低', high:'偏高', critical:'危险' }
-};
-const L = T[LANG];
+if (LANG === 'cn') {
+  document.getElementById('pageTitle').textContent = '水位监测';
+  document.getElementById('pageSub').textContent = '在池塘石头边缘绘制水位线来标定水位';
+  document.getElementById('langBtn').textContent = 'EN';
+  document.getElementById('langBtn').href = '/water';
+  document.getElementById('dashBtn').textContent = '仪表板';
+  document.getElementById('dashBtn').href = '/cn';
+  document.getElementById('koiBtn').textContent = '锦鲤摄像头';
+  document.getElementById('koiBtn').href = '/cn/koi';
+  document.getElementById('howTitle').textContent = '标定方法';
+  document.getElementById('howHelp').innerHTML = '1. 点击 <b>刷新</b> 加载摄像头快照<br>2. 点击下方 <b>新建水位</b>，然后用 <b>画笔</b> 沿石头边缘描出水位线<br>3. 设置标签（如"正常"）和高度(cm)<br>4. 水位变化后再标定其他水位<br>5. 点击 <b>保存</b>';
+} else {
+  document.getElementById('langBtn').textContent = '中文';
+  document.getElementById('langBtn').href = '/cn/water';
+}
 
-// Apply language
-document.getElementById('pageTitle').textContent = L.title;
-document.getElementById('pageSub').textContent = L.sub;
-document.getElementById('langBtn').textContent = L.switchLang;
-document.getElementById('langBtn').href = L.switchUrl;
-document.getElementById('dashBtn').textContent = L.dash;
-document.getElementById('dashBtn').href = LANG==='cn'?'/cn':'/';
-document.getElementById('koiBtn').textContent = L.koi;
-document.getElementById('koiBtn').href = LANG==='cn'?'/cn/koi':'/koi';
-document.getElementById('headStatus').childNodes[0].textContent = L.status+' ';
-document.getElementById('headCal').childNodes[0].textContent = L.cal+' ';
-document.getElementById('calTitle').textContent = L.howTo;
-document.getElementById('calHelp').innerHTML = L.help;
-document.getElementById('btnRefresh').textContent = L.refresh;
-document.getElementById('btnAddLevel').textContent = L.addLevel;
-document.getElementById('levelsTitle').textContent = L.levels;
-document.getElementById('btnSave').textContent = L.save;
-document.getElementById('btnClear').textContent = L.clear;
-document.getElementById('btnRoi').textContent = L.setRoi;
-document.getElementById('roiInfo').textContent = L.noRoi;
-document.getElementById('roiHelp').innerHTML = L.roiHelp;
-document.getElementById('lblLevel').textContent = L.level;
-document.getElementById('lblStatus').textContent = L.statusLbl;
-document.getElementById('lblUpdated').textContent = L.updated;
-
-// State
-const LEVEL_COLORS = ['#22c55e','#38bdf8','#f97316','#ef4444','#a78bfa','#facc15'];
-let levels = []; // {y: 0-1 normalized, label: string, height_cm: number, color: string}
-let roi = null;  // {x1,y1,x2,y2} normalized 0-1
-let mode = null; // null, 'add-level', 'set-roi'
-let roiStart = null;
+// ============ State ============
+const COLORS = ['#22c55e','#38bdf8','#f97316','#ef4444','#a78bfa','#facc15','#fb7185','#34d399'];
+let levels = []; // [{label, height_cm, color, strokes: [[{x,y},...], ...]}]
+let activeLevel = -1;
+let tool = 'draw';
+let drawing = false;
+let currentStroke = [];
 let imgW = 0, imgH = 0;
 
-const calImg = document.getElementById('calImg');
-const calCanvas = document.getElementById('calCanvas');
-const ctx = calCanvas.getContext('2d');
+const snapImg = document.getElementById('snapImg');
+const canvas = document.getElementById('drawCanvas');
+const ctx = canvas.getContext('2d');
 
-// Refresh snapshot
-async function refreshSnap() {
-  calImg.src = `/api/water/snapshot?t=${Date.now()}`;
+// ============ Snapshot ============
+function refreshSnap() {
+  snapImg.src = `/api/water/snapshot?t=${Date.now()}`;
 }
-calImg.onload = () => {
-  calCanvas.width = calImg.naturalWidth;
-  calCanvas.height = calImg.naturalHeight;
-  imgW = calImg.naturalWidth;
-  imgH = calImg.naturalHeight;
-  drawOverlay();
+snapImg.onload = () => {
+  canvas.width = snapImg.naturalWidth;
+  canvas.height = snapImg.naturalHeight;
+  imgW = canvas.width;
+  imgH = canvas.height;
+  redraw();
 };
 
-// Drawing
-function drawOverlay() {
-  if (!imgW) return;
-  ctx.clearRect(0, 0, imgW, imgH);
-
-  // Draw ROI
-  if (roi) {
-    ctx.strokeStyle = 'rgba(56,189,248,0.7)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([8,4]);
-    const rx = roi.x1*imgW, ry = roi.y1*imgH, rw = (roi.x2-roi.x1)*imgW, rh = (roi.y2-roi.y1)*imgH;
-    ctx.strokeRect(rx, ry, rw, rh);
-    ctx.setLineDash([]);
-    // Dim outside ROI
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.fillRect(0, 0, imgW, ry);
-    ctx.fillRect(0, ry+rh, imgW, imgH-ry-rh);
-    ctx.fillRect(0, ry, rx, rh);
-    ctx.fillRect(rx+rw, ry, imgW-rx-rw, rh);
-  }
-
-  // Draw level lines
-  for (const lv of levels) {
-    const y = lv.y * imgH;
-    ctx.strokeStyle = lv.color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(imgW, y);
-    ctx.stroke();
-
-    // Label
-    ctx.fillStyle = lv.color;
-    ctx.font = 'bold 14px sans-serif';
-    const text = `${lv.label} (${lv.height_cm}cm)`;
-    ctx.fillRect(8, y-18, ctx.measureText(text).width+12, 20);
-    ctx.fillStyle = '#000';
-    ctx.fillText(text, 14, y-3);
-  }
-
-  // Mode indicator
-  if (mode === 'add-level') {
-    ctx.fillStyle = 'rgba(74,222,128,0.8)';
-    ctx.font = 'bold 16px sans-serif';
-    ctx.fillText(L.placing, 10, 24);
-  }
+// ============ Drawing ============
+function setTool(t) {
+  tool = t;
+  document.getElementById('btnDraw').classList.toggle('active', t === 'draw');
+  document.getElementById('btnErase').classList.toggle('active', t === 'erase');
+  canvas.style.cursor = t === 'erase' ? 'cell' : 'crosshair';
 }
 
-// Canvas click
-calCanvas.addEventListener('click', (e) => {
-  if (!imgW || !mode) return;
-  const rect = calCanvas.getBoundingClientRect();
-  const scaleX = imgW / rect.width;
-  const scaleY = imgH / rect.height;
-  const x = (e.clientX - rect.left) * scaleX / imgW;
-  const y = (e.clientY - rect.top) * scaleY / imgH;
-
-  if (mode === 'add-level') {
-    const idx = levels.length;
-    levels.push({
-      y: y,
-      label: [L.high, L.normal, L.low, L.critical][idx] || `Level ${idx+1}`,
-      height_cm: Math.round((1-y) * 100),
-      color: LEVEL_COLORS[idx % LEVEL_COLORS.length],
-    });
-    mode = null;
-    renderLevels();
-    drawOverlay();
-  }
-});
-
-// ROI drag
-let roiDragging = false;
-calCanvas.addEventListener('mousedown', (e) => {
-  if (mode !== 'set-roi') return;
-  const rect = calCanvas.getBoundingClientRect();
-  roiStart = {
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  return {
     x: (e.clientX - rect.left) / rect.width,
     y: (e.clientY - rect.top) / rect.height,
   };
-  roiDragging = true;
-});
-calCanvas.addEventListener('mousemove', (e) => {
-  if (!roiDragging || !roiStart) return;
-  const rect = calCanvas.getBoundingClientRect();
-  const x2 = (e.clientX - rect.left) / rect.width;
-  const y2 = (e.clientY - rect.top) / rect.height;
-  roi = {
-    x1: Math.min(roiStart.x, x2), y1: Math.min(roiStart.y, y2),
-    x2: Math.max(roiStart.x, x2), y2: Math.max(roiStart.y, y2),
-  };
-  drawOverlay();
-});
-calCanvas.addEventListener('mouseup', () => {
-  if (roiDragging) {
-    roiDragging = false;
-    mode = null;
-    document.getElementById('roiInfo').textContent = roi ? L.roiSet : L.noRoi;
-    drawOverlay();
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  if (activeLevel < 0 || !imgW) return;
+  const pos = getPos(e);
+  if (tool === 'draw') {
+    drawing = true;
+    currentStroke = [pos];
+  } else if (tool === 'erase') {
+    eraseAt(pos);
   }
 });
 
-function startAddLevel() { mode = 'add-level'; drawOverlay(); }
-function startSetRoi() { mode = 'set-roi'; roi = null; drawOverlay(); }
+canvas.addEventListener('mousemove', (e) => {
+  if (!imgW) return;
+  const pos = getPos(e);
+  if (drawing && tool === 'draw') {
+    currentStroke.push(pos);
+    redraw();
+    // Draw current stroke in progress
+    drawStroke(currentStroke, levels[activeLevel].color, getBrushSize());
+  } else if (tool === 'erase' && e.buttons === 1) {
+    eraseAt(pos);
+  }
+});
+
+canvas.addEventListener('mouseup', () => {
+  if (drawing && currentStroke.length > 1) {
+    levels[activeLevel].strokes.push(currentStroke);
+    renderLevels();
+  }
+  drawing = false;
+  currentStroke = [];
+  redraw();
+});
+
+canvas.addEventListener('mouseleave', () => {
+  if (drawing && currentStroke.length > 1) {
+    levels[activeLevel].strokes.push(currentStroke);
+    renderLevels();
+  }
+  drawing = false;
+  currentStroke = [];
+  redraw();
+});
+
+// Touch support
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (activeLevel < 0 || !imgW || tool !== 'draw') return;
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const pos = { x: (touch.clientX - rect.left) / rect.width, y: (touch.clientY - rect.top) / rect.height };
+  drawing = true;
+  currentStroke = [pos];
+});
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (!drawing) return;
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const pos = { x: (touch.clientX - rect.left) / rect.width, y: (touch.clientY - rect.top) / rect.height };
+  currentStroke.push(pos);
+  redraw();
+  drawStroke(currentStroke, levels[activeLevel].color, getBrushSize());
+});
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (drawing && currentStroke.length > 1) {
+    levels[activeLevel].strokes.push(currentStroke);
+    renderLevels();
+  }
+  drawing = false;
+  currentStroke = [];
+  redraw();
+});
+
+function getBrushSize() { return parseInt(document.getElementById('brushSize').value); }
+
+function drawStroke(points, color, size) {
+  if (points.length < 2) return;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = size;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(points[0].x * imgW, points[0].y * imgH);
+  for (let i = 1; i < points.length; i++) {
+    ctx.lineTo(points[i].x * imgW, points[i].y * imgH);
+  }
+  ctx.stroke();
+}
+
+function eraseAt(pos) {
+  if (activeLevel < 0) return;
+  const lv = levels[activeLevel];
+  const threshold = 0.02;
+  lv.strokes = lv.strokes.filter(stroke => {
+    return !stroke.some(p => Math.abs(p.x - pos.x) < threshold && Math.abs(p.y - pos.y) < threshold);
+  });
+  renderLevels();
+  redraw();
+}
+
+function undoStroke() {
+  if (activeLevel < 0) return;
+  levels[activeLevel].strokes.pop();
+  renderLevels();
+  redraw();
+}
+
+function redraw() {
+  if (!imgW) return;
+  ctx.clearRect(0, 0, imgW, imgH);
+  const size = getBrushSize();
+  for (let i = 0; i < levels.length; i++) {
+    const lv = levels[i];
+    const alpha = i === activeLevel ? 1.0 : 0.4;
+    ctx.globalAlpha = alpha;
+    for (const stroke of lv.strokes) {
+      drawStroke(stroke, lv.color, size);
+    }
+    // Draw label at first point of first stroke
+    if (lv.strokes.length && lv.strokes[0].length) {
+      const p = lv.strokes[0][0];
+      ctx.globalAlpha = 1;
+      ctx.font = 'bold 13px sans-serif';
+      const text = `${lv.label} (${lv.height_cm}cm)`;
+      const tw = ctx.measureText(text).width;
+      ctx.fillStyle = lv.color;
+      ctx.fillRect(p.x*imgW - 2, p.y*imgH - 16, tw + 8, 18);
+      ctx.fillStyle = '#000';
+      ctx.fillText(text, p.x*imgW + 2, p.y*imgH - 2);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ============ Levels ============
+function addLevel() {
+  const idx = levels.length;
+  const defaults = LANG === 'cn'
+    ? ['正常','偏高','偏低','危险']
+    : ['Normal','High','Low','Critical'];
+  levels.push({
+    label: defaults[idx] || `Level ${idx+1}`,
+    height_cm: 50 - idx * 10,
+    color: COLORS[idx % COLORS.length],
+    strokes: [],
+  });
+  activeLevel = idx;
+  setTool('draw');
+  renderLevels();
+  redraw();
+}
 
 function renderLevels() {
   const el = document.getElementById('levelsList');
-  if (!levels.length) { el.innerHTML = ''; return; }
+  if (!levels.length) { el.innerHTML = `<div style="font-size:12px;color:var(--text3);padding:10px;text-align:center">${LANG==='cn'?'点击下方按钮添加水位':'Click button below to add a level'}</div>`; return; }
   el.innerHTML = levels.map((lv, i) => `
-    <div class="level-item">
-      <div class="level-color" style="background:${lv.color}"></div>
-      <div class="level-inputs">
-        <div class="level-row">
-          <label>${L.label}</label>
-          <input value="${lv.label}" onchange="levels[${i}].label=this.value;drawOverlay()" style="flex:1">
-        </div>
-        <div class="level-row">
-          <label>cm</label>
-          <input type="number" value="${lv.height_cm}" onchange="levels[${i}].height_cm=+this.value;drawOverlay()" style="width:70px">
-          <span style="font-size:10px;color:var(--text3)">y: ${(lv.y*100).toFixed(1)}%</span>
+    <div class="level-item" style="border-left-color:${lv.color};${i===activeLevel?'background:var(--border)':''}" onclick="activeLevel=${i};renderLevels();redraw()">
+      <div class="level-header">
+        <span class="level-name" style="color:${lv.color}">${i===activeLevel?'&#x270F; ':''}${lv.label}</span>
+        <div class="level-actions">
+          <button onclick="event.stopPropagation();levels.splice(${i},1);if(activeLevel>=${i})activeLevel=Math.max(0,activeLevel-1);renderLevels();redraw()" title="Delete">&times;</button>
         </div>
       </div>
-      <button class="level-del" onclick="levels.splice(${i},1);renderLevels();drawOverlay()">&times;</button>
+      <div class="level-meta">${lv.strokes.length} ${LANG==='cn'?'笔画':'strokes'} &middot; ${lv.strokes.reduce((a,s)=>a+s.length,0)} ${LANG==='cn'?'点':'pts'}</div>
+      <div class="level-inputs">
+        <label>${LANG==='cn'?'标签':'Label'}</label>
+        <input class="wide" value="${lv.label}" onchange="levels[${i}].label=this.value;redraw()" onclick="event.stopPropagation()">
+        <label>cm</label>
+        <input type="number" value="${lv.height_cm}" onchange="levels[${i}].height_cm=+this.value;redraw()" onclick="event.stopPropagation()">
+      </div>
     </div>
   `).join('');
 }
 
+// ============ Save/Load ============
 async function saveCalibration() {
-  const data = { roi, levels, savedAt: new Date().toISOString() };
+  const data = { levels, savedAt: new Date().toISOString() };
   const res = await fetch('/api/water/calibration', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify(data),
   });
-  if (res.ok) alert(L.saved);
+  if (res.ok) alert(LANG==='cn'?'标定已保存！':'Calibration saved!');
 }
 
-function clearAll() {
-  levels = [];
-  roi = null;
-  renderLevels();
-  drawOverlay();
-  document.getElementById('roiInfo').textContent = L.noRoi;
-}
-
-// Load existing calibration
 async function loadCalibration() {
   try {
     const res = await fetch('/api/water/calibration');
     const data = await res.json();
     if (data.levels && data.levels.length) {
       levels = data.levels;
+      activeLevel = 0;
       renderLevels();
     }
-    if (data.roi) roi = data.roi;
   } catch {}
 }
 
-// Load readings for chart
 async function loadReadings() {
   try {
     const res = await fetch('/api/water/readings?hours=24');
     const data = await res.json();
     if (data.readings && data.readings.length) {
-      document.getElementById('statusSection').style.display = '';
+      document.getElementById('statusCard').style.display = '';
       const last = data.readings[data.readings.length - 1];
       document.getElementById('curLevel').textContent = last.level_cm + ' cm';
       document.getElementById('curStatus').textContent = last.status || '--';
-      document.getElementById('curTime').textContent = new Date(last.timestamp).toLocaleTimeString();
     }
   } catch {}
 }
 
-// Init
+// ============ Init ============
 refreshSnap();
-loadCalibration().then(() => { setTimeout(drawOverlay, 500); });
+loadCalibration().then(() => setTimeout(redraw, 500));
 loadReadings();
+renderLevels();
+setTool('draw');
 </script>
 </body>
 </html>
