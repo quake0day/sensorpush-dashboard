@@ -5,3 +5,5 @@ pond-alarm-log.json
 data/gardens/*.json
 hls-cam/
 data/bird-detections/
+data/motion-events/
+models/
