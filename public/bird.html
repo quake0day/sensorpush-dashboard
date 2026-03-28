@@ -380,14 +380,27 @@ async function renderTimeline(detections) {
 
 // Play recorded clip (noise/speech filtered on server)
 let currentAudio = null;
+let currentPlayBtn = null;
 function playClip(btn, id) {
-  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  // If same button clicked again, stop playback
+  if (currentAudio && currentPlayBtn === btn) {
+    currentAudio.pause();
+    currentAudio = null;
+    btn.innerHTML = '&#9654;';
+    currentPlayBtn = null;
+    return;
+  }
+  // Stop any other playing clip
+  if (currentAudio) {
+    currentAudio.pause();
+    if (currentPlayBtn) currentPlayBtn.innerHTML = '&#9654;';
+  }
   currentAudio = new Audio(`/api/birds/clip/${id}.mp3`);
   currentAudio.play().catch(() => {});
-  const orig = btn.innerHTML;
+  currentPlayBtn = btn;
   btn.innerHTML = '&#9724;';
-  currentAudio.onended = () => { btn.innerHTML = orig; currentAudio = null; };
-  currentAudio.onerror = () => { btn.innerHTML = orig; currentAudio = null; };
+  currentAudio.onended = () => { btn.innerHTML = '&#9654;'; currentAudio = null; currentPlayBtn = null; };
+  currentAudio.onerror = () => { btn.innerHTML = '&#9654;'; currentAudio = null; currentPlayBtn = null; };
 }
 
 // ============ Date Controls ============
