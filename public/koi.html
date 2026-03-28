@@ -95,15 +95,16 @@
 <body>
   <div class="header">
     <div class="header-left">
-      <h1><span class="fish">&#x1F41F;</span> Koi Pond Camera</h1>
-      <div class="subtitle">Reolink RLC-811A &mdash; RTSP &rarr; HLS (H.264 + AAC)</div>
+      <h1><span class="fish">&#x1F41F;</span> <span id="pageTitle">Koi Pond Camera</span></h1>
+      <div class="subtitle" id="pageSubtitle">Reolink RLC-811A &mdash; RTSP &rarr; HLS (H.264 + AAC)</div>
     </div>
     <div class="header-right">
       <div class="status" id="camStatus">
         <span class="dot wait" id="statusDot"></span>
         <span id="statusText">Connecting...</span>
       </div>
-      <a href="/" class="nav-btn">Dashboard</a>
+      <a class="nav-btn" id="langBtn" href="#" style="cursor:pointer">中文</a>
+      <a href="/" class="nav-btn" id="dashBtn">Dashboard</a>
     </div>
   </div>
 
@@ -201,6 +202,36 @@
   </div>
 
   <script>
+    // ---- Language ----
+    const LANG = window.location.pathname.startsWith('/cn') ? 'cn' : 'en';
+    const KOI_T = {
+      en: { title: 'Koi Pond Camera', subtitle: 'Reolink RLC-811A — RTSP → HLS (H.264 + AAC)', dash: 'Dashboard', switchLang: '中文', switchUrl: '/cn/koi',
+            quality: 'Quality', ptz: 'PTZ', zoom: 'Zoom', actions: 'Actions', snap: 'Snap', full: 'Full', unmute: 'Unmute', muted: 'Muted', restart: 'Restart',
+            liveFeed: 'Live Feed', streamInfo: 'Stream Info', camera: 'Camera', pipeline: 'Pipeline', status: 'Status', firmware: 'Firmware',
+            connecting: 'Connecting...', live: 'Live', offline: 'Offline', switching: 'Switching...', restarting: 'Restarting...',
+            buffering: 'Buffering...', waiting: 'Waiting for stream...', streamFailed: 'Stream Failed', notSupported: 'Not Supported' },
+      cn: { title: '锦鲤池塘摄像头', subtitle: 'Reolink RLC-811A — RTSP → HLS 实时视频流', dash: '仪表板', switchLang: 'EN', switchUrl: '/koi',
+            quality: '画质', ptz: '云台', zoom: '变焦', actions: '操作', snap: '截图', full: '全屏', unmute: '开启声音', muted: '已静音', restart: '重启',
+            liveFeed: '实时画面', streamInfo: '流信息', camera: '摄像头', pipeline: '传输链路', status: '状态', firmware: '固件',
+            connecting: '连接中...', live: '直播中', offline: '离线', switching: '切换中...', restarting: '重启中...',
+            buffering: '缓冲中...', waiting: '等待视频流...', streamFailed: '视频流失败', notSupported: '不支持' }
+    };
+    const KT = KOI_T[LANG];
+    document.getElementById('pageTitle').textContent = KT.title;
+    document.getElementById('pageSubtitle').textContent = KT.subtitle;
+    document.getElementById('langBtn').textContent = KT.switchLang;
+    document.getElementById('langBtn').href = KT.switchUrl;
+    document.getElementById('dashBtn').textContent = KT.dash;
+    document.getElementById('dashBtn').href = LANG === 'cn' ? '/cn' : '/';
+    // Update static labels
+    document.querySelectorAll('.label').forEach(el => {
+      const t = el.textContent.trim();
+      if (t === 'Quality') el.textContent = KT.quality;
+      if (t === 'PTZ') el.textContent = KT.ptz;
+      if (t === 'Zoom') el.textContent = KT.zoom;
+      if (t === 'Actions') el.textContent = KT.actions;
+    });
+
     const video = document.getElementById("camVideo");
     const camError = document.getElementById("camError");
     const errorTitle = document.getElementById("errorTitle");
