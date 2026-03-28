@@ -1781,16 +1781,13 @@ let birdSeenIds = new Set();
 const birdInfoCache = {};
 
 async function fetchBirdImage(commonName, sciName) {
-  const key = sciName || commonName;
+  const key = commonName + (sciName || '');
   if (birdInfoCache[key]) return birdInfoCache[key];
   try {
-    const res = await fetch(`/api/birds/image/${encodeURIComponent(commonName)}`);
+    let url = `/api/birds/image/${encodeURIComponent(commonName)}`;
+    if (sciName) url += `?sci=${encodeURIComponent(sciName)}`;
+    const res = await fetch(url);
     const data = await res.json();
-    if (!data.image && sciName) {
-      const res2 = await fetch(`/api/birds/image/${encodeURIComponent(sciName)}`);
-      const data2 = await res2.json();
-      Object.assign(data, { image: data2.image || data.image, extract: data2.extract || data.extract });
-    }
     birdInfoCache[key] = data;
     return data;
   } catch { return { image: null, extract: "", url: "" }; }
