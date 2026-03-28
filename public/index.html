@@ -207,20 +207,14 @@
       <div class="sensor-grid" id="sensorCards"><div class="loading-msg" id="sensorLoading"></div></div>
     </div>
 
-    <!-- Water Sensor -->
-    <div class="section" id="waterSection" style="display:none;">
-      <div class="section-head" id="waterHead"></div>
-      <div id="waterCard"></div>
-      <div class="alarm-log" id="alarmLogSection" style="display:none;">
-        <h3 id="alarmLogTitle"></h3>
-        <div class="log-list" id="alarmLog"></div>
-      </div>
-    </div>
-
-    <!-- Camera Water Level -->
+    <!-- Water Level (Camera CV) -->
     <div class="section" id="camWaterSection" style="display:none;">
-      <div class="section-head" id="camWaterHead">Camera Water Level</div>
+      <div class="section-head" id="camWaterHead">Koi Pond Water Level</div>
       <div class="water-card" id="camWaterCard" style="justify-content:center;gap:30px;"></div>
+      <div class="alarm-log" id="waterAlertSection" style="display:none;margin-top:14px;">
+        <h3 id="waterAlertTitle" style="font-size:13px;color:var(--text3);margin-bottom:8px;"></h3>
+        <div class="log-list" id="waterAlertLog"></div>
+      </div>
     </div>
 
     <!-- Charts -->
@@ -1354,178 +1348,6 @@ function renderSensors(sensors) {
   }).join('');
 }
 
-// ============ Tuya / Koi Pond Water Level ============
-function renderWaterSensor(devices) {
-  const ws = devices.find(d => d.type === 'water_sensor');
-  if (!ws) return;
-  document.getElementById('waterSection').style.display = '';
-  const statusMap = {};
-  (ws.status || []).forEach(s => statusMap[s.code] = s.value);
-
-  // Dual probe mapping (from v2 thing model):
-  //   watersensor_state (DP1) = right probe = black = shallow position
-  //   tamper_alarm (DP5)      = left probe  = white = deep position
-  const leftAlarm = statusMap.tamper_alarm === true;          // white/deep
-  const rightAlarm = statusMap.watersensor_state === 'alarm'; // black/shallow
-  const battery = statusMap.battery_percentage;
-  const online = ws.online;
-  const updated = ws.update_time ? new Date(ws.update_time * 1000).toLocaleString(locale) : '--';
-
-  let statusText, statusClass;
-  if (rightAlarm && leftAlarm) {
-    statusText = T.pondCritical; statusClass = 'water-alarm';
-  } else if (rightAlarm || leftAlarm) {
-    statusText = T.pondLow; statusClass = 'water-alarm';
-  } else {
-    statusText = T.pondNormal; statusClass = 'water-normal';
-  }
-
-  const probeWhiteOk = !leftAlarm;
-  const probeBlackOk = !rightAlarm;
-
-  // Water level Y positions in SVG (pond area 40-190)
-  // Black probe at y=85 (shallow, alarms first when water drops)
-  // White probe at y=140 (deep, alarms when critically low)
-  // Water level depends on probe states
-  let waterY;
-  if (!rightAlarm && !leftAlarm) waterY = 58;   // above both → high
-  else if (rightAlarm && !leftAlarm) waterY = 108; // black(shallow) out, white(deep) still in → medium
-  else waterY = 165;                               // both out → critical
-
-  const waterColor = waterY < 80 ? '#1e6091' : waterY < 130 ? '#b45309' : '#991b1b';
-  const waterColorLight = waterY < 80 ? '#2980b9' : waterY < 130 ? '#d97706' : '#dc2626';
-  const levelLabel = LANG === 'cn'
-    ? (waterY < 80 ? '水位正常' : waterY < 130 ? '水位偏低' : '水位极低')
-    : (waterY < 80 ? 'Normal' : waterY < 130 ? 'Low' : 'Critical');
-
-  const whiteLabel = LANG === 'cn' ? '白' : 'W';
-  const blackLabel = LANG === 'cn' ? '黑' : 'B';
-  const shallowTxt = LANG === 'cn' ? '浅水位' : 'Shallow';
-  const deepTxt = LANG === 'cn' ? '深水位' : 'Deep';
-
-  // SVG pond diagram
-  const svg = `<svg class="pond-diagram" viewBox="0 0 240 220" width="240" height="220" xmlns="http://www.w3.org/2000/svg">
-    <!-- Pond background -->
-    <defs>
-      <linearGradient id="pondBg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#0c2d1a"/>
-        <stop offset="100%" stop-color="#071a0e"/>
-      </linearGradient>
-      <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${waterColorLight}" stop-opacity="0.5"/>
-        <stop offset="100%" stop-color="${waterColor}" stop-opacity="0.8"/>
-      </linearGradient>
-      <clipPath id="pondClip"><rect x="30" y="40" width="180" height="155" rx="10"/></clipPath>
-    </defs>
-
-    <!-- Pond container -->
-    <rect x="30" y="40" width="180" height="155" rx="10" fill="url(#pondBg)" stroke="#24432e" stroke-width="2"/>
-
-    <!-- Water fill -->
-    <g clip-path="url(#pondClip)">
-      <rect x="30" y="${waterY}" width="180" height="${195 - waterY}" fill="url(#waterGrad)"/>
-      <!-- Water surface wave -->
-      <g transform="translate(30,${waterY - 2})">
-        <path d="M0,0 Q30,-3 60,0 Q90,3 120,0 Q150,-3 180,0 L180,5 L0,5 Z" fill="${waterColorLight}" opacity="0.3">
-          <animate attributeName="d" dur="3s" repeatCount="indefinite"
-            values="M0,0 Q30,-3 60,0 Q90,3 120,0 Q150,-3 180,0 L180,5 L0,5 Z;
-                    M0,0 Q30,3 60,0 Q90,-3 120,0 Q150,3 180,0 L180,5 L0,5 Z;
-                    M0,0 Q30,-3 60,0 Q90,3 120,0 Q150,-3 180,0 L180,5 L0,5 Z"/>
-        </path>
-      </g>
-
-      <!-- Koi fish (only if water exists) -->
-      ${waterY < 160 ? `
-      <g class="pond-fish" transform="translate(${waterY < 100 ? 70 : 80},${Math.max(waterY + 25, 120)})">
-        <ellipse cx="0" cy="0" rx="14" ry="6" fill="#e8945a"/>
-        <ellipse cx="-3" cy="-1" rx="5" ry="3" fill="#fff" opacity="0.4"/>
-        <polygon points="14,-1 20,-6 20,4" fill="#d97730"/>
-        <circle cx="-8" cy="-2" r="1.5" fill="#1a1a1a"/>
-      </g>
-      <g class="pond-fish" style="animation-delay:-2s;animation-direction:reverse" transform="translate(${waterY < 100 ? 140 : 120},${Math.max(waterY + 45, 150)})">
-        <ellipse cx="0" cy="0" rx="11" ry="5" fill="#f0f0f0"/>
-        <ellipse cx="2" cy="0" rx="5" ry="3" fill="#dc2626" opacity="0.6"/>
-        <polygon points="-11,0 -17,-5 -17,4" fill="#e8e8e8"/>
-        <circle cx="6" cy="-2" r="1.2" fill="#1a1a1a"/>
-      </g>` : ''}
-    </g>
-
-    <!-- Sensor pole -->
-    <rect x="90" y="22" width="4" height="178" rx="2" fill="#6b7280"/>
-    <!-- Pole base/mount -->
-    <rect x="82" y="18" width="20" height="8" rx="3" fill="#9ca3af"/>
-
-    <!-- Black probe (shallow) at y=85 - alarms first when water drops -->
-    <circle cx="92" cy="85" r="9" fill="#374151" stroke="${probeBlackOk ? '#22c55e' : '#ef4444'}" stroke-width="2.5"/>
-    <text x="92" y="89" text-anchor="middle" fill="#e0e0e0" font-size="10" font-weight="bold">${blackLabel}</text>
-    <line x1="101" y1="85" x2="122" y2="85" stroke="${probeBlackOk ? '#22c55e80' : '#ef444480'}" stroke-width="1" stroke-dasharray="3,2"/>
-    <text x="125" y="82" fill="#8aaa96" font-size="8">${shallowTxt}</text>
-    <text x="125" y="92" fill="${probeBlackOk ? '#22c55e' : '#ef4444'}" font-size="8" font-weight="600">${probeBlackOk ? (LANG==='cn'?'●水中':'●OK') : (LANG==='cn'?'◉离水':'◉DRY')}</text>
-
-    <!-- White probe (deep) at y=140 - alarms when critically low -->
-    <circle cx="92" cy="140" r="9" fill="#f0f0f0" stroke="${probeWhiteOk ? '#22c55e' : '#ef4444'}" stroke-width="2.5"/>
-    <text x="92" y="144" text-anchor="middle" fill="#333" font-size="10" font-weight="bold">${whiteLabel}</text>
-    <line x1="101" y1="140" x2="122" y2="140" stroke="${probeWhiteOk ? '#22c55e80' : '#ef444480'}" stroke-width="1" stroke-dasharray="3,2"/>
-    <text x="125" y="137" fill="#8aaa96" font-size="8">${deepTxt}</text>
-    <text x="125" y="147" fill="${probeWhiteOk ? '#22c55e' : '#ef4444'}" font-size="8" font-weight="600">${probeWhiteOk ? (LANG==='cn'?'●水中':'●OK') : (LANG==='cn'?'◉离水':'◉DRY')}</text>
-
-    <!-- Water level indicator arrow -->
-    <polygon points="34,${waterY} 26,${waterY-5} 26,${waterY+5}" fill="${waterColorLight}"/>
-    <text x="8" y="${waterY+4}" fill="${waterColorLight}" font-size="9" font-weight="600">${levelLabel}</text>
-
-    <!-- Pond bottom -->
-    <g transform="translate(30,185)">
-      <ellipse cx="40" cy="5" rx="12" ry="3" fill="#374151" opacity="0.4"/>
-      <ellipse cx="100" cy="3" rx="8" ry="2" fill="#374151" opacity="0.3"/>
-      <ellipse cx="150" cy="5" rx="10" ry="3" fill="#374151" opacity="0.35"/>
-    </g>
-  </svg>`;
-
-  document.getElementById('waterCard').innerHTML = `<div class="water-card">
-    ${svg}
-    <div class="water-info">
-      <div class="water-status ${statusClass}">${statusText}</div>
-      <div class="water-detail" style="margin-top:8px;">
-        <span style="color:${probeBlackOk ? 'var(--green)' : 'var(--red)'}">${probeBlackOk ? '●' : '◉'} ${LANG==='cn'?'黑色探头（浅水位）':'Black probe (shallow)'}: ${probeBlackOk ? (LANG==='cn'?'在水中':'In water') : (LANG==='cn'?'离开水面':'Out of water')}</span>
-      </div>
-      <div class="water-detail">
-        <span style="color:${probeWhiteOk ? 'var(--green)' : 'var(--red)'}">${probeWhiteOk ? '●' : '◉'} ${LANG==='cn'?'白色探头（深水位）':'White probe (deep)'}: ${probeWhiteOk ? (LANG==='cn'?'在水中':'In water') : (LANG==='cn'?'离开水面':'Out of water')}</span>
-      </div>
-      <div class="water-detail" style="margin-top:8px;">${T.battery}: ${battery !== undefined ? battery + '%' : '--'} &nbsp; ${online ? '🟢' : '⚫'} ${online ? 'Online' : 'Offline'}</div>
-      <div class="water-detail">${T.updated}: ${updated}</div>
-    </div>
-  </div>`;
-}
-
-async function loadAlarmLog() {
-  try {
-    // Use server-side pond log (tracks state changes locally)
-    const data = await api("GET", "/api/pond/logs?hours=24");
-    const logs = data.logs || [];
-    const section = document.getElementById("alarmLogSection");
-    const container = document.getElementById("alarmLog");
-    section.style.display = "";
-    if (!logs.length) { container.innerHTML = `<div class="log-empty">${T.noEvents}</div>`; return; }
-    container.innerHTML = logs.map(log => {
-      const isAlarm = log.alarm;
-      const time = new Date(log.time).toLocaleString(locale);
-      const probe = log.probe === 'black'
-        ? (LANG === 'cn' ? '黑色探头(浅)' : 'Black probe (shallow)')
-        : (LANG === 'cn' ? '白色探头(深)' : 'White probe (deep)');
-      const stateText = isAlarm
-        ? (LANG === 'cn' ? '离开水面' : 'Out of water')
-        : (LANG === 'cn' ? '回到水中' : 'Back in water');
-      return `<div class="log-item">
-        <span class="log-dot ${isAlarm ? 'alarm' : 'normal'}"></span>
-        <span class="log-time">${time}</span>
-        <span class="log-state" style="color:${isAlarm ? 'var(--red)' : 'var(--green)'}">
-          ${probe}: ${stateText}
-        </span>
-      </div>`;
-    }).join('');
-  } catch (e) { console.error('alarm log:', e); }
-}
-
 // ============ Charts ============
 let tempChart, humChart, pressChart;
 let currentTempHours = 24, currentHumHours = 24, currentPressHours = 24;
@@ -1655,12 +1477,6 @@ async function init() {
   // Load weather after sensors so it can use sensor readings
   loadWeather();
 
-  try {
-    const tuyaDevices = await api("GET", "/api/tuya/devices");
-    renderWaterSensor(tuyaDevices);
-    await loadAlarmLog();
-  } catch (e) { console.error("tuya:", e); }
-
   await loadGateways();
 
   tempChart = createChart("tempChart", T.temperature + " (°C)");
@@ -1686,9 +1502,6 @@ async function init() {
       sensorsData = await api("GET", "/api/sensors");
       renderSensors(sensorsData);
       loadWeather(); // also updates garden weather effects
-      const tuyaDevices = await api("GET", "/api/tuya/devices");
-      renderWaterSensor(tuyaDevices);
-      await loadAlarmLog();
       setStatus(true, T.connected + " - " + new Date().toLocaleTimeString(locale));
     } catch (e) { setStatus(false, "Refresh failed"); }
   }, 30000);
@@ -1930,6 +1743,34 @@ async function loadCamWater() {
         <div class="water-detail" style="margin-top:8px;font-size:14px">${LANG==='cn'?'水位':'Level'}: <b>${pct}%</b></div>
         <div class="water-detail">${T.updated}: ${updated}</div>
       </div>`;
+
+    // Load alert history (readings where level dropped below 40%)
+    const readingsRes = await fetch('/api/water/readings?hours=24');
+    const readingsData = await readingsRes.json();
+    const readings = readingsData.readings || [];
+    const alerts = readings.filter(r => r.level_pct < 40);
+    const alertSection = document.getElementById('waterAlertSection');
+    const alertTitle = document.getElementById('waterAlertTitle');
+    const alertLog = document.getElementById('waterAlertLog');
+
+    if (alerts.length) {
+      alertSection.style.display = '';
+      alertTitle.textContent = LANG === 'cn' ? '水位报警记录（24小时）' : 'Water Level Alert History (24h)';
+      alertLog.innerHTML = alerts.reverse().map(a => {
+        const time = new Date(a.time).toLocaleString(LANG === 'cn' ? 'zh-CN' : 'en-US');
+        const st = a.status || 'Low';
+        const stCN = {Low:'偏低',Critical:'危险'}[st] || st;
+        const disp = LANG === 'cn' ? stCN : st;
+        const isLow = st === 'Critical';
+        return `<div class="log-item">
+          <span class="log-dot ${isLow ? 'alarm' : 'normal'}"></span>
+          <span class="log-time">${time}</span>
+          <span class="log-state" style="color:${isLow ? 'var(--red)' : 'var(--orange)'}">${disp}: ${Math.round(a.level_pct)}%</span>
+        </div>`;
+      }).join('');
+    } else {
+      alertSection.style.display = 'none';
+    }
   } catch (e) {}
 }
 
