@@ -18,7 +18,7 @@ AUDIO_DIR = DETECT_DIR / "clips"
 DAILY_DIR = DETECT_DIR / "daily"
 LATEST_FILE = DETECT_DIR / "latest.json"
 LAT, LON = 39.957, -75.603
-MIN_CONFIDENCE = 0.50
+MIN_CONFIDENCE = 0.35
 CHUNK_SECONDS = 9  # longer chunks = better detection
 POLL_INTERVAL = 10
 MAX_LATEST = 50
