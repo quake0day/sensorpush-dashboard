@@ -902,10 +902,21 @@ app.post("/api/water/calibration", (req, res) => {
 // Snapshot for calibration
 app.get("/api/water/snapshot", async (req, res) => {
   try {
-    const url = `http://${REOLINK_IP}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=${Date.now()}&user=${encodeURIComponent(REOLINK_USER)}&password=${encodeURIComponent(REOLINK_PASS)}`;
+    // Login to get token first (password with @ doesn't work in query string)
+    const loginBody = JSON.stringify([{cmd:"Login",action:0,param:{User:{userName:REOLINK_USER,password:REOLINK_PASS}}}]);
+    const loginRes = await fetch(`http://${REOLINK_IP}/cgi-bin/api.cgi?cmd=Login`, {
+      method: "POST", headers: {"Content-Type":"application/json"}, body: loginBody, signal: AbortSignal.timeout(5000),
+    });
+    const loginData = await loginRes.json();
+    const token = loginData[0]?.value?.Token?.name;
+    if (!token) throw new Error("Login failed");
+
+    const url = `http://${REOLINK_IP}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=${Date.now()}&token=${token}`;
     const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw new Error(`Camera returned ${response.status}`);
-    res.set("Content-Type", response.headers.get("content-type") || "image/jpeg");
+    const ct = response.headers.get("content-type") || "";
+    if (!ct.includes("image")) throw new Error("Not an image: " + ct);
+    res.set("Content-Type", ct);
     res.set("Cache-Control", "no-cache");
     res.send(Buffer.from(await response.arrayBuffer()));
   } catch (err) { res.status(502).json({ error: err.message }); }
