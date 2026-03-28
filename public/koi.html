@@ -598,7 +598,7 @@
     setInterval(pollStatus, 10000);
 
     // ---- Motion Events ----
-    const ANIMAL_CN = { bird: '鸟类', cat: '猫', dog: '狗', bear: '熊/浣熊', person: '人', horse: '马', unknown: '未知' };
+    const ANIMAL_CN = { bird: '鸟类', cat: '猫', dog: '狗', bear: '熊', horse: '马', motion: '运动检测', unknown: '未知' };
     function animalName(en) { return LANG === 'cn' ? (ANIMAL_CN[en] || en) : en; }
 
     async function loadMotionEvents() {

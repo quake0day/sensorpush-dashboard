@@ -229,24 +229,25 @@ def main():
                 time.sleep(DETECT_INTERVAL)
                 continue
 
-            # Motion detected — run object detection
-            detections = detect_objects(interpreter, frame)
-
-            if not detections:
-                time.sleep(DETECT_INTERVAL)
-                continue
-
-            # Animal detected!
+            # Cooldown check
             now = time.time()
             if (now - last_record_time) < COOLDOWN_SECONDS:
                 time.sleep(DETECT_INTERVAL)
                 continue
 
-            animals = [d["class"] for d in detections]
-            best = max(detections, key=lambda d: d["confidence"])
-            print(f"ANIMAL: {', '.join(animals)} (best: {best['class']} {best['confidence']:.0%}, motion: {motion_pct:.1f}%)")
+            # Motion detected — try to identify animal (optional)
+            detections = detect_objects(interpreter, frame)
 
-            event_id = datetime.now().strftime("%Y%m%d_%H%M%S") + f"_{best['class']}"
+            if detections:
+                animals = [d["class"] for d in detections]
+                best = max(detections, key=lambda d: d["confidence"])
+                best_class = best["class"]
+                print(f"MOTION+ID: {', '.join(animals)} (best: {best_class} {best['confidence']:.0%}, motion: {motion_pct:.1f}%)")
+            else:
+                best_class = "motion"
+                print(f"MOTION: unidentified movement (motion: {motion_pct:.1f}%)")
+
+            event_id = datetime.now().strftime("%Y%m%d_%H%M%S") + f"_{best_class}"
 
             # Save thumbnail with bounding boxes
             has_thumb = save_thumbnail(frame, event_id, detections)
@@ -262,8 +263,8 @@ def main():
                 "time": datetime.now().isoformat(),
                 "timestamp": int(now * 1000),
                 "animals": [{"class": d["class"], "confidence": round(d["confidence"], 3)} for d in detections],
-                "best_class": best["class"],
-                "best_confidence": round(best["confidence"], 3),
+                "best_class": best_class,
+                "best_confidence": round(best["confidence"], 3) if detections else 0,
                 "motion_percent": round(motion_pct, 1),
                 "has_clip": has_clip,
                 "has_thumb": has_thumb,
