@@ -89,8 +89,8 @@
     <div class="header-right">
       <div class="status" id="detectorStatus"><span class="dot off"></span> <span>--</span></div>
       <a class="lang-btn" id="langBtn" href="#">EN</a>
-      <a href="/koi" class="nav-btn">Koi Cam</a>
-      <a href="/" class="nav-btn">Dashboard</a>
+      <a href="/koi" class="nav-btn" id="koiBtn">Koi Cam</a>
+      <a href="/" class="nav-btn" id="dashBtn">Dashboard</a>
     </div>
   </div>
 
@@ -132,7 +132,7 @@
 
 <script>
 // ============ Language ============
-let LANG = localStorage.getItem('birdLang') || 'en';
+let LANG = window.location.pathname.startsWith('/cn') ? 'cn' : (localStorage.getItem('birdLang') || 'en');
 const T = {
   en: {
     title: 'Bird Detection Log', subtitle: 'BirdNET-powered real-time identification',
@@ -205,13 +205,16 @@ function applyLang() {
     if (b.dataset.days === '7') b.textContent = L.days7;
     if (b.dataset.days === '30') b.textContent = L.days30;
   });
+  const cn = LANG === 'cn';
+  document.getElementById('dashBtn').href = cn ? '/cn' : '/';
+  document.getElementById('dashBtn').textContent = cn ? '仪表板' : 'Dashboard';
+  document.getElementById('koiBtn').href = cn ? '/cn/koi' : '/koi';
+  document.getElementById('koiBtn').textContent = cn ? '锦鲤摄像头' : 'Koi Cam';
 }
 document.getElementById('langBtn').addEventListener('click', (e) => {
   e.preventDefault();
-  LANG = LANG === 'en' ? 'cn' : 'en';
-  localStorage.setItem('birdLang', LANG);
-  applyLang();
-  loadData();
+  // Navigate to the other language path
+  window.location.href = LANG === 'en' ? '/cn/bird' : '/bird';
 });
 
 // ============ State ============

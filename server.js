@@ -867,8 +867,14 @@ app.get("/edit", (req, res) => {
 app.get("/koi", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "koi.html"));
 });
+app.get("/cn/koi", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "koi.html"));
+});
 
 app.get("/bird", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "bird.html"));
+});
+app.get("/cn/bird", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "bird.html"));
 });
 
