@@ -782,7 +782,9 @@ Return JSON format:
 {"cn_name": "中文名", "cn_desc": "50-80字的中文简介，包含外观特征、习性、分布等"}`,
       }],
     });
-    const text = msg.content[0].text.trim();
+    let text = msg.content[0].text.trim();
+    // Strip markdown code fences if present
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
     const json = JSON.parse(text);
     return json;
   } catch (e) {
