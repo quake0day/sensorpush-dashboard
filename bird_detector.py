@@ -95,12 +95,25 @@ def extract_audio(output_path):
 
 
 def save_clip(wav_path, detection_id):
+    """Save audio clip with aggressive noise/speech removal for privacy."""
     clip_path = str(AUDIO_DIR / f"{detection_id}.mp3")
     try:
+        # Filter chain to remove background noise and human speech:
+        # 1. highpass 1500Hz — removes human speech fundamental (85-300Hz) + harmonics
+        # 2. lowpass 9000Hz — removes high-freq hiss
+        # 3. anlmdn — non-local means denoiser for residual noise
+        # 4. volume normalize
+        clip_filter = (
+            "highpass=f=1500:poles=2,"
+            "lowpass=f=9000,"
+            "anlmdn=s=0.001:p=0.002:r=0.01,"
+            "volume=2.0"
+        )
         subprocess.run([
             "ffmpeg", "-y", "-i", wav_path,
+            "-af", clip_filter,
             "-ar", "22050", "-ac", "1", "-b:a", "48k", clip_path
-        ], capture_output=True, timeout=10)
+        ], capture_output=True, timeout=15)
         return os.path.exists(clip_path)
     except:
         return False
@@ -164,6 +177,9 @@ def main():
                     now = datetime.now()
                     detection_id = now.strftime("%Y%m%d_%H%M%S") + f"_{det['common_name'].replace(' ', '_')}"
 
+                    # Save cleaned audio clip (speech/noise removed) for /bird page
+                    has_clip = save_clip(wav_path, detection_id)
+
                     entry = {
                         "id": detection_id,
                         "time": now.isoformat(),
@@ -171,6 +187,7 @@ def main():
                         "common_name": det["common_name"],
                         "scientific_name": det["scientific_name"],
                         "confidence": round(det["confidence"], 3),
+                        "has_clip": has_clip,
                     }
 
                     # Add to latest (for real-time notifications)

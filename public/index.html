@@ -1766,7 +1766,11 @@ let birdLastTimestamp = 0;
 let birdSeenIds = new Set();
 const birdInfoCache = {};
 const birdCooldowns = {}; // species -> last toast timestamp
-const BIRD_COOLDOWN_MS = 5 * 60 * 1000; // 5 min cooldown per species
+const BIRD_COOLDOWN_MS = 10 * 60 * 1000; // 10 min cooldown per species
+const BIRD_MAX_AGE_MS = 10 * 60 * 1000; // don't show toasts older than 10 min
+// Persist dismissed bird IDs across page refreshes
+const birdDismissed = new Set(JSON.parse(localStorage.getItem('birdDismissed') || '[]'));
+function dismissBird(id) { birdDismissed.add(id); localStorage.setItem('birdDismissed', JSON.stringify([...birdDismissed].slice(-200))); }
 
 async function fetchBirdImage(commonName, sciName) {
   const key = commonName + (sciName || '');
@@ -1804,7 +1808,7 @@ function showBirdToast(detection, wikiData) {
   const soundUrl = trans.sound_url || `https://www.allaboutbirds.org/guide/${detection.common_name.replace(/['']/g,'').replace(/\s+/g,'_')}/sounds`;
 
   toast.innerHTML = `
-    <button class="bird-close" onclick="this.parentElement.classList.add('hiding');setTimeout(()=>this.parentElement.remove(),400)">&times;</button>
+    <button class="bird-close" onclick="dismissBird('${detection.id}');this.parentElement.classList.add('hiding');setTimeout(()=>this.parentElement.remove(),400)">&times;</button>
     ${wikiData.image ? `<img class="bird-img" src="${wikiData.image}" alt="${displayName}" onerror="this.style.display='none'">` : '<div class="bird-img" style="display:flex;align-items:center;justify-content:center;font-size:32px">🐦</div>'}
     <div class="bird-info">
       <div class="bird-label">🎵 ${BIRD_T.detected}</div>
@@ -1822,9 +1826,10 @@ function showBirdToast(detection, wikiData) {
   `;
 
   container.appendChild(toast);
-  // Auto-remove after 15s
+  // Auto-dismiss after 15s
   setTimeout(() => {
     if (toast.parentElement) {
+      dismissBird(detection.id);
       toast.classList.add('hiding');
       setTimeout(() => toast.remove(), 400);
     }
@@ -1845,11 +1850,13 @@ async function pollBirds() {
       birdSeenIds.add(det.id);
       birdLastTimestamp = Math.max(birdLastTimestamp, det.timestamp || 0);
 
-      // Cooldown: skip toast if same species shown within 5 minutes
       const now = Date.now();
-      if (birdCooldowns[det.common_name] && (now - birdCooldowns[det.common_name]) < BIRD_COOLDOWN_MS) {
-        continue;
-      }
+      // Skip if already dismissed (persists across refresh)
+      if (birdDismissed.has(det.id)) continue;
+      // Skip if detection is older than 10 minutes
+      if (det.timestamp && (now - det.timestamp) > BIRD_MAX_AGE_MS) continue;
+      // Cooldown: skip if same species shown within 10 minutes
+      if (birdCooldowns[det.common_name] && (now - birdCooldowns[det.common_name]) < BIRD_COOLDOWN_MS) continue;
       birdCooldowns[det.common_name] = now;
 
       // Fetch translation if needed (also triggers Claude API for new species)
