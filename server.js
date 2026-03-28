@@ -933,6 +933,15 @@ app.get("/api/water/readings", (req, res) => {
   } catch (e) { res.json({ readings: [] }); }
 });
 
+app.get("/api/water/current", (req, res) => {
+  try {
+    if (!fs.existsSync(WATER_READINGS_FILE)) return res.json({ level_pct: null });
+    const all = JSON.parse(fs.readFileSync(WATER_READINGS_FILE, "utf8"));
+    if (!all.length) return res.json({ level_pct: null });
+    res.json(all[all.length - 1]);
+  } catch (e) { res.json({ level_pct: null }); }
+});
+
 // ============ Motion Detection API ============
 const MOTION_DIR = path.join(__dirname, "data", "motion-events");
 const MOTION_CLIPS = path.join(MOTION_DIR, "clips");
