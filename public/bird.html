@@ -261,11 +261,12 @@ function birdPinyin(en) {
   const cached = birdTransCache[en];
   return (cached && cached.cn_name_pinyin) ? cached.cn_name_pinyin : '';
 }
-// Returns name + pinyin as HTML (for innerHTML contexts only)
+// Name + pinyin underneath as HTML
 function birdNameHtml(en) {
   const name = birdName(en);
   const py = birdPinyin(en);
-  return py ? `${name} <span style="font-size:0.7em;color:var(--text3);font-weight:normal">${py}</span>` : name;
+  if (!py) return name;
+  return `${name}<br><span style="font-size:0.65em;color:var(--text3);font-weight:normal;letter-spacing:0.5px">${py}</span>`;
 }
 
 function birdDesc(en) {
@@ -931,6 +932,7 @@ async function renderDexList(list) {
         ${img}
         <div class="dex-item-info">
           <div class="dex-item-name">${name}</div>
+          ${birdPinyin(sp.common_name) ? `<div style="font-size:10px;color:var(--text3);letter-spacing:0.3px">${birdPinyin(sp.common_name)}</div>` : ''}
           <div class="dex-item-sci">${sp.scientific_name}</div>
         </div>
         <div style="text-align:right;font-size:12px;color:var(--text3)">${sp.count}x</div>
@@ -981,7 +983,8 @@ async function showDexDetail(name, sci) {
   el.innerHTML = `<div class="dex-detail">
     <button class="dex-back" onclick="renderDexList(dexSpecies)">&larr; ${cn ? '返回列表' : 'Back to list'}</button>
     ${wiki.image ? `<img class="dex-hero" src="${wiki.image}" alt="${dName}">` : `<div class="dex-hero" style="display:flex;align-items:center;justify-content:center;font-size:64px;background:var(--surface)">🐦</div>`}
-    <div class="dex-detail-name">${dName}${cn && trans.cn_name_pinyin ? ` <span style="font-size:14px;color:var(--text3);font-weight:normal">${trans.cn_name_pinyin}</span>` : ''}${wiki.url ? ` <a href="${wiki.url}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''}</div>
+    <div class="dex-detail-name">${dName}${wiki.url ? ` <a href="${wiki.url}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''}</div>
+    ${cn && trans.cn_name_pinyin ? `<div style="font-size:13px;color:var(--text3);margin-top:2px;letter-spacing:0.5px">${trans.cn_name_pinyin}</div>` : ''}
     <div class="dex-detail-sci">${sci}</div>
     ${desc ? `<div class="dex-detail-desc">${desc}</div>` : ''}
 
