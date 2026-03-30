@@ -319,21 +319,25 @@ const imgCache = {};
 
 // ============ Data Loading ============
 async function loadData() {
+  try {
   const stats = await (await fetch(`/api/birds/stats?date=${currentDate}&days=${currentDays}`)).json();
 
-  // Render immediately, then fetch translations in background
   renderSummary(stats);
   renderHourlyChart(stats.hourly);
-  await renderLeaderboard(stats.leaderboard);
+
+  // Render leaderboard — get images in parallel, don't block on failures
+  try { await renderLeaderboard(stats.leaderboard); } catch (e) { console.error('leaderboard:', e); }
 
   // Pre-fetch translations in background (non-blocking)
   Promise.all(stats.leaderboard.map(s => getBirdTranslation(s.common_name, s.scientific_name).catch(() => {})))
-    .then(() => { renderLeaderboard(stats.leaderboard); renderSummary(stats); });
+    .then(() => { try { renderLeaderboard(stats.leaderboard); renderSummary(stats); } catch {} });
 
   // Load timeline for single day
   if (currentDays === 1) {
-    const daily = await (await fetch(`/api/birds/daily/${currentDate}`)).json();
-    await renderTimeline(daily.detections);
+    try {
+      const daily = await (await fetch(`/api/birds/daily/${currentDate}`)).json();
+      await renderTimeline(daily.detections);
+    } catch (e) { console.error('timeline:', e); }
   } else {
     document.getElementById('timeline').innerHTML = '';
   }
@@ -346,6 +350,7 @@ async function loadData() {
     dot.className = 'dot ' + (st.running ? 'on' : 'off');
     txt.textContent = st.running ? t('listening') : t('offline');
   } catch {}
+  } catch (e) { console.error('loadData:', e); }
 }
 
 function renderSummary(stats) {
@@ -398,7 +403,7 @@ async function getBirdImage(name, sci) {
 
 async function renderLeaderboard(lb) {
   const el = document.getElementById('leaderboard');
-  if (!lb.length) {
+  if (!lb || !lb.length) {
     el.innerHTML = `<div class="empty-state"><div class="big">&#x1F54A;</div><div>${t('noData')}</div><div style="font-size:12px;margin-top:6px">${t('noDataSub')}</div></div>`;
     return;
   }
