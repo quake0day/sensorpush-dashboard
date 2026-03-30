@@ -432,7 +432,7 @@ async function renderLeaderboard(lb) {
         <div class="lb-rank ${rankClass}">#${i+1}</div>
         ${img}
         <div class="lb-info">
-          <div class="lb-name">${birdNameHtml(s.common_name)}${wiki.url ? ` <a href="${wiki.url}" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none">↗</a>` : ''}</div>
+          <div class="lb-name"><a href="#" onclick="event.preventDefault();toggleDex();setTimeout(()=>showDexDetail('${s.common_name.replace(/'/g,"\\'")}','${s.scientific_name.replace(/'/g,"\\'")}'),300)" style="color:inherit;text-decoration:none;cursor:pointer">${birdNameHtml(s.common_name)}</a>${(() => { const wUrl = LANG==='cn' ? (wiki.url_zh || wiki.url) : wiki.url; return wUrl ? ` <a href="${wUrl}" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none">↗</a>` : ''; })()}</div>
           <div class="lb-sci">${s.scientific_name}</div>
           ${desc ? `<div class="lb-desc" style="font-size:11px;color:var(--text2);margin-top:3px;line-height:1.4">${desc}</div>` : ''}
           ${(() => { const cd = LANG === 'cn' ? birdTransCache[s.common_name]?.call_desc : birdTransCache[s.common_name]?.call_desc_en; return cd ? `<div style="font-size:11px;color:var(--accent);margin-top:2px">🔊 ${cd}</div>` : ''; })()}
@@ -466,7 +466,7 @@ async function renderTimeline(detections) {
       <div class="tl-row">
         <span class="tl-time">${time}</span>
         ${img}
-        <span class="tl-name">${birdNameHtml(d.common_name)}</span>
+        <span class="tl-name"><a href="#" onclick="event.preventDefault();toggleDex();setTimeout(()=>showDexDetail('${d.common_name.replace(/'/g,"\\'")}','${d.scientific_name.replace(/'/g,"\\'")}'),300)" style="color:inherit;text-decoration:none;cursor:pointer">${birdNameHtml(d.common_name)}</a></span>
         <span class="tl-conf">${Math.round(d.confidence*100)}%</span>
         ${d.has_clip ? `<button class="tl-play" onclick="playClip(this,'${d.id}','${d.common_name.replace(/'/g,"\\'")}')">&#9654;</button>` : `<a class="tl-play" href="https://www.allaboutbirds.org/guide/${d.common_name.replace(/['']/g,'').replace(/\s+/g,'_')}/sounds" target="_blank" style="text-decoration:none">🔊</a>`}
       </div>`;
@@ -547,7 +547,7 @@ async function loadBotd() {
         <div class="botd-badge">${cn ? '今日之鸟' : 'BIRD OF THE DAY'}</div>
         ${wiki.image ? `<img class="botd-img" src="${wiki.image}" alt="${name}">` : `<div class="botd-img" style="display:flex;align-items:center;justify-content:center;font-size:48px">🐦</div>`}
         <div class="botd-main">
-          <div class="botd-name">${name}${wiki.url ? ` <a href="${wiki.url}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''}</div>
+          <div class="botd-name">${name}${(() => { const u = LANG==='cn' ? (wiki.url_zh||wiki.url) : wiki.url; return u ? ` <a href="${u}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''; })()}</div>
           <div class="botd-sci">${b.scientific_name}</div>
           ${desc ? `<div class="botd-desc">${desc}</div>` : ''}
 
@@ -992,7 +992,7 @@ async function showDexDetail(name, sci) {
   el.innerHTML = `<div class="dex-detail">
     <button class="dex-back" onclick="renderDexList(dexSpecies)">&larr; ${cn ? '返回列表' : 'Back to list'}</button>
     ${wiki.image ? `<img class="dex-hero" src="${wiki.image}" alt="${dName}">` : `<div class="dex-hero" style="display:flex;align-items:center;justify-content:center;font-size:64px;background:var(--surface)">🐦</div>`}
-    <div class="dex-detail-name">${dName}${wiki.url ? ` <a href="${wiki.url}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''}</div>
+    <div class="dex-detail-name">${dName}${(() => { const u = cn ? (wiki.url_zh||wiki.url) : wiki.url; return u ? ` <a href="${u}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''; })()}</div>
     ${cn && trans.cn_name_pinyin ? `<div style="font-size:13px;color:var(--text3);margin-top:2px;letter-spacing:0.5px">${trans.cn_name_pinyin}</div>` : ''}
     <div class="dex-detail-sci">${sci}</div>
     ${desc ? `<div class="dex-detail-desc">${desc}</div>` : ''}
