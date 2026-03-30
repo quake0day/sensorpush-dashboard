@@ -779,6 +779,7 @@ async function translateBird(commonName, scientificName) {
 
 Return a JSON object with these exact keys:
 - cn_name: Chinese common name for this bird
+- cn_name_pinyin: pinyin ONLY for rare/uncommon characters in cn_name. Format: 中文名(pinyin). Example: "鸊鷉(pì tī)" or "鹪鹩(jiāo liáo)". If all characters are common (like 乌鸦, 麻雀), return empty string.
 - cn_desc: 50-80 character Chinese description (appearance, habits, habitat)
 - call_desc: 20-30 character Chinese description of this bird's call
 - call_desc_en: 20-30 word English description of this bird's call`,
@@ -819,6 +820,7 @@ app.get("/api/birds/translate/:name", async (req, res) => {
   if (result) {
     birdTranslations[name] = {
       cn_name: result.cn_name,
+      cn_name_pinyin: result.cn_name_pinyin || "",
       cn_desc: result.cn_desc,
       call_desc: result.call_desc || "",
       call_desc_en: result.call_desc_en || "",
