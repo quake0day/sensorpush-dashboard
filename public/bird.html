@@ -321,12 +321,14 @@ const imgCache = {};
 async function loadData() {
   const stats = await (await fetch(`/api/birds/stats?date=${currentDate}&days=${currentDays}`)).json();
 
-  // Pre-fetch translations for all species (always, so they're cached for CN toggle)
-  await Promise.all(stats.leaderboard.map(s => getBirdTranslation(s.common_name, s.scientific_name)));
-
+  // Render immediately, then fetch translations in background
   renderSummary(stats);
   renderHourlyChart(stats.hourly);
   await renderLeaderboard(stats.leaderboard);
+
+  // Pre-fetch translations in background (non-blocking)
+  Promise.all(stats.leaderboard.map(s => getBirdTranslation(s.common_name, s.scientific_name).catch(() => {})))
+    .then(() => { renderLeaderboard(stats.leaderboard); renderSummary(stats); });
 
   // Load timeline for single day
   if (currentDays === 1) {
