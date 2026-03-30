@@ -791,8 +791,15 @@ Return a JSON object with these exact keys:
     // Extract JSON object if surrounded by other text
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) { console.error("No JSON found in:", text.slice(0, 200)); return null; }
-    const json = JSON.parse(match[0]);
-    return json;
+    try {
+      return JSON.parse(match[0]);
+    } catch (parseErr) {
+      // Try fixing common JSON issues: unescaped quotes in values
+      let fixed = match[0].replace(/:\s*"([^"]*?)(?:"([^",}\]]*?))"/g, ': "$1\\"$2"');
+      try { return JSON.parse(fixed); } catch {}
+      console.error("Translation parse error:", parseErr.message, "text:", match[0].slice(0, 200));
+      return null;
+    }
   } catch (e) {
     console.error("Translation error:", e.message);
     return null;
