@@ -770,16 +770,16 @@ async function translateBird(commonName, scientificName) {
   if (!anthropic) return null;
   try {
     const msg = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-sonnet-4-6",
       max_tokens: 600,
-      system: "You are a JSON API. Return ONLY valid JSON with no extra text, no markdown, no code fences.",
+      system: "You are an ornithology expert JSON API. Use the OFFICIAL standard Chinese bird names from authoritative sources (《中国鸟类野外手册》, IOC World Bird List Chinese names, 中国观鸟年报). Do NOT invent names. Return ONLY valid JSON.",
       messages: [{
         role: "user",
         content: `Bird: ${commonName} (${scientificName})
 
 Return a JSON object with these exact keys:
-- cn_name: Chinese common name for this bird
-- cn_name_pinyin: If cn_name contains rare characters (HSK level 7+ or bird-specific characters like 鸊鷉鹪鹩鳽鸜鹆㟎鴷鹀鸲鹂鹟鸮鵟), return ONLY the rare characters with pinyin like "鸊鷉(pì tī)". If ALL characters are common daily-use characters (红雀乌鸦麻雀鸭鹅鸡鸽燕鹰鹤鹭), return empty string "".
+- cn_name: The OFFICIAL standard Chinese name (中文正式名) for this bird. Use the name recognized by Chinese ornithological societies. Examples: Northern Cardinal=北美红雀, Blue Jay=冠蓝鸦, American Robin=旅鸫, Least Bittern=小苇鳽, Pied-billed Grebe=斑嘴巨鸊鷉, Carolina Wren=卡罗来纳鹪鹩
+- cn_name_pinyin: Pinyin ONLY for rare bird-specific characters (鸊鷉鹪鹩鳽鹀鸲鹂鹟鸮鵟鴷鸫鹃鹧). Format: "鸊鷉(pì tī)". If all characters are common (鸦雀鸭鹰鸡鸽燕鹤鹭鸥), return "".
 - cn_desc: 50-80 character Chinese description (appearance, habits, habitat)
 - call_desc: 20-30 character Chinese description of this bird's call
 - call_desc_en: 20-30 word English description of this bird's call`,
@@ -1063,7 +1063,7 @@ app.get("/api/birds/detail/:name", async (req, res) => {
 
   try {
     const msg = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-sonnet-4-6",
       max_tokens: 1200,
       system: "You are a JSON API. Return ONLY valid JSON with no extra text.",
       messages: [{ role: "user", content: `Bird: ${name} (${sci})
