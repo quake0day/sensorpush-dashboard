@@ -249,6 +249,14 @@ async function getBirdTranslation(en, sci) {
 function birdName(en) {
   if (LANG !== 'cn') return en;
   const cached = birdTransCache[en];
+  if (!cached) return en;
+  // Append pinyin for rare characters
+  if (cached.cn_name_pinyin) return `${cached.cn_name} <span style="font-size:0.7em;color:var(--text3);font-weight:normal">${cached.cn_name_pinyin}</span>`;
+  return cached.cn_name;
+}
+function birdNamePlain(en) {
+  if (LANG !== 'cn') return en;
+  const cached = birdTransCache[en];
   return cached ? cached.cn_name : en;
 }
 
@@ -963,7 +971,7 @@ async function showDexDetail(name, sci) {
   el.innerHTML = `<div class="dex-detail">
     <button class="dex-back" onclick="renderDexList(dexSpecies)">&larr; ${cn ? '返回列表' : 'Back to list'}</button>
     ${wiki.image ? `<img class="dex-hero" src="${wiki.image}" alt="${dName}">` : `<div class="dex-hero" style="display:flex;align-items:center;justify-content:center;font-size:64px;background:var(--surface)">🐦</div>`}
-    <div class="dex-detail-name">${dName}${wiki.url ? ` <a href="${wiki.url}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''}</div>
+    <div class="dex-detail-name">${dName}${cn && trans.cn_name_pinyin ? ` <span style="font-size:14px;color:var(--text3);font-weight:normal">${trans.cn_name_pinyin}</span>` : ''}${wiki.url ? ` <a href="${wiki.url}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''}</div>
     <div class="dex-detail-sci">${sci}</div>
     ${desc ? `<div class="dex-detail-desc">${desc}</div>` : ''}
 
