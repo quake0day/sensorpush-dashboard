@@ -6,7 +6,8 @@
   <title>Bird Detection Log</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/"}}</script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160/examples/js/controls/OrbitControls.js"></script>
   <style>
     :root { --bg:#0a1a10; --surface:#12261a; --surface2:#1a3326; --border:#24432e; --text:#e8f0e8; --text2:#8aaa96; --text3:#5a7a66; --accent:#4ade80; --orange:#f97316; --blue:#38bdf8; --red:#ef4444; --green:#22c55e; --yellow:#facc15; --purple:#a78bfa; }
     *{margin:0;padding:0;box-sizing:border-box}
@@ -616,57 +617,52 @@ function renderTreemap(lb) {
 
 // ============ Three.js 3D Bird Scene ============
 let threeInited = false;
-async function initThreeScene(lb) {
-  if (threeInited) return;
+function initThreeScene(lb) {
+  if (threeInited || typeof THREE === 'undefined') return;
   threeInited = true;
-
-  const { Scene, PerspectiveCamera, WebGLRenderer, BufferGeometry, PointsMaterial, Points,
-          Float32BufferAttribute, Color, Fog, AmbientLight, DirectionalLight } = await import('three');
-  const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
 
   const canvas = document.getElementById('threeCanvas');
   const W = canvas.parentElement.clientWidth, H = 350;
 
-  const scene = new Scene();
-  scene.background = new Color(0x0a1a10);
-  scene.fog = new Fog(0x0a1a10, 30, 80);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a1a10);
+  scene.fog = new THREE.Fog(0x0a1a10, 30, 80);
 
-  const camera = new PerspectiveCamera(60, W / H, 0.1, 200);
+  const camera = new THREE.PerspectiveCamera(60, W / H, 0.1, 200);
   camera.position.set(0, 15, 30);
 
-  const renderer = new WebGLRenderer({ canvas, antialias: true });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setSize(W, H);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  const controls = new OrbitControls(camera, canvas);
+  const controls = new THREE.OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.autoRotate = true;
   controls.autoRotateSpeed = 0.5;
   controls.maxDistance = 60;
   controls.minDistance = 10;
 
-  scene.add(new AmbientLight(0x4ade80, 0.3));
-  const dirLight = new DirectionalLight(0xffffff, 0.8);
+  scene.add(new THREE.AmbientLight(0x4ade80, 0.3));
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
   dirLight.position.set(10, 20, 10);
   scene.add(dirLight);
 
   // Ground grid
-  const gridGeo = new BufferGeometry();
+  const gridGeo = new THREE.BufferGeometry();
   const gridPts = [];
   for (let i = -20; i <= 20; i += 2) {
     gridPts.push(-20, 0, i, 20, 0, i);
     gridPts.push(i, 0, -20, i, 0, 20);
   }
-  gridGeo.setAttribute('position', new Float32BufferAttribute(gridPts, 3));
-  const { LineSegments, LineBasicMaterial } = await import('three');
-  scene.add(new LineSegments(gridGeo, new LineBasicMaterial({ color: 0x24432e, opacity: 0.4, transparent: true })));
+  gridGeo.setAttribute('position', new THREE.Float32BufferAttribute(gridPts, 3));
+  scene.add(new THREE.LineSegments(gridGeo, new THREE.LineBasicMaterial({ color: 0x24432e, opacity: 0.4, transparent: true })));
 
-  // Bird particles for each species
+  // Bird particles
   const birdColors = [0x4ade80, 0xf97316, 0x38bdf8, 0xfb7185, 0xa78bfa, 0xfacc15, 0x34d399, 0xef4444];
   const birdGroups = [];
-
   const species = lb.length ? lb : [{ common_name: 'Waiting...', count: 20 }];
-  species.forEach((sp, si) => {
+
+  species.forEach(function(sp, si) {
     const count = Math.min(sp.count * 5, 200);
     const positions = new Float32Array(count * 3);
     const velocities = [];
@@ -678,31 +674,17 @@ async function initThreeScene(lb) {
       positions[i * 3] = Math.cos(angle) * radius;
       positions[i * 3 + 1] = height;
       positions[i * 3 + 2] = Math.sin(angle) * radius;
-      velocities.push({
-        speed: 0.01 + Math.random() * 0.02,
-        radius: radius,
-        angle: angle,
-        ySpeed: (Math.random() - 0.5) * 0.01,
-        baseY: height,
-      });
+      velocities.push({ speed: 0.01 + Math.random() * 0.02, radius, angle, baseY: height });
     }
 
-    const geo = new BufferGeometry();
-    geo.setAttribute('position', new Float32BufferAttribute(positions, 3));
-    const mat = new PointsMaterial({
-      color: birdColors[si % birdColors.length],
-      size: 0.4 + (sp.count > 5 ? 0.3 : 0),
-      transparent: true,
-      opacity: 0.8,
-    });
-    const points = new Points(geo, mat);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({ color: birdColors[si % birdColors.length], size: 0.4 + (sp.count > 5 ? 0.3 : 0), transparent: true, opacity: 0.8 });
+    const points = new THREE.Points(geo, mat);
     scene.add(points);
     birdGroups.push({ points, velocities, positions });
-  });
 
-  // Species labels as sprites
-  species.forEach((sp, si) => {
-    const { SpriteMaterial, Sprite, CanvasTexture } = await import('three');
+    // Species label sprite
     const labelCanvas = document.createElement('canvas');
     labelCanvas.width = 256; labelCanvas.height = 64;
     const lctx = labelCanvas.getContext('2d');
@@ -712,10 +694,9 @@ async function initThreeScene(lb) {
     lctx.fillText(name.length > 20 ? name.slice(0,18)+'..' : name, 4, 24);
     lctx.fillStyle = '#8aaa96';
     lctx.font = '14px sans-serif';
-    lctx.fillText(`${sp.count || ''} ${sp.count ? t('times') : ''}`, 4, 48);
-    const tex = new CanvasTexture(labelCanvas);
-    const spriteMat = new SpriteMaterial({ map: tex, transparent: true, opacity: 0.9 });
-    const sprite = new Sprite(spriteMat);
+    lctx.fillText(sp.count ? sp.count + ' ' + t('times') : '', 4, 48);
+    const tex = new THREE.CanvasTexture(labelCanvas);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.9 }));
     sprite.position.set(-18 + si * 8, 16 + si, 0);
     sprite.scale.set(8, 2, 1);
     scene.add(sprite);
@@ -724,18 +705,16 @@ async function initThreeScene(lb) {
   function animate() {
     requestAnimationFrame(animate);
     const time = Date.now() * 0.001;
-
-    birdGroups.forEach(({ points, velocities, positions }) => {
-      for (let i = 0; i < velocities.length; i++) {
-        const v = velocities[i];
+    birdGroups.forEach(function(bg) {
+      for (let i = 0; i < bg.velocities.length; i++) {
+        const v = bg.velocities[i];
         v.angle += v.speed;
-        positions[i * 3] = Math.cos(v.angle) * v.radius;
-        positions[i * 3 + 1] = v.baseY + Math.sin(time * 2 + i) * 1.5;
-        positions[i * 3 + 2] = Math.sin(v.angle) * v.radius;
+        bg.positions[i * 3] = Math.cos(v.angle) * v.radius;
+        bg.positions[i * 3 + 1] = v.baseY + Math.sin(time * 2 + i) * 1.5;
+        bg.positions[i * 3 + 2] = Math.sin(v.angle) * v.radius;
       }
-      points.geometry.attributes.position.needsUpdate = true;
+      bg.points.geometry.attributes.position.needsUpdate = true;
     });
-
     controls.update();
     renderer.render(scene, camera);
   }
