@@ -338,7 +338,7 @@ async function renderLeaderboard(lb) {
           <div class="lb-meta">${t('avgConf')}: ${Math.round(s.avg_conf*100)}% &middot; ${t('firstSeen')} ${first} &middot; ${t('lastSeen')} ${last}</div>
           <div class="lb-bar"><div class="lb-bar-fill" style="width:${Math.round(s.count/maxCount*100)}%"></div></div>
         </div>
-        ${s.best_clip ? `<button class="lb-play" onclick="playClip(this,'${s.best_clip}')" title="Play recorded call">&#9654;</button>` : `<a class="lb-play" href="https://www.allaboutbirds.org/guide/${s.common_name.replace(/['']/g,'').replace(/\s+/g,'_')}/sounds" target="_blank" title="Listen" style="text-decoration:none">🔊</a>`}
+        ${s.best_clip ? `<button class="lb-play" onclick="playClip(this,'${s.best_clip}','${s.common_name.replace(/'/g,"\\'")}')" title="Play">&#9654;</button>` : `<a class="lb-play" href="https://www.allaboutbirds.org/guide/${s.common_name.replace(/['']/g,'').replace(/\s+/g,'_')}/sounds" target="_blank" title="Listen" style="text-decoration:none">🔊</a>`}
         <div style="text-align:right;min-width:50px">
           <div class="lb-count">${s.count}</div>
           <div class="lb-count-lbl">${t('times')}</div>
@@ -367,17 +367,28 @@ async function renderTimeline(detections) {
         ${img}
         <span class="tl-name">${birdName(d.common_name)}</span>
         <span class="tl-conf">${Math.round(d.confidence*100)}%</span>
-        ${d.has_clip ? `<button class="tl-play" onclick="playClip(this,'${d.id}')">&#9654;</button>` : `<a class="tl-play" href="https://www.allaboutbirds.org/guide/${d.common_name.replace(/['']/g,'').replace(/\s+/g,'_')}/sounds" target="_blank" style="text-decoration:none">🔊</a>`}
+        ${d.has_clip ? `<button class="tl-play" onclick="playClip(this,'${d.id}','${d.common_name.replace(/'/g,"\\'")}')">&#9654;</button>` : `<a class="tl-play" href="https://www.allaboutbirds.org/guide/${d.common_name.replace(/['']/g,'').replace(/\s+/g,'_')}/sounds" target="_blank" style="text-decoration:none">🔊</a>`}
       </div>`;
   }
   el.innerHTML = html;
 }
 
-// Play recorded clip (noise/speech filtered on server)
+// Geo detection: CN users get AllAboutBirds links, US users get recorded clips
+let isFromChina = false;
+fetch('https://ipapi.co/country_code/').then(r => r.text()).then(c => {
+  isFromChina = c.trim() === 'CN';
+}).catch(() => {});
+
 let currentAudio = null;
 let currentPlayBtn = null;
-function playClip(btn, id) {
-  // If same button clicked again, stop playback
+function playClip(btn, id, birdName) {
+  // CN users: open AllAboutBirds page instead of playing recorded audio
+  if (isFromChina && birdName) {
+    const slug = birdName.replace(/['']/g, '').replace(/\s+/g, '_');
+    window.open(`https://www.allaboutbirds.org/guide/${slug}/sounds`, '_blank');
+    return;
+  }
+  // US/other: play recorded clip
   if (currentAudio && currentPlayBtn === btn) {
     currentAudio.pause();
     currentAudio = null;
@@ -385,7 +396,6 @@ function playClip(btn, id) {
     currentPlayBtn = null;
     return;
   }
-  // Stop any other playing clip
   if (currentAudio) {
     currentAudio.pause();
     if (currentPlayBtn) currentPlayBtn.innerHTML = '&#9654;';
