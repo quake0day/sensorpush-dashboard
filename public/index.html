@@ -557,22 +557,56 @@ function wxEmoji(text) {
 
 // Translate NWS weather text to Chinese
 const WX_CN = {
-  'Sunny': '晴', 'Clear': '晴朗', 'Mostly Clear': '晴间多云', 'Mostly Sunny': '晴间多云',
-  'Partly Cloudy': '多云间晴', 'Partly Sunny': '多云转晴', 'Mostly Cloudy': '多云',
+  // Full phrases (longest first for matching priority)
+  'Showers And Thunderstorms Likely': '阵雨和雷暴为主',
+  'Chance Showers And Thunderstorms': '可能有阵雨和雷暴',
+  'Slight Chance Showers And Thunderstorms': '或有阵雨和雷暴',
+  'Showers And Thunderstorms': '阵雨和雷暴',
+  'Rain And Thunderstorms': '雨和雷暴',
+  'Thunderstorms Likely': '雷暴为主',
+  'Chance Thunderstorms': '可能有雷暴',
+  'Slight Chance Thunderstorms': '或有雷暴',
+  'Scattered Thunderstorms': '局部雷暴',
+  'Isolated Thunderstorms': '零星雷暴',
+  'Rain Showers Likely': '阵雨为主',
+  'Chance Rain Showers': '可能有阵雨',
+  'Slight Chance Rain Showers': '或有零星阵雨',
+  'Scattered Showers': '局部阵雨',
+  'Isolated Showers': '零星阵雨',
+  'Showers Likely': '阵雨为主',
+  'Chance Showers': '可能有阵雨',
+  'Slight Chance Showers': '或有阵雨',
+  'Light Rain Likely': '小雨为主',
+  'Chance Light Rain': '或有小雨',
+  'Slight Chance Light Rain': '可能有小雨',
+  'Rain Likely': '可能有雨',
+  'Chance Rain': '可能有雨',
+  'Slight Chance Rain': '或有雨',
+  'Heavy Rain': '大雨',
+  'Light Rain': '小雨',
+  'Rain Showers': '阵雨',
+  'Freezing Rain': '冻雨',
+  'Mostly Clear': '晴间多云',
+  'Mostly Sunny': '晴间多云',
+  'Mostly Cloudy': '多云',
+  'Partly Cloudy': '多云间晴',
+  'Partly Sunny': '多云转晴',
+  'Heavy Snow': '大雪',
+  'Light Snow': '小雪',
+  'Chance Snow': '可能有雪',
+  'Slight Chance Snow': '或有雪',
+  'Snow Showers': '阵雪',
+  'Thunderstorms': '雷暴',
+  'Showers': '阵雨',
   'Cloudy': '多云', 'Overcast': '阴天',
-  'Light Rain': '小雨', 'Rain': '雨', 'Heavy Rain': '大雨', 'Showers': '阵雨',
-  'Rain Showers Likely': '阵雨为主', 'Chance Rain Showers Likely': '可能有阵雨',
-  'Rain Showers': '阵雨', 'Slight Chance Light Rain': '可能有小雨',
-  'Chance Light Rain': '或有小雨', 'Light Rain Likely': '小雨为主',
-  'Rain Likely': '可能有阵雨', 'Chance Rain Showers': '可能有阵雨',
-  'Slight Chance Rain Showers': '可能有零星阵雨',
-  'Thunderstorms': '雷暴', 'Chance Thunderstorms': '可能有雷暴',
-  'Snow': '雪', 'Light Snow': '小雪', 'Heavy Snow': '大雪', 'Flurries': '飘雪',
-  'Chance Snow': '可能有雪', 'Slight Chance Snow': '可能有雪',
+  'Sunny': '晴', 'Clear': '晴朗',
+  'Rain': '雨', 'Snow': '雪', 'Flurries': '飘雪',
   'Fog': '雾', 'Haze': '霾', 'Mist': '薄雾',
-  'Likely': '为主', 'Slight Chance': '或有', 'Chance': '可能',
   'Windy': '大风', 'Breezy': '微风',
   'Hot': '酷热', 'Cold': '寒冷',
+  // Connectors (cleaned up after phrase matching)
+  'Likely': '为主', 'Slight Chance': '或有', 'Chance': '可能',
+  'And': '和', 'and': '和',
 };
 // Day names
 const DAY_CN = {
@@ -587,17 +621,21 @@ function translateWx(text) {
   if (LANG !== 'cn' || !text) return text;
   // Try exact match first
   if (WX_CN[text]) return WX_CN[text];
-  // Try composite: "Partly Sunny then Slight Chance Light Rain"
+  // Split by "then" first (e.g. "Partly Sunny then Chance Showers And Thunderstorms")
   if (text.includes(' then ')) {
-    const parts = text.split(' then ');
-    return parts.map(p => WX_CN[p.trim()] || p).join('转');
+    return text.split(' then ').map(p => translateWx(p.trim())).join('转');
   }
-  // Partial match
-  let result = text;
+  // Try exact match on cleaned text
+  const trimmed = text.trim();
+  if (WX_CN[trimmed]) return WX_CN[trimmed];
+  // Replace longest phrases first
+  let result = trimmed;
   const sorted = Object.keys(WX_CN).sort((a, b) => b.length - a.length);
   for (const en of sorted) {
-    if (result.includes(en)) result = result.replace(en, WX_CN[en]);
+    if (result.includes(en)) result = result.replaceAll(en, WX_CN[en]);
   }
+  // Clean up any remaining English connectors
+  result = result.replace(/\s+/g, '').replace(/转$/, '');
   return result;
 }
 function translateDay(name) {
