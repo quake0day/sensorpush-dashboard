@@ -98,7 +98,52 @@
     .botd-empty{text-align:center;padding:30px;color:var(--text3);font-size:13px}
     @media(max-width:640px){.botd-card{padding:16px;gap:14px}.botd-img{width:100px;height:100px}.botd-name{font-size:20px}}
 
-    @media(max-width:640px){.header{padding:12px 16px}.container{padding:16px 12px}.lb-row{padding:10px 12px}.lb-img{width:40px;height:40px}.summary-grid{grid-template-columns:repeat(2,1fr)}}
+    /* Pokedex Sidebar */
+    .dex-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;opacity:0;pointer-events:none;transition:opacity .3s}
+    .dex-overlay.open{opacity:1;pointer-events:auto}
+    .dex-panel{position:fixed;top:0;right:-420px;width:420px;max-width:90vw;height:100vh;background:var(--bg);border-left:1px solid var(--border);z-index:9999;transition:right .3s;display:flex;flex-direction:column}
+    .dex-panel.open{right:0}
+    .dex-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .dex-header h2{font-size:18px;font-weight:700}
+    .dex-header .dex-count{font-size:12px;color:var(--text3)}
+    .dex-close{background:none;border:none;color:var(--text3);font-size:24px;cursor:pointer;padding:4px 8px}
+    .dex-close:hover{color:var(--text)}
+    .dex-search{padding:10px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+    .dex-search input{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:13px;font-family:inherit}
+    .dex-search input:focus{outline:none;border-color:var(--accent)}
+    .dex-body{flex:1;overflow-y:auto}
+
+    /* List mode */
+    .dex-list{padding:8px}
+    .dex-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;cursor:pointer;transition:background .15s}
+    .dex-item:hover{background:var(--surface)}
+    .dex-item.active{background:var(--surface);border-left:3px solid var(--accent)}
+    .dex-item-img{width:44px;height:44px;border-radius:10px;object-fit:cover;background:var(--surface2);flex-shrink:0}
+    .dex-item-info{flex:1;min-width:0}
+    .dex-item-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .dex-item-sci{font-size:11px;color:var(--text3);font-style:italic}
+    .dex-item-num{font-size:11px;color:var(--text3);font-family:monospace}
+
+    /* Detail mode */
+    .dex-detail{padding:20px}
+    .dex-back{background:none;border:none;color:var(--accent);cursor:pointer;font-size:13px;padding:0;margin-bottom:12px}
+    .dex-back:hover{text-decoration:underline}
+    .dex-hero{width:100%;aspect-ratio:4/3;border-radius:14px;object-fit:cover;background:var(--surface2);margin-bottom:16px}
+    .dex-detail-name{font-size:22px;font-weight:700}
+    .dex-detail-sci{font-size:13px;color:var(--text3);font-style:italic;margin-top:2px}
+    .dex-detail-desc{font-size:13px;color:var(--text2);line-height:1.7;margin-top:12px}
+    .dex-detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+    .dex-detail-stat{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center}
+    .dex-detail-stat .v{font-size:16px;font-weight:700}
+    .dex-detail-stat .l{font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:2px}
+    .dex-detail-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+    .dex-detail-tag{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--text2)}
+    .dex-detail-tag b{color:var(--text)}
+    .dex-detail-fact{margin-top:12px;padding:10px 14px;background:var(--surface2);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;font-size:12px;color:var(--text2);line-height:1.5}
+    .dex-detail-call{margin-top:8px;font-size:12px;color:var(--accent)}
+    .dex-detail-obs{margin-top:14px;font-size:12px;color:var(--text3);padding-top:12px;border-top:1px solid var(--border)}
+
+    @media(max-width:640px){.header{padding:12px 16px}.container{padding:16px 12px}.lb-row{padding:10px 12px}.lb-img{width:40px;height:40px}.summary-grid{grid-template-columns:repeat(2,1fr)}.dex-panel{width:100%;max-width:100%}}
   </style>
 </head>
 <body>
@@ -108,6 +153,7 @@
       <div class="subtitle" id="pageSubtitle">BirdNET-powered real-time identification</div>
     </div>
     <div class="header-right">
+      <button class="nav-btn" id="dexBtn" onclick="toggleDex()" style="font-weight:600">&#x1F4D6; <span id="dexBtnText">Pokedex</span></button>
       <div class="status" id="detectorStatus"><span class="dot off"></span> <span>--</span></div>
       <a class="lang-btn" id="langBtn" href="#">EN</a>
       <a href="/" class="nav-btn" id="dashBtn">Dashboard</a>
@@ -794,6 +840,167 @@ loadData = async function() {
 };
 
 */
+</script>
+
+<!-- Pokedex Sidebar -->
+<div class="dex-overlay" id="dexOverlay" onclick="toggleDex()"></div>
+<div class="dex-panel" id="dexPanel">
+  <div class="dex-header">
+    <div>
+      <h2 id="dexTitle">Bird Pokedex</h2>
+      <div class="dex-count" id="dexCount"></div>
+    </div>
+    <button class="dex-close" onclick="toggleDex()">&times;</button>
+  </div>
+  <div class="dex-search">
+    <input type="text" id="dexSearchInput" placeholder="Search species..." oninput="filterDex()">
+  </div>
+  <div class="dex-body" id="dexBody">
+    <div class="dex-list" id="dexList"></div>
+  </div>
+</div>
+
+<script>
+// ============ Pokedex ============
+const DLANG = window.location.pathname.startsWith('/cn') ? 'cn' : 'en';
+let dexOpen = false;
+let dexSpecies = []; // all species ever detected
+let dexDetailCache = {};
+
+function toggleDex() {
+  dexOpen = !dexOpen;
+  document.getElementById('dexOverlay').classList.toggle('open', dexOpen);
+  document.getElementById('dexPanel').classList.toggle('open', dexOpen);
+  if (dexOpen && !dexSpecies.length) loadDexData();
+}
+
+async function loadDexData() {
+  try {
+    // Load all-time stats (30 days)
+    const res = await fetch(`/api/birds/stats?date=${localDateStr()}&days=30`);
+    const data = await res.json();
+    dexSpecies = data.leaderboard || [];
+
+    // Pre-fetch translations
+    await Promise.all(dexSpecies.map(s =>
+      birdTransCache[s.common_name] ? Promise.resolve() : getBirdTranslation(s.common_name, s.scientific_name)
+    ));
+
+    const cn = DLANG === 'cn';
+    document.getElementById('dexTitle').textContent = cn ? '物种图鉴' : 'Bird Pokedex';
+    document.getElementById('dexBtnText').textContent = cn ? '图鉴' : 'Pokedex';
+    document.getElementById('dexCount').textContent = `${dexSpecies.length} ${cn ? '种已记录' : 'species recorded'}`;
+    document.getElementById('dexSearchInput').placeholder = cn ? '搜索鸟种...' : 'Search species...';
+
+    renderDexList(dexSpecies);
+  } catch (e) { console.error('Dex:', e); }
+}
+
+async function renderDexList(list) {
+  const el = document.getElementById('dexBody');
+  const cn = DLANG === 'cn';
+  let html = '<div class="dex-list">';
+  for (let i = 0; i < list.length; i++) {
+    const sp = list[i];
+    const name = birdName(sp.common_name);
+    const wiki = await getBirdImage(sp.common_name, sp.scientific_name);
+    const img = wiki.image
+      ? `<img class="dex-item-img" src="${wiki.image}" loading="lazy">`
+      : `<div class="dex-item-img" style="display:flex;align-items:center;justify-content:center;font-size:20px">🐦</div>`;
+    html += `
+      <div class="dex-item" onclick="showDexDetail('${sp.common_name.replace(/'/g,"\\'")}','${sp.scientific_name.replace(/'/g,"\\'")}')">
+        <div class="dex-item-num">#${String(i+1).padStart(3,'0')}</div>
+        ${img}
+        <div class="dex-item-info">
+          <div class="dex-item-name">${name}</div>
+          <div class="dex-item-sci">${sp.scientific_name}</div>
+        </div>
+        <div style="text-align:right;font-size:12px;color:var(--text3)">${sp.count}x</div>
+      </div>`;
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function filterDex() {
+  const q = document.getElementById('dexSearchInput').value.toLowerCase();
+  const filtered = dexSpecies.filter(sp => {
+    const cn_name = birdTransCache[sp.common_name]?.cn_name || '';
+    return sp.common_name.toLowerCase().includes(q) ||
+           sp.scientific_name.toLowerCase().includes(q) ||
+           cn_name.includes(q);
+  });
+  renderDexList(filtered);
+}
+
+async function showDexDetail(name, sci) {
+  const cn = DLANG === 'cn';
+  const el = document.getElementById('dexBody');
+  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">Loading...</div>';
+
+  // Fetch wiki image + Claude detail in parallel
+  const [wiki, detail] = await Promise.all([
+    getBirdImage(name, sci),
+    fetchDexDetail(name, sci),
+  ]);
+
+  const trans = birdTransCache[name] || {};
+  const dName = cn ? (trans.cn_name || detail.cn_name || name) : name;
+  const desc = cn ? (detail.description_cn || trans.cn_desc || '') : (detail.description_en || wiki.extract || '');
+  const diet = cn ? (detail.diet_cn || '') : (detail.diet || '');
+  const habitat = cn ? (detail.habitat_cn || '') : (detail.habitat || '');
+  const conservation = cn ? (detail.conservation_cn || '') : (detail.conservation || '');
+  const funFact = cn ? (detail.fun_fact_cn || '') : (detail.fun_fact_en || '');
+  const callDesc = cn ? (detail.call_desc_cn || trans.call_desc || '') : (detail.call_desc_en || trans.call_desc_en || '');
+
+  // Find observation stats
+  const sp = dexSpecies.find(s => s.common_name === name);
+  const firstSeen = sp ? new Date(sp.first_seen).toLocaleDateString(cn ? 'zh-CN' : 'en-US') : '--';
+  const lastSeen = sp ? new Date(sp.last_seen).toLocaleDateString(cn ? 'zh-CN' : 'en-US') : '--';
+
+  const soundUrl = `https://www.allaboutbirds.org/guide/${name.replace(/['']/g,'').replace(/\s+/g,'_')}/sounds`;
+
+  el.innerHTML = `<div class="dex-detail">
+    <button class="dex-back" onclick="renderDexList(dexSpecies)">&larr; ${cn ? '返回列表' : 'Back to list'}</button>
+    ${wiki.image ? `<img class="dex-hero" src="${wiki.image}" alt="${dName}">` : `<div class="dex-hero" style="display:flex;align-items:center;justify-content:center;font-size:64px;background:var(--surface)">🐦</div>`}
+    <div class="dex-detail-name">${dName}${wiki.url ? ` <a href="${wiki.url}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''}</div>
+    <div class="dex-detail-sci">${sci}</div>
+    ${desc ? `<div class="dex-detail-desc">${desc}</div>` : ''}
+
+    <div class="dex-detail-grid">
+      ${detail.size_cm ? `<div class="dex-detail-stat"><div class="v">${detail.size_cm}cm</div><div class="l">${cn ? '体长' : 'Length'}</div></div>` : ''}
+      ${detail.wingspan_cm ? `<div class="dex-detail-stat"><div class="v">${detail.wingspan_cm}cm</div><div class="l">${cn ? '翼展' : 'Wingspan'}</div></div>` : ''}
+      ${detail.weight_g ? `<div class="dex-detail-stat"><div class="v">${detail.weight_g}g</div><div class="l">${cn ? '体重' : 'Weight'}</div></div>` : ''}
+      ${sp ? `<div class="dex-detail-stat"><div class="v">${sp.count}</div><div class="l">${cn ? '总检测' : 'Detections'}</div></div>` : ''}
+      ${sp ? `<div class="dex-detail-stat"><div class="v">${Math.round(sp.avg_conf*100)}%</div><div class="l">${cn ? '平均置信度' : 'Avg Conf.'}</div></div>` : ''}
+      <div class="dex-detail-stat"><div class="v"><a href="${soundUrl}" target="_blank" style="color:var(--accent);text-decoration:none">🔊</a></div><div class="l">${cn ? '叫声' : 'Call'}</div></div>
+    </div>
+
+    <div class="dex-detail-tags">
+      ${diet ? `<div class="dex-detail-tag"><b>${cn ? '食物' : 'Diet'}:</b> ${diet}</div>` : ''}
+      ${habitat ? `<div class="dex-detail-tag"><b>${cn ? '栖息地' : 'Habitat'}:</b> ${habitat}</div>` : ''}
+      ${conservation ? `<div class="dex-detail-tag"><b>${cn ? '保护状态' : 'Status'}:</b> ${conservation}</div>` : ''}
+    </div>
+
+    ${funFact ? `<div class="dex-detail-fact">💡 ${funFact}</div>` : ''}
+    ${callDesc ? `<div class="dex-detail-call">🔊 ${callDesc}</div>` : ''}
+
+    <div class="dex-detail-obs">
+      ${cn ? '首次记录' : 'First seen'}: ${firstSeen}<br>
+      ${cn ? '最后记录' : 'Last seen'}: ${lastSeen}
+    </div>
+  </div>`;
+}
+
+async function fetchDexDetail(name, sci) {
+  if (dexDetailCache[name]) return dexDetailCache[name];
+  try {
+    const r = await fetch(`/api/birds/detail/${encodeURIComponent(name)}?sci=${encodeURIComponent(sci)}`);
+    const d = await r.json();
+    if (d.common_name) dexDetailCache[name] = d;
+    return d;
+  } catch { return {}; }
+}
 </script>
 </body>
 </html>
