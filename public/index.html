@@ -178,6 +178,7 @@
     <div class="header-right">
       <div id="etClock" style="font-size:12px;color:var(--text2);font-family:monospace;min-width:70px;text-align:center;"></div>
       <div class="weather-brief" id="wxBrief"></div>
+      <a class="lang-btn" id="birdLink" href="/bird" style="font-size:12px">&#x1F426; Birds</a>
       <button class="music-btn" id="musicBtn" onclick="toggleMusic()" title="Music">&#9835;</button>
       <button class="unit-btn active-c" id="unitBtn" onclick="toggleUnit()"><span class="f-label">°F</span> / <span class="c-label">°C</span></button>
       <a class="lang-btn" id="langBtn"></a>
@@ -454,6 +455,8 @@ document.getElementById('title').textContent = T.title;
 document.getElementById('subtitle').textContent = T.subtitle;
 document.getElementById('statusText').textContent = T.connecting;
 document.getElementById('langBtn').textContent = T.switchLang;
+document.getElementById('birdLink').href = LANG === 'cn' ? '/cn/bird' : '/bird';
+document.getElementById('birdLink').textContent = LANG === 'cn' ? '🐦 鸟类' : '🐦 Birds';
 document.getElementById('langBtn').href = T.switchUrl;
 document.getElementById('weatherHead').textContent = T.weather + ' - ' + T.location;
 document.getElementById('sensorsHead').textContent = T.sensors;
