@@ -694,28 +694,27 @@ app.get("/api/birds/status", (req, res) => {
 // Wikipedia image + info proxy for bird photos
 const birdImageCache = {};
 
-async function wikiLookup(term) {
-  // Wikipedia REST API needs underscores, not spaces
+async function wikiLookup(term, lang) {
+  const prefix = lang || "en";
   const slug = term.replace(/ /g, "_");
-  const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`;
-  const resp = await fetch(url, {
-    headers: { "User-Agent": "SmartGardenDashboard/1.0" },
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!resp.ok) return null;
-  const data = await resp.json();
-  if (data.type === "disambiguation" || !data.extract) return null;
-  // Use originalimage for higher quality, fall back to thumbnail
-  const img = data.originalimage?.source || data.thumbnail?.source || null;
-  // Make thumbnail URL larger (replace /XXXpx- with /400px-)
-  const image = img ? img.replace(/\/\d+px-/, "/400px-") : null;
-  return {
-    image,
-    extract: data.extract || "",
-    extract_html: data.extract_html || "",
-    url: data.content_urls?.desktop?.page || "",
-    title: data.title || term,
-  };
+  const url = `https://${prefix}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`;
+  try {
+    const resp = await fetch(url, {
+      headers: { "User-Agent": "SmartGardenDashboard/1.0" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (data.type === "disambiguation" || !data.extract) return null;
+    const img = data.originalimage?.source || data.thumbnail?.source || null;
+    const image = img ? img.replace(/\/\d+px-/, "/400px-") : null;
+    return {
+      image,
+      extract: data.extract || "",
+      url: data.content_urls?.desktop?.page || "",
+      title: data.title || term,
+    };
+  } catch { return null; }
 }
 
 app.get("/api/birds/image/:name", async (req, res) => {
@@ -744,6 +743,12 @@ app.get("/api/birds/image/:name", async (req, res) => {
       }
     }
     const final = result || { image: null, extract: "", url: "" };
+    // Also look up Chinese Wikipedia URL
+    const cnName = birdTranslations[name]?.cn_name;
+    if (cnName) {
+      const zhResult = await wikiLookup(cnName, "zh");
+      final.url_zh = zhResult?.url || "";
+    }
     birdImageCache[name] = final;
     res.json(final);
   } catch (e) {
