@@ -781,7 +781,7 @@ Known correct Chinese names for reference:
 Northern Cardinal=北美红雀, Blue Jay=冠蓝鸦, American Robin=旅鸫, American Crow=美洲鸦, American Goldfinch=美洲金翅雀, House Sparrow=家麻雀, House Finch=家朱雀, Mourning Dove=哀鸽, Song Sparrow=歌带鹀, Carolina Wren=卡罗来纳鹪鹩, Tufted Titmouse=丛林山雀, Black-capped Chickadee=黑顶山雀, Carolina Chickadee=卡罗来纳山雀, White-breasted Nuthatch=白胸鳾, Red-bellied Woodpecker=红腹啄木鸟, Downy Woodpecker=绒啄木鸟, Northern Flicker=扑动鴷, Eastern Bluebird=东蓝鸲, Northern Mockingbird=北方嘲鸫, Fox Sparrow=狐色雀鹀, Least Bittern=小苇鳽, Pied-billed Grebe=斑嘴巨鸊鷉, Summer Tanager=夏裸鹎鵐, Green-winged Teal=绿翅鸭, Northern Shoveler=琵嘴鸭, Eurasian Collared-Dove=灰斑鸠, Yellow-billed Cuckoo=黄嘴美洲鹃, Tree Swallow=树燕
 
 Return JSON:
-{"cn_name":"official Chinese name","cn_name_pinyin":"rare chars pinyin or empty string","cn_desc":"50-80 char description","call_desc":"20 char call description in Chinese","call_desc_en":"20 word call description in English"}`,
+{"cn_name":"official Chinese name","cn_name_pinyin":"FULL pinyin with tone marks for entire cn_name, e.g. bei3 mei3 hong2 que4","cn_desc":"50-80 char Chinese description. For any rare bird characters (鳽鸊鷉鹪鹩鹀鸲鹂鹟鸮鵟鴷鸫鹃鳾) add pinyin in parentheses after them","call_desc":"20 char call description in Chinese","call_desc_en":"20 word call description in English"}`,
       }],
     });
     let text = msg.content[0].text.trim();
