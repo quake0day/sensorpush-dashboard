@@ -78,22 +78,27 @@
     .lang-btn:hover{background:var(--border);color:var(--text)}
 
     /* Bird of the Day */
-    .botd-card{background:linear-gradient(135deg,var(--surface) 0%,#1a3326 100%);border:2px solid var(--accent);border-radius:16px;padding:24px;display:flex;gap:24px;flex-wrap:wrap;position:relative;overflow:hidden}
-    .botd-card::before{content:'';position:absolute;top:-40px;right:-40px;width:120px;height:120px;background:radial-gradient(circle,rgba(74,222,128,0.1) 0%,transparent 70%);pointer-events:none}
-    .botd-badge{position:absolute;top:14px;right:16px;background:var(--accent);color:var(--bg);font-size:10px;font-weight:700;padding:4px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:1px}
-    .botd-img{width:140px;height:140px;border-radius:14px;object-fit:cover;flex-shrink:0;background:var(--surface2);border:2px solid var(--border)}
+    .botd-card{background:linear-gradient(135deg,var(--surface) 0%,#1a3326 50%,#12261a 100%);border:1px solid var(--border);border-radius:16px;padding:24px;display:flex;gap:24px;flex-wrap:wrap;position:relative;overflow:hidden;box-shadow:0 2px 20px rgba(74,222,128,0.06)}
+    .botd-card::before{content:'';position:absolute;top:-60px;right:-60px;width:180px;height:180px;background:radial-gradient(circle,rgba(74,222,128,0.07) 0%,transparent 70%);pointer-events:none;animation:botdGlow 4s ease-in-out infinite alternate}
+    .botd-card::after{content:'';position:absolute;bottom:-40px;left:-40px;width:120px;height:120px;background:radial-gradient(circle,rgba(56,189,248,0.04) 0%,transparent 70%);pointer-events:none}
+    @keyframes botdGlow{0%{opacity:0.5;transform:scale(1)}100%{opacity:1;transform:scale(1.15)}}
+    .botd-badge{position:absolute;top:14px;right:16px;background:linear-gradient(135deg,var(--accent),#34d399);color:var(--bg);font-size:10px;font-weight:700;padding:4px 14px;border-radius:20px;text-transform:uppercase;letter-spacing:1px;box-shadow:0 2px 8px rgba(74,222,128,0.3)}
+    .botd-img{width:140px;height:140px;border-radius:14px;object-fit:cover;flex-shrink:0;background:var(--surface2);border:2px solid var(--border);transition:transform 0.4s ease,box-shadow 0.4s ease}
+    .botd-card:hover .botd-img{transform:scale(1.04);box-shadow:0 4px 20px rgba(0,0,0,0.3)}
     .botd-main{flex:1;min-width:250px}
     .botd-name{font-size:24px;font-weight:700;line-height:1.2}
     .botd-sci{font-size:13px;color:var(--text3);font-style:italic;margin-top:2px}
     .botd-desc{font-size:13px;color:var(--text2);line-height:1.7;margin-top:10px}
     .botd-stats{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px}
-    .botd-stat{text-align:center}
+    .botd-stat{text-align:center;padding:6px 4px;border-radius:8px;transition:background 0.2s}
+    .botd-stat:hover{background:rgba(74,222,128,0.06)}
     .botd-stat .v{font-size:16px;font-weight:700}
     .botd-stat .l{font-size:10px;color:var(--text3);text-transform:uppercase}
     .botd-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
-    .botd-tag{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;color:var(--text2)}
+    .botd-tag{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;color:var(--text2);transition:border-color 0.2s}
+    .botd-tag:hover{border-color:var(--accent)}
     .botd-tag b{color:var(--text)}
-    .botd-fact{margin-top:12px;padding:10px 14px;background:var(--surface2);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;font-size:12px;color:var(--text2);line-height:1.5}
+    .botd-fact{margin-top:12px;padding:10px 14px;background:linear-gradient(90deg,rgba(74,222,128,0.05),transparent);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;font-size:12px;color:var(--text2);line-height:1.5}
     .botd-call{margin-top:8px;font-size:12px;color:var(--accent)}
     .botd-empty{text-align:center;padding:30px;color:var(--text3);font-size:13px}
     @media(max-width:640px){.botd-card{padding:16px;gap:14px}.botd-img{width:100px;height:100px}.botd-name{font-size:20px}}
