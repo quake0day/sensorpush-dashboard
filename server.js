@@ -1097,17 +1097,23 @@ app.get("/api/birds/detail/:name", async (req, res) => {
 
   if (!anthropic) return res.json({});
 
+  // Get the already-translated Chinese name to ensure consistency
+  const existingTrans = birdTranslations[name];
+  const cnName = existingTrans?.cn_name || name;
+
   try {
     const msg = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1200,
-      system: "You are an ornithology JSON API. Use official standard Chinese bird names. Return ONLY valid JSON with no extra text.",
-      messages: [{ role: "user", content: `Bird: ${name} (${sci})
+      system: "You are an ornithology JSON API. Return ONLY valid JSON with no extra text.",
+      messages: [{ role: "user", content: `Bird: ${name} (${sci}), Chinese name: ${cnName}
+
+IMPORTANT: Use "${cnName}" as the Chinese name throughout, do NOT use any other Chinese name.
 
 Return a JSON object with these keys:
-- cn_name: Chinese common name
+- cn_name: "${cnName}" (use exactly this)
 - description_en: 100-150 word English description covering appearance, size, habitat, diet, behavior, and range
-- description_cn: 150-200 character Chinese description covering the same topics
+- description_cn: 150-200 character Chinese description. MUST use "${cnName}" as the bird's name, not any alternative name.
 - size_cm: typical body length in cm (number)
 - wingspan_cm: typical wingspan in cm (number)
 - weight_g: typical weight in grams (number)
