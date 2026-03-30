@@ -942,6 +942,163 @@ app.get("/api/water/current", (req, res) => {
   } catch (e) { res.json({ level_pct: null }); }
 });
 
+// ============ Bird of the Day API ============
+const BOTD_FILE = path.join(BIRD_DIR, "bird-of-the-day.json");
+
+app.get("/api/birds/botd", (req, res) => {
+  try {
+    const today = localDateStr();
+    const dailyFile = path.join(BIRD_DIR, "daily", `${today}.json`);
+    if (!fs.existsSync(dailyFile)) return res.json({ bird: null });
+    const detections = JSON.parse(fs.readFileSync(dailyFile, "utf8"));
+    if (!detections.length) return res.json({ bird: null });
+
+    // Load history of past BOTDs to avoid repeats
+    let botdHistory = {};
+    if (fs.existsSync(BOTD_FILE)) {
+      try { botdHistory = JSON.parse(fs.readFileSync(BOTD_FILE, "utf8")); } catch {}
+    }
+
+    // Build species stats for today
+    const speciesMap = {};
+    for (const d of detections) {
+      const k = d.common_name;
+      if (!speciesMap[k]) speciesMap[k] = { common_name: k, scientific_name: d.scientific_name, count: 0, total_conf: 0, max_conf: 0, first_seen: d.time, last_seen: d.time };
+      speciesMap[k].count++;
+      speciesMap[k].total_conf += d.confidence;
+      if (d.confidence > speciesMap[k].max_conf) speciesMap[k].max_conf = d.confidence;
+      if (d.time > speciesMap[k].last_seen) speciesMap[k].last_seen = d.time;
+    }
+    const species = Object.values(speciesMap);
+
+    // Load 30 days of history to determine rarity
+    const allTimeCounts = {};
+    const dailyDir = path.join(BIRD_DIR, "daily");
+    if (fs.existsSync(dailyDir)) {
+      const files = fs.readdirSync(dailyDir).filter(f => f.endsWith(".json")).slice(-30);
+      for (const f of files) {
+        try {
+          const data = JSON.parse(fs.readFileSync(path.join(dailyDir, f), "utf8"));
+          const seen = new Set();
+          for (const d of data) {
+            if (!seen.has(d.common_name)) { allTimeCounts[d.common_name] = (allTimeCounts[d.common_name] || 0) + 1; seen.add(d.common_name); }
+          }
+        } catch {}
+      }
+    }
+
+    // Score each species
+    // Factors: rarity (fewer days seen = higher), today's count, confidence, not recently BOTD
+    const recentBotds = Object.entries(botdHistory).filter(([date]) => {
+      const daysAgo = (Date.now() - new Date(date).getTime()) / 86400000;
+      return daysAgo < 14;
+    }).map(([, v]) => v.common_name);
+
+    for (const sp of species) {
+      const daysSeenIn30 = allTimeCounts[sp.common_name] || 1;
+      const rarityScore = Math.max(1, 30 / daysSeenIn30); // rarer = higher
+      const countScore = Math.log2(sp.count + 1); // more today = higher
+      const confScore = sp.max_conf * 2; // high confidence = good
+      const recentPenalty = recentBotds.includes(sp.common_name) ? 0.2 : 1; // penalize recent BOTDs
+      const firstTimerBonus = daysSeenIn30 <= 1 ? 5 : 1; // huge bonus for first-ever sighting
+
+      sp.score = (rarityScore * 2 + countScore + confScore) * recentPenalty * firstTimerBonus;
+      sp.rarity_days = daysSeenIn30;
+      sp.avg_conf = Math.round((sp.total_conf / sp.count) * 1000) / 1000;
+    }
+
+    // Pick the winner
+    species.sort((a, b) => b.score - a.score);
+    const winner = species[0];
+
+    // Check if current BOTD should be replaced
+    const currentBotd = botdHistory[today];
+    let shouldUpdate = !currentBotd;
+    if (currentBotd && winner.common_name !== currentBotd.common_name) {
+      // Replace if new bird scores significantly higher (rare bird appeared)
+      shouldUpdate = winner.score > (currentBotd.score || 0) * 1.5;
+    }
+
+    if (shouldUpdate) {
+      botdHistory[today] = {
+        common_name: winner.common_name,
+        scientific_name: winner.scientific_name,
+        count: winner.count,
+        max_conf: winner.max_conf,
+        avg_conf: winner.avg_conf,
+        rarity_days: winner.rarity_days,
+        score: Math.round(winner.score * 100) / 100,
+        first_seen: winner.first_seen,
+        last_seen: winner.last_seen,
+        selected_at: new Date().toISOString(),
+      };
+      // Keep last 90 days of history
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
+      for (const d of Object.keys(botdHistory)) { if (new Date(d) < cutoff) delete botdHistory[d]; }
+      fs.writeFileSync(BOTD_FILE, JSON.stringify(botdHistory, null, 2));
+    }
+
+    res.json({ bird: botdHistory[today], date: today });
+  } catch (e) {
+    console.error("BOTD error:", e);
+    res.json({ bird: null });
+  }
+});
+
+// Detailed bird info via Claude
+app.get("/api/birds/detail/:name", async (req, res) => {
+  const name = req.params.name;
+  const sci = req.query.sci || "";
+  const cacheFile = path.join(BIRD_DIR, "details", `${name.replace(/[^a-zA-Z0-9]/g, '_')}.json`);
+  const detailDir = path.join(BIRD_DIR, "details");
+  if (!fs.existsSync(detailDir)) fs.mkdirSync(detailDir, { recursive: true });
+
+  if (fs.existsSync(cacheFile)) {
+    try { return res.json(JSON.parse(fs.readFileSync(cacheFile, "utf8"))); } catch {}
+  }
+
+  if (!anthropic) return res.json({});
+
+  try {
+    const msg = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1200,
+      system: "You are a JSON API. Return ONLY valid JSON with no extra text.",
+      messages: [{ role: "user", content: `Bird: ${name} (${sci})
+
+Return a JSON object with these keys:
+- cn_name: Chinese common name
+- description_en: 100-150 word English description covering appearance, size, habitat, diet, behavior, and range
+- description_cn: 150-200 character Chinese description covering the same topics
+- size_cm: typical body length in cm (number)
+- wingspan_cm: typical wingspan in cm (number)
+- weight_g: typical weight in grams (number)
+- diet: main diet in English (short phrase)
+- diet_cn: main diet in Chinese
+- habitat: typical habitat in English
+- habitat_cn: typical habitat in Chinese
+- conservation: IUCN conservation status (e.g. "Least Concern")
+- conservation_cn: conservation status in Chinese
+- fun_fact_en: one interesting fact in English (1 sentence)
+- fun_fact_cn: same fact in Chinese
+- call_desc_en: description of its song/call in English (1 sentence)
+- call_desc_cn: description of its song/call in Chinese` }],
+    });
+    let text = msg.content[0].text.trim();
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return res.json({});
+    const detail = JSON.parse(match[0]);
+    detail.common_name = name;
+    detail.scientific_name = sci;
+    fs.writeFileSync(cacheFile, JSON.stringify(detail, null, 2));
+    res.json(detail);
+  } catch (e) {
+    console.error("Bird detail error:", e.message);
+    res.json({});
+  }
+});
+
 // ============ Motion Detection API ============
 const MOTION_DIR = path.join(__dirname, "data", "motion-events");
 const MOTION_CLIPS = path.join(MOTION_DIR, "clips");

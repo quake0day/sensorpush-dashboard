@@ -77,6 +77,27 @@
     .lang-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:13px;text-decoration:none}
     .lang-btn:hover{background:var(--border);color:var(--text)}
 
+    /* Bird of the Day */
+    .botd-card{background:linear-gradient(135deg,var(--surface) 0%,#1a3326 100%);border:2px solid var(--accent);border-radius:16px;padding:24px;display:flex;gap:24px;flex-wrap:wrap;position:relative;overflow:hidden}
+    .botd-card::before{content:'';position:absolute;top:-40px;right:-40px;width:120px;height:120px;background:radial-gradient(circle,rgba(74,222,128,0.1) 0%,transparent 70%);pointer-events:none}
+    .botd-badge{position:absolute;top:14px;right:16px;background:var(--accent);color:var(--bg);font-size:10px;font-weight:700;padding:4px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:1px}
+    .botd-img{width:140px;height:140px;border-radius:14px;object-fit:cover;flex-shrink:0;background:var(--surface2);border:2px solid var(--border)}
+    .botd-main{flex:1;min-width:250px}
+    .botd-name{font-size:24px;font-weight:700;line-height:1.2}
+    .botd-sci{font-size:13px;color:var(--text3);font-style:italic;margin-top:2px}
+    .botd-desc{font-size:13px;color:var(--text2);line-height:1.7;margin-top:10px}
+    .botd-stats{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px}
+    .botd-stat{text-align:center}
+    .botd-stat .v{font-size:16px;font-weight:700}
+    .botd-stat .l{font-size:10px;color:var(--text3);text-transform:uppercase}
+    .botd-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+    .botd-tag{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;color:var(--text2)}
+    .botd-tag b{color:var(--text)}
+    .botd-fact{margin-top:12px;padding:10px 14px;background:var(--surface2);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;font-size:12px;color:var(--text2);line-height:1.5}
+    .botd-call{margin-top:8px;font-size:12px;color:var(--accent)}
+    .botd-empty{text-align:center;padding:30px;color:var(--text3);font-size:13px}
+    @media(max-width:640px){.botd-card{padding:16px;gap:14px}.botd-img{width:100px;height:100px}.botd-name{font-size:20px}}
+
     @media(max-width:640px){.header{padding:12px 16px}.container{padding:16px 12px}.lb-row{padding:10px 12px}.lb-img{width:40px;height:40px}.summary-grid{grid-template-columns:repeat(2,1fr)}}
   </style>
 </head>
@@ -108,6 +129,12 @@
       <div class="summary-card"><div class="num" id="statSpecies">--</div><div class="lbl" id="lblSpecies">Species</div></div>
       <div class="summary-card"><div class="num" id="statTop">--</div><div class="lbl" id="lblTop">Most Seen</div></div>
       <div class="summary-card"><div class="num" id="statPeak">--</div><div class="lbl" id="lblPeak">Peak Hour</div></div>
+    </div>
+
+    <!-- Bird of the Day -->
+    <div class="section" id="botdSection" style="display:none">
+      <div class="section-head" id="headBotd">Bird of the Day</div>
+      <div id="botdContent"></div>
     </div>
 
     <!-- Hourly Activity -->
@@ -408,6 +435,70 @@ function playClip(btn, id, birdName) {
   currentAudio.onerror = () => { btn.innerHTML = '&#9654;'; currentAudio = null; currentPlayBtn = null; };
 }
 
+// ============ Bird of the Day ============
+async function loadBotd() {
+  try {
+    const res = await fetch('/api/birds/botd');
+    const data = await res.json();
+    if (!data.bird) { document.getElementById('botdSection').style.display = 'none'; return; }
+
+    document.getElementById('botdSection').style.display = '';
+    document.getElementById('headBotd').childNodes[0].textContent = (LANG === 'cn' ? '今日之鸟' : 'Bird of the Day') + ' ';
+
+    const b = data.bird;
+    const wiki = await getBirdImage(b.common_name, b.scientific_name);
+    const trans = birdTransCache[b.common_name] || {};
+
+    // Fetch detailed info from Claude
+    let detail = {};
+    try {
+      const dr = await fetch(`/api/birds/detail/${encodeURIComponent(b.common_name)}?sci=${encodeURIComponent(b.scientific_name)}`);
+      detail = await dr.json();
+    } catch {}
+
+    const cn = LANG === 'cn';
+    const name = cn ? (trans.cn_name || detail.cn_name || b.common_name) : b.common_name;
+    const desc = cn ? (detail.description_cn || trans.cn_desc || '') : (detail.description_en || wiki.extract || '');
+    const diet = cn ? (detail.diet_cn || '') : (detail.diet || '');
+    const habitat = cn ? (detail.habitat_cn || '') : (detail.habitat || '');
+    const conservation = cn ? (detail.conservation_cn || '') : (detail.conservation || '');
+    const funFact = cn ? (detail.fun_fact_cn || '') : (detail.fun_fact_en || '');
+    const callDesc = cn ? (detail.call_desc_cn || trans.call_desc || '') : (detail.call_desc_en || trans.call_desc_en || '');
+    const rarity = b.rarity_days <= 1 ? (cn ? '首次记录!' : 'First sighting!') :
+                   b.rarity_days <= 3 ? (cn ? '稀有' : 'Rare') :
+                   b.rarity_days <= 7 ? (cn ? '不常见' : 'Uncommon') : (cn ? '常见' : 'Common');
+
+    document.getElementById('botdContent').innerHTML = `
+      <div class="botd-card">
+        <div class="botd-badge">${cn ? '今日之鸟' : 'BIRD OF THE DAY'}</div>
+        ${wiki.image ? `<img class="botd-img" src="${wiki.image}" alt="${name}">` : `<div class="botd-img" style="display:flex;align-items:center;justify-content:center;font-size:48px">🐦</div>`}
+        <div class="botd-main">
+          <div class="botd-name">${name}${wiki.url ? ` <a href="${wiki.url}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''}</div>
+          <div class="botd-sci">${b.scientific_name}</div>
+          ${desc ? `<div class="botd-desc">${desc}</div>` : ''}
+
+          <div class="botd-stats">
+            <div class="botd-stat"><div class="v">${b.count}</div><div class="l">${cn ? '今日检测' : 'Today'}</div></div>
+            <div class="botd-stat"><div class="v">${Math.round(b.max_conf * 100)}%</div><div class="l">${cn ? '最高置信度' : 'Best Conf.'}</div></div>
+            ${detail.size_cm ? `<div class="botd-stat"><div class="v">${detail.size_cm}cm</div><div class="l">${cn ? '体长' : 'Size'}</div></div>` : ''}
+            ${detail.wingspan_cm ? `<div class="botd-stat"><div class="v">${detail.wingspan_cm}cm</div><div class="l">${cn ? '翼展' : 'Wingspan'}</div></div>` : ''}
+            ${detail.weight_g ? `<div class="botd-stat"><div class="v">${detail.weight_g}g</div><div class="l">${cn ? '体重' : 'Weight'}</div></div>` : ''}
+            <div class="botd-stat"><div class="v" style="color:${b.rarity_days<=3?'var(--orange)':'var(--text)'}">${rarity}</div><div class="l">${cn ? '稀有度' : 'Rarity'}</div></div>
+          </div>
+
+          <div class="botd-tags">
+            ${diet ? `<div class="botd-tag"><b>${cn ? '食物' : 'Diet'}:</b> ${diet}</div>` : ''}
+            ${habitat ? `<div class="botd-tag"><b>${cn ? '栖息地' : 'Habitat'}:</b> ${habitat}</div>` : ''}
+            ${conservation ? `<div class="botd-tag"><b>${cn ? '保护状态' : 'Status'}:</b> ${conservation}</div>` : ''}
+          </div>
+
+          ${funFact ? `<div class="botd-fact">💡 ${funFact}</div>` : ''}
+          ${callDesc ? `<div class="botd-call">🔊 ${callDesc}</div>` : ''}
+        </div>
+      </div>`;
+  } catch (e) { console.error('BOTD:', e); }
+}
+
 // ============ Date Controls ============
 document.querySelectorAll('.date-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -430,7 +521,7 @@ document.getElementById('datePicker').addEventListener('change', (e) => {
 // ============ Init ============
 document.getElementById('datePicker').value = currentDate;
 applyLang();
-loadTranslations().then(() => loadData());
+loadTranslations().then(() => { loadData(); loadBotd(); });
 setInterval(loadData, 30000);
 
 /* REMOVED: D3/Three.js visualizations
