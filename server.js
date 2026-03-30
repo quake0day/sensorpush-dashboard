@@ -779,7 +779,7 @@ async function translateBird(commonName, scientificName) {
 
 Return a JSON object with these exact keys:
 - cn_name: Chinese common name for this bird
-- cn_name_pinyin: pinyin ONLY for rare/uncommon characters in cn_name. Format: 中文名(pinyin). Example: "鸊鷉(pì tī)" or "鹪鹩(jiāo liáo)". If all characters are common (like 乌鸦, 麻雀), return empty string.
+- cn_name_pinyin: If cn_name contains rare characters (HSK level 7+ or bird-specific characters like 鸊鷉鹪鹩鳽鸜鹆㟎鴷鹀鸲鹂鹟鸮鵟), return ONLY the rare characters with pinyin like "鸊鷉(pì tī)". If ALL characters are common daily-use characters (红雀乌鸦麻雀鸭鹅鸡鸽燕鹰鹤鹭), return empty string "".
 - cn_desc: 50-80 character Chinese description (appearance, habits, habitat)
 - call_desc: 20-30 character Chinese description of this bird's call
 - call_desc_en: 20-30 word English description of this bird's call`,

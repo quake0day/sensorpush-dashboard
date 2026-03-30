@@ -249,15 +249,18 @@ async function getBirdTranslation(en, sci) {
 function birdName(en) {
   if (LANG !== 'cn') return en;
   const cached = birdTransCache[en];
-  if (!cached) return en;
-  // Append pinyin for rare characters
-  if (cached.cn_name_pinyin) return `${cached.cn_name} <span style="font-size:0.7em;color:var(--text3);font-weight:normal">${cached.cn_name_pinyin}</span>`;
-  return cached.cn_name;
-}
-function birdNamePlain(en) {
-  if (LANG !== 'cn') return en;
-  const cached = birdTransCache[en];
   return cached ? cached.cn_name : en;
+}
+function birdPinyin(en) {
+  if (LANG !== 'cn') return '';
+  const cached = birdTransCache[en];
+  return (cached && cached.cn_name_pinyin) ? cached.cn_name_pinyin : '';
+}
+// Returns name + pinyin as HTML (for innerHTML contexts only)
+function birdNameHtml(en) {
+  const name = birdName(en);
+  const py = birdPinyin(en);
+  return py ? `${name} <span style="font-size:0.7em;color:var(--text3);font-weight:normal">${py}</span>` : name;
 }
 
 function birdDesc(en) {
@@ -412,7 +415,7 @@ async function renderLeaderboard(lb) {
         <div class="lb-rank ${rankClass}">#${i+1}</div>
         ${img}
         <div class="lb-info">
-          <div class="lb-name">${birdName(s.common_name)}${wiki.url ? ` <a href="${wiki.url}" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none">↗</a>` : ''}</div>
+          <div class="lb-name">${birdNameHtml(s.common_name)}${wiki.url ? ` <a href="${wiki.url}" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none">↗</a>` : ''}</div>
           <div class="lb-sci">${s.scientific_name}</div>
           ${desc ? `<div class="lb-desc" style="font-size:11px;color:var(--text2);margin-top:3px;line-height:1.4">${desc}</div>` : ''}
           ${(() => { const cd = LANG === 'cn' ? birdTransCache[s.common_name]?.call_desc : birdTransCache[s.common_name]?.call_desc_en; return cd ? `<div style="font-size:11px;color:var(--accent);margin-top:2px">🔊 ${cd}</div>` : ''; })()}
@@ -446,7 +449,7 @@ async function renderTimeline(detections) {
       <div class="tl-row">
         <span class="tl-time">${time}</span>
         ${img}
-        <span class="tl-name">${birdName(d.common_name)}</span>
+        <span class="tl-name">${birdNameHtml(d.common_name)}</span>
         <span class="tl-conf">${Math.round(d.confidence*100)}%</span>
         ${d.has_clip ? `<button class="tl-play" onclick="playClip(this,'${d.id}','${d.common_name.replace(/'/g,"\\'")}')">&#9654;</button>` : `<a class="tl-play" href="https://www.allaboutbirds.org/guide/${d.common_name.replace(/['']/g,'').replace(/\s+/g,'_')}/sounds" target="_blank" style="text-decoration:none">🔊</a>`}
       </div>`;
