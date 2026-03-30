@@ -595,7 +595,20 @@ document.getElementById('datePicker').addEventListener('change', (e) => {
 // ============ Init ============
 document.getElementById('datePicker').value = currentDate;
 applyLang();
-loadTranslations().then(() => { loadData(); loadBotd(); });
+loadTranslations().then(async () => {
+  // Check if today has any data, if not switch to 7-day view
+  try {
+    const todayStats = await (await fetch(`/api/birds/stats?date=${currentDate}&days=1`)).json();
+    if (todayStats.total_detections === 0) {
+      currentDays = 7;
+      document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
+      const btn7 = document.querySelector('.date-btn[data-days="7"]');
+      if (btn7) btn7.classList.add('active');
+    }
+  } catch {}
+  loadData();
+  loadBotd();
+});
 setInterval(loadData, 30000);
 
 /* REMOVED: D3/Three.js visualizations

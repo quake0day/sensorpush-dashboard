@@ -1059,7 +1059,8 @@ app.get("/api/birds/botd", (req, res) => {
     let shouldUpdate = !currentBotd;
     if (currentBotd && winner.common_name !== currentBotd.common_name) {
       // Replace if new bird scores significantly higher (rare bird appeared)
-      shouldUpdate = winner.score > (currentBotd.score || 0) * 1.5;
+      // Only replace if new bird scores 3x higher (truly exceptional, e.g. first-ever sighting)
+      shouldUpdate = winner.score > (currentBotd.score || 0) * 3;
     }
 
     if (shouldUpdate) {
