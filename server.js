@@ -811,6 +811,17 @@ function allAboutBirdsUrl(commonName) {
   return `https://www.allaboutbirds.org/guide/${slug}/sounds`;
 }
 
+// Generate pinyin using pypinyin (100% accurate, no LLM needed)
+function generatePinyin(chinese) {
+  return new Promise((resolve) => {
+    const { execFile } = require("child_process");
+    execFile("python3", ["-c", `from pypinyin import pinyin, Style; print(' '.join([p[0] for p in pinyin("${chinese.replace(/"/g, '')}", style=Style.TONE)]))`],
+      { timeout: 5000 }, (err, stdout) => {
+        resolve(err ? "" : stdout.trim());
+      });
+  });
+}
+
 // Get or create translation for a bird
 app.get("/api/birds/translate/:name", async (req, res) => {
   const name = req.params.name;
@@ -821,12 +832,15 @@ app.get("/api/birds/translate/:name", async (req, res) => {
     return res.json(birdTranslations[name]);
   }
 
-  // Call Claude API
+  // Call Claude API for translation
   const result = await translateBird(name, sci);
   if (result) {
+    // Generate accurate pinyin via pypinyin (not Claude)
+    const py = await generatePinyin(result.cn_name);
+
     birdTranslations[name] = {
       cn_name: result.cn_name,
-      cn_name_pinyin: result.cn_name_pinyin || "",
+      cn_name_pinyin: py,
       cn_desc: result.cn_desc,
       call_desc: result.call_desc || "",
       call_desc_en: result.call_desc_en || "",
@@ -845,6 +859,22 @@ app.get("/api/birds/translate/:name", async (req, res) => {
 // Bulk: get all cached translations
 app.get("/api/birds/translations", (req, res) => {
   res.json(birdTranslations);
+});
+
+// Regenerate pinyin for all cached translations
+app.post("/api/birds/fix-pinyin", async (req, res) => {
+  let fixed = 0;
+  for (const [name, entry] of Object.entries(birdTranslations)) {
+    if (entry.cn_name) {
+      const py = await generatePinyin(entry.cn_name);
+      if (py && py !== entry.cn_name_pinyin) {
+        entry.cn_name_pinyin = py;
+        fixed++;
+      }
+    }
+  }
+  saveBirdTranslations();
+  res.json({ fixed, total: Object.keys(birdTranslations).length });
 });
 
 // Cleanup on exit
