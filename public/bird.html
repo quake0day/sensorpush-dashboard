@@ -297,8 +297,10 @@ function applyLang() {
   const cn = LANG === 'cn';
   document.getElementById('dashBtn').href = cn ? '/cn' : '/';
   document.getElementById('dashBtn').textContent = cn ? '仪表板' : 'Dashboard';
-  document.getElementById('dexBtnText').textContent = cn ? '鸟类图鉴' : 'Field Guide';
-  document.getElementById('dexTitle').textContent = cn ? '鸟类图鉴' : 'Bird Field Guide';
+  const dexBtn = document.getElementById('dexBtnText');
+  const dexTtl = document.getElementById('dexTitle');
+  if (dexBtn) dexBtn.textContent = cn ? '鸟类图鉴' : 'Field Guide';
+  if (dexTtl) dexTtl.textContent = cn ? '鸟类图鉴' : 'Bird Field Guide';
 }
 document.getElementById('langBtn').addEventListener('click', (e) => {
   e.preventDefault();
