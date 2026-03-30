@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bird Detection Log</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/"}}</script>
   <style>
     :root { --bg:#0a1a10; --surface:#12261a; --surface2:#1a3326; --border:#24432e; --text:#e8f0e8; --text2:#8aaa96; --text3:#5a7a66; --accent:#4ade80; --orange:#f97316; --blue:#38bdf8; --red:#ef4444; --green:#22c55e; --yellow:#facc15; --purple:#a78bfa; }
     *{margin:0;padding:0;box-sizing:border-box}
@@ -77,6 +79,14 @@
     .lang-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:13px;text-decoration:none}
     .lang-btn:hover{background:var(--border);color:var(--text)}
 
+    /* 3D / D3 Visualizations */
+    .viz-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+    .viz-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;position:relative;min-height:350px}
+    .viz-box canvas{display:block;width:100%!important;height:350px!important}
+    .viz-box svg{display:block;width:100%;height:350px}
+    .viz-title{position:absolute;top:12px;left:14px;font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;z-index:2;pointer-events:none}
+    .d3-tooltip{position:absolute;background:var(--surface);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .15s;z-index:10}
+    @media(max-width:768px){.viz-row{grid-template-columns:1fr}}
     @media(max-width:640px){.header{padding:12px 16px}.container{padding:16px 12px}.lb-row{padding:10px 12px}.lb-img{width:40px;height:40px}.summary-grid{grid-template-columns:repeat(2,1fr)}}
   </style>
 </head>
@@ -108,6 +118,34 @@
       <div class="summary-card"><div class="num" id="statSpecies">--</div><div class="lbl" id="lblSpecies">Species</div></div>
       <div class="summary-card"><div class="num" id="statTop">--</div><div class="lbl" id="lblTop">Most Seen</div></div>
       <div class="summary-card"><div class="num" id="statPeak">--</div><div class="lbl" id="lblPeak">Peak Hour</div></div>
+    </div>
+
+    <!-- 3D & D3 Visualizations -->
+    <div class="section">
+      <div class="section-head" id="headViz">Visualizations</div>
+      <div class="viz-row">
+        <div class="viz-box" id="bubbleBox">
+          <div class="viz-title" id="bubbleTitle">Species Bubble Chart</div>
+          <svg id="bubbleSvg"></svg>
+          <div class="d3-tooltip" id="bubbleTip"></div>
+        </div>
+        <div class="viz-box" id="threeBox">
+          <div class="viz-title" id="threeTitle">3D Bird Activity</div>
+          <canvas id="threeCanvas"></canvas>
+        </div>
+      </div>
+      <div class="viz-row">
+        <div class="viz-box" id="radialBox">
+          <div class="viz-title" id="radialTitle">24h Activity Clock</div>
+          <svg id="radialSvg"></svg>
+          <div class="d3-tooltip" id="radialTip"></div>
+        </div>
+        <div class="viz-box" id="treemapBox">
+          <div class="viz-title" id="treemapTitle">Species Treemap</div>
+          <svg id="treemapSvg"></svg>
+          <div class="d3-tooltip" id="treemapTip"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Hourly Activity -->
@@ -427,10 +465,309 @@ document.getElementById('datePicker').addEventListener('change', (e) => {
   loadData();
 });
 
+// ============ D3.js Bubble Chart ============
+function renderBubbleChart(lb) {
+  const svg = d3.select('#bubbleSvg');
+  svg.selectAll('*').remove();
+  if (!lb.length) return;
+
+  const box = document.getElementById('bubbleBox');
+  const W = box.clientWidth, H = 350;
+  svg.attr('viewBox', `0 0 ${W} ${H}`);
+
+  const maxCount = d3.max(lb, d => d.count);
+  const radiusScale = d3.scaleSqrt().domain([1, maxCount]).range([18, Math.min(70, W/6)]);
+  const colorScale = d3.scaleOrdinal(d3.schemeSet3);
+
+  const nodes = lb.map((d, i) => ({
+    ...d, r: radiusScale(d.count), color: colorScale(i),
+    displayName: birdName(d.common_name),
+  }));
+
+  const sim = d3.forceSimulation(nodes)
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('charge', d3.forceManyBody().strength(5))
+    .force('collide', d3.forceCollide(d => d.r + 3))
+    .stop();
+  for (let i = 0; i < 200; i++) sim.tick();
+
+  const tip = d3.select('#bubbleTip');
+
+  const g = svg.selectAll('g').data(nodes).enter().append('g')
+    .attr('transform', d => `translate(${d.x},${d.y})`)
+    .style('cursor', 'pointer')
+    .on('mouseover', (e, d) => {
+      tip.style('opacity', 1)
+        .html(`<b>${d.displayName}</b><br><i>${d.scientific_name}</i><br>${t('times')}: ${d.count}<br>${t('avgConf')}: ${Math.round(d.avg_conf*100)}%`)
+        .style('left', (e.offsetX + 15) + 'px').style('top', (e.offsetY - 10) + 'px');
+    })
+    .on('mouseout', () => tip.style('opacity', 0));
+
+  g.append('circle').attr('r', d => d.r).attr('fill', d => d.color).attr('opacity', 0.8)
+    .attr('stroke', d => d.color).attr('stroke-width', 2);
+  g.filter(d => d.r > 25).append('text')
+    .attr('text-anchor', 'middle').attr('dy', -4).attr('fill', '#fff').attr('font-size', d => Math.min(12, d.r/3.5))
+    .text(d => d.displayName.length > 12 ? d.displayName.slice(0,10)+'...' : d.displayName);
+  g.filter(d => d.r > 25).append('text')
+    .attr('text-anchor', 'middle').attr('dy', 10).attr('fill', '#fff').attr('font-size', 10).attr('opacity', 0.7)
+    .text(d => d.count);
+}
+
+// ============ D3.js Radial Activity Clock ============
+function renderRadialChart(hourly) {
+  const svg = d3.select('#radialSvg');
+  svg.selectAll('*').remove();
+
+  const box = document.getElementById('radialBox');
+  const size = Math.min(box.clientWidth, 350);
+  const cx = size/2, cy = size/2, R = size/2 - 40;
+  svg.attr('viewBox', `0 0 ${size} ${size}`);
+
+  const maxVal = Math.max(...hourly, 1);
+  const tip = d3.select('#radialTip');
+
+  // Background circles
+  [0.25, 0.5, 0.75, 1].forEach(p => {
+    svg.append('circle').attr('cx', cx).attr('cy', cy).attr('r', R*p)
+      .attr('fill', 'none').attr('stroke', '#24432e').attr('stroke-width', 0.5);
+  });
+
+  // Hour labels
+  for (let h = 0; h < 24; h++) {
+    const angle = (h / 24) * Math.PI * 2 - Math.PI / 2;
+    const lx = cx + (R + 18) * Math.cos(angle);
+    const ly = cy + (R + 18) * Math.sin(angle);
+    svg.append('text').attr('x', lx).attr('y', ly)
+      .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
+      .attr('fill', '#5a7a66').attr('font-size', 9).text(`${h}`);
+  }
+
+  // Bars
+  const barWidth = Math.PI * 2 / 24;
+  const arc = d3.arc().innerRadius(8).cornerRadius(2);
+
+  svg.selectAll('.bar').data(hourly).enter().append('path')
+    .attr('transform', `translate(${cx},${cy})`)
+    .attr('d', (d, i) => arc({
+      outerRadius: 8 + (d / maxVal) * (R - 8),
+      startAngle: i * barWidth,
+      endAngle: (i + 1) * barWidth - 0.02,
+    }))
+    .attr('fill', (d, i) => {
+      const peak = hourly.indexOf(Math.max(...hourly));
+      return i === peak && d > 0 ? '#f97316' : 'rgba(74,222,128,0.6)';
+    })
+    .style('cursor', 'pointer')
+    .on('mouseover', (e, d) => {
+      const i = hourly.indexOf(d) >= 0 ? hourly.indexOf(d) : 0;
+      tip.style('opacity', 1)
+        .html(`<b>${i}:00 - ${i+1}:00</b><br>${d} ${t('detections').toLowerCase()}`)
+        .style('left', (e.offsetX + 10) + 'px').style('top', (e.offsetY - 10) + 'px');
+    })
+    .on('mouseout', () => tip.style('opacity', 0));
+
+  // Center label
+  const total = hourly.reduce((a, b) => a + b, 0);
+  svg.append('text').attr('x', cx).attr('y', cy - 6).attr('text-anchor', 'middle')
+    .attr('fill', '#e8f0e8').attr('font-size', 20).attr('font-weight', 'bold').text(total);
+  svg.append('text').attr('x', cx).attr('y', cy + 12).attr('text-anchor', 'middle')
+    .attr('fill', '#5a7a66').attr('font-size', 10).text(t('detections'));
+}
+
+// ============ D3.js Treemap ============
+function renderTreemap(lb) {
+  const svg = d3.select('#treemapSvg');
+  svg.selectAll('*').remove();
+  if (!lb.length) return;
+
+  const box = document.getElementById('treemapBox');
+  const W = box.clientWidth, H = 350;
+  svg.attr('viewBox', `0 0 ${W} ${H}`);
+
+  const root = d3.hierarchy({ children: lb.map(d => ({ ...d, value: d.count, displayName: birdName(d.common_name) })) })
+    .sum(d => d.value);
+  d3.treemap().size([W, H]).padding(3).round(true)(root);
+
+  const color = d3.scaleOrdinal(d3.schemeTableau10);
+  const tip = d3.select('#treemapTip');
+
+  const cell = svg.selectAll('g').data(root.leaves()).enter().append('g')
+    .attr('transform', d => `translate(${d.x0},${d.y0})`)
+    .style('cursor', 'pointer')
+    .on('mouseover', (e, d) => {
+      tip.style('opacity', 1)
+        .html(`<b>${d.data.displayName}</b><br><i>${d.data.scientific_name}</i><br>${d.data.count} ${t('times')}<br>${t('avgConf')}: ${Math.round(d.data.avg_conf*100)}%`)
+        .style('left', (e.offsetX + 10) + 'px').style('top', (e.offsetY - 10) + 'px');
+    })
+    .on('mouseout', () => tip.style('opacity', 0));
+
+  cell.append('rect')
+    .attr('width', d => d.x1 - d.x0).attr('height', d => d.y1 - d.y0)
+    .attr('fill', (d, i) => color(i)).attr('opacity', 0.75).attr('rx', 4);
+
+  cell.filter(d => (d.x1 - d.x0) > 50 && (d.y1 - d.y0) > 30)
+    .append('text').attr('x', 6).attr('y', 18).attr('fill', '#fff').attr('font-size', 11).attr('font-weight', 600)
+    .text(d => d.data.displayName.length > 15 ? d.data.displayName.slice(0,13)+'..' : d.data.displayName);
+
+  cell.filter(d => (d.x1 - d.x0) > 40 && (d.y1 - d.y0) > 45)
+    .append('text').attr('x', 6).attr('y', 34).attr('fill', '#fff').attr('font-size', 18).attr('font-weight', 700).attr('opacity', 0.8)
+    .text(d => d.data.count);
+}
+
+// ============ Three.js 3D Bird Scene ============
+let threeInited = false;
+async function initThreeScene(lb) {
+  if (threeInited) return;
+  threeInited = true;
+
+  const { Scene, PerspectiveCamera, WebGLRenderer, BufferGeometry, PointsMaterial, Points,
+          Float32BufferAttribute, Color, Fog, AmbientLight, DirectionalLight } = await import('three');
+  const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+
+  const canvas = document.getElementById('threeCanvas');
+  const W = canvas.parentElement.clientWidth, H = 350;
+
+  const scene = new Scene();
+  scene.background = new Color(0x0a1a10);
+  scene.fog = new Fog(0x0a1a10, 30, 80);
+
+  const camera = new PerspectiveCamera(60, W / H, 0.1, 200);
+  camera.position.set(0, 15, 30);
+
+  const renderer = new WebGLRenderer({ canvas, antialias: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const controls = new OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 0.5;
+  controls.maxDistance = 60;
+  controls.minDistance = 10;
+
+  scene.add(new AmbientLight(0x4ade80, 0.3));
+  const dirLight = new DirectionalLight(0xffffff, 0.8);
+  dirLight.position.set(10, 20, 10);
+  scene.add(dirLight);
+
+  // Ground grid
+  const gridGeo = new BufferGeometry();
+  const gridPts = [];
+  for (let i = -20; i <= 20; i += 2) {
+    gridPts.push(-20, 0, i, 20, 0, i);
+    gridPts.push(i, 0, -20, i, 0, 20);
+  }
+  gridGeo.setAttribute('position', new Float32BufferAttribute(gridPts, 3));
+  const { LineSegments, LineBasicMaterial } = await import('three');
+  scene.add(new LineSegments(gridGeo, new LineBasicMaterial({ color: 0x24432e, opacity: 0.4, transparent: true })));
+
+  // Bird particles for each species
+  const birdColors = [0x4ade80, 0xf97316, 0x38bdf8, 0xfb7185, 0xa78bfa, 0xfacc15, 0x34d399, 0xef4444];
+  const birdGroups = [];
+
+  const species = lb.length ? lb : [{ common_name: 'Waiting...', count: 20 }];
+  species.forEach((sp, si) => {
+    const count = Math.min(sp.count * 5, 200);
+    const positions = new Float32Array(count * 3);
+    const velocities = [];
+
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 5 + Math.random() * 15;
+      const height = 2 + Math.random() * 12 + si * 2;
+      positions[i * 3] = Math.cos(angle) * radius;
+      positions[i * 3 + 1] = height;
+      positions[i * 3 + 2] = Math.sin(angle) * radius;
+      velocities.push({
+        speed: 0.01 + Math.random() * 0.02,
+        radius: radius,
+        angle: angle,
+        ySpeed: (Math.random() - 0.5) * 0.01,
+        baseY: height,
+      });
+    }
+
+    const geo = new BufferGeometry();
+    geo.setAttribute('position', new Float32BufferAttribute(positions, 3));
+    const mat = new PointsMaterial({
+      color: birdColors[si % birdColors.length],
+      size: 0.4 + (sp.count > 5 ? 0.3 : 0),
+      transparent: true,
+      opacity: 0.8,
+    });
+    const points = new Points(geo, mat);
+    scene.add(points);
+    birdGroups.push({ points, velocities, positions });
+  });
+
+  // Species labels as sprites
+  species.forEach((sp, si) => {
+    const { SpriteMaterial, Sprite, CanvasTexture } = await import('three');
+    const labelCanvas = document.createElement('canvas');
+    labelCanvas.width = 256; labelCanvas.height = 64;
+    const lctx = labelCanvas.getContext('2d');
+    lctx.fillStyle = '#4ade80';
+    lctx.font = 'bold 20px sans-serif';
+    const name = birdName(sp.common_name);
+    lctx.fillText(name.length > 20 ? name.slice(0,18)+'..' : name, 4, 24);
+    lctx.fillStyle = '#8aaa96';
+    lctx.font = '14px sans-serif';
+    lctx.fillText(`${sp.count || ''} ${sp.count ? t('times') : ''}`, 4, 48);
+    const tex = new CanvasTexture(labelCanvas);
+    const spriteMat = new SpriteMaterial({ map: tex, transparent: true, opacity: 0.9 });
+    const sprite = new Sprite(spriteMat);
+    sprite.position.set(-18 + si * 8, 16 + si, 0);
+    sprite.scale.set(8, 2, 1);
+    scene.add(sprite);
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const time = Date.now() * 0.001;
+
+    birdGroups.forEach(({ points, velocities, positions }) => {
+      for (let i = 0; i < velocities.length; i++) {
+        const v = velocities[i];
+        v.angle += v.speed;
+        positions[i * 3] = Math.cos(v.angle) * v.radius;
+        positions[i * 3 + 1] = v.baseY + Math.sin(time * 2 + i) * 1.5;
+        positions[i * 3 + 2] = Math.sin(v.angle) * v.radius;
+      }
+      points.geometry.attributes.position.needsUpdate = true;
+    });
+
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+// ============ Hook into data loading ============
+const origLoadData = loadData;
+loadData = async function() {
+  await origLoadData();
+  // After data loads, update visualizations
+  try {
+    const stats = await (await fetch(`/api/birds/stats?date=${currentDate}&days=${currentDays}`)).json();
+    renderBubbleChart(stats.leaderboard);
+    renderRadialChart(stats.hourly);
+    renderTreemap(stats.leaderboard);
+    initThreeScene(stats.leaderboard);
+  } catch {}
+};
+
+// Viz labels
+if (LANG === 'cn') {
+  document.getElementById('headViz').childNodes[0].textContent = '数据可视化 ';
+  document.getElementById('bubbleTitle').textContent = '物种气泡图';
+  document.getElementById('threeTitle').textContent = '3D 鸟类活动';
+  document.getElementById('radialTitle').textContent = '24小时活动时钟';
+  document.getElementById('treemapTitle').textContent = '物种面积图';
+}
+
 // ============ Init ============
 document.getElementById('datePicker').value = currentDate;
 applyLang();
-// Load cached translations first, then data
 loadTranslations().then(() => loadData());
 setInterval(loadData, 30000);
 </script>
