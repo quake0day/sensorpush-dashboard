@@ -263,7 +263,7 @@ function birdPinyin(en) {
 }
 // TTS: speak English bird name
 function speakBird(name, e) {
-  if (e) e.stopPropagation();
+  if (e) { e.stopPropagation(); e.preventDefault(); }
   const u = new SpeechSynthesisUtterance(name);
   u.lang = 'en-US';
   u.rate = 0.85;
