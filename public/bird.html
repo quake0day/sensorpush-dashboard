@@ -262,10 +262,10 @@ function birdPinyin(en) {
   return (cached && cached.cn_name_pinyin) ? cached.cn_name_pinyin : '';
 }
 // TTS: speak English bird name
-function speakBird(name, e) {
+function speakBird(text, lang, e) {
   if (e) { e.stopPropagation(); e.preventDefault(); }
-  const u = new SpeechSynthesisUtterance(name);
-  u.lang = 'en-US';
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = lang || 'en-US';
   u.rate = 0.85;
   speechSynthesis.cancel();
   speechSynthesis.speak(u);
@@ -274,7 +274,9 @@ function speakBird(name, e) {
 function birdNameHtml(en) {
   const name = birdName(en);
   const py = birdPinyin(en);
-  const speakBtn = `<span onclick="speakBird('${en.replace(/'/g,"\\'")}',event)" style="cursor:pointer;font-size:0.55em;opacity:0.4;margin-left:5px;border:1px solid currentColor;border-radius:3px;padding:0 3px;vertical-align:middle;font-style:italic" title="Pronounce English name">Aa</span>`;
+  const spText = LANG === 'cn' ? name : en;
+  const spLang = LANG === 'cn' ? 'zh-CN' : 'en-US';
+  const speakBtn = `<span onclick="speakBird('${spText.replace(/'/g,"\\'")}','${spLang}',event)" style="cursor:pointer;font-size:0.7em;opacity:0.4;margin-left:5px;vertical-align:middle" title="${LANG==='cn'?'朗读':'Pronounce'}">&#x1F5E3;</span>`;
   if (!py) return `${name}${speakBtn}`;
   return `${name}${speakBtn}<br><span style="font-size:0.65em;color:var(--text3);font-weight:normal;letter-spacing:0.5px">${py}</span>`;
 }
@@ -1036,9 +1038,9 @@ async function showDexDetail(name, sci) {
   el.innerHTML = `<div class="dex-detail">
     <button class="dex-back" onclick="dexShowingDetail=false;renderDexList(dexSpecies)">&larr; ${cn ? '返回列表' : 'Back to list'}</button>
     ${wiki.image ? `<img class="dex-hero" src="${wiki.image}" alt="${dName}">` : `<div class="dex-hero" style="display:flex;align-items:center;justify-content:center;font-size:64px;background:var(--surface)">🐦</div>`}
-    <div class="dex-detail-name">${dName} <span onclick="speakBird('${name.replace(/'/g,"\\'")}',event)" style="cursor:pointer;font-size:12px;opacity:0.4;border:1px solid currentColor;border-radius:3px;padding:0 4px;font-style:italic" title="Pronounce English name">Aa</span>${(() => { const u = cn ? (wiki.url_zh||wiki.url) : wiki.url; return u ? ` <a href="${u}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''; })()}</div>
+    <div class="dex-detail-name">${dName} <span onclick="speakBird('${(cn ? dName : name).replace(/'/g,"\\'")}','${cn?'zh-CN':'en-US'}',event)" style="cursor:pointer;font-size:16px;opacity:0.4" title="${cn?'朗读':'Pronounce'}">&#x1F5E3;</span>${(() => { const u = cn ? (wiki.url_zh||wiki.url) : wiki.url; return u ? ` <a href="${u}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''; })()}</div>
     ${cn && trans.cn_name_pinyin ? `<div style="font-size:13px;color:var(--text3);margin-top:2px;letter-spacing:0.5px">${trans.cn_name_pinyin}</div>` : ''}
-    <div class="dex-detail-sci">${sci} <span onclick="speakBird('${name.replace(/'/g,"\\'")}',event)" style="cursor:pointer;font-size:11px;color:var(--text3)" title="Pronounce English name"><i>Aa</i> ${name}</span></div>
+    <div class="dex-detail-sci">${sci}${cn ? ` <span onclick="speakBird('${name.replace(/'/g,"\\'")}','en-US',event)" style="cursor:pointer;font-size:11px;color:var(--text3)" title="Pronounce English name">&#x1F5E3; ${name}</span>` : ''}</div>
     ${desc ? `<div class="dex-detail-desc">${desc}</div>` : ''}
 
     <div class="dex-detail-grid">
