@@ -656,6 +656,34 @@ app.get("/api/birds/stats", (req, res) => {
   }
 });
 
+// Per-species hourly activity (all-time)
+app.get("/api/birds/species-hours/:name", (req, res) => {
+  try {
+    const name = req.params.name;
+    const dailyDir = path.join(BIRD_DIR, "daily");
+    if (!fs.existsSync(dailyDir)) return res.json({ hourly: Array(24).fill(0), total: 0, days_seen: 0 });
+    const files = fs.readdirSync(dailyDir).filter(f => f.endsWith(".json"));
+    const hourly = Array(24).fill(0);
+    let total = 0, daysSeen = 0;
+    for (const f of files) {
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(dailyDir, f), "utf8"));
+        let seenToday = false;
+        for (const d of data) {
+          if (d.common_name === name) {
+            const h = new Date(d.time).getHours();
+            hourly[h]++;
+            total++;
+            seenToday = true;
+          }
+        }
+        if (seenToday) daysSeen++;
+      } catch {}
+    }
+    res.json({ hourly, total, days_seen: daysSeen });
+  } catch (e) { res.json({ hourly: Array(24).fill(0), total: 0, days_seen: 0 }); }
+});
+
 // Bird detector process management
 let birdProc = null;
 function startBirdDetector() {
