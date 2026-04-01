@@ -45,7 +45,7 @@
     .lb-row:hover{background:var(--surface2)}
     .lb-rank{font-size:22px;font-weight:700;color:var(--text3);width:36px;text-align:center;flex-shrink:0}
     .lb-rank.gold{color:var(--yellow)} .lb-rank.silver{color:var(--text2)} .lb-rank.bronze{color:var(--orange)}
-    .lb-img{width:52px;height:52px;border-radius:10px;object-fit:cover;background:var(--surface2);flex-shrink:0}
+    .lb-img{width:52px;height:52px;border-radius:10px;object-fit:cover;object-position:top;background:var(--surface2);flex-shrink:0}
     .lb-info{flex:1;min-width:0}
     .lb-name{font-size:15px;font-weight:600}
     .lb-sci{font-size:11px;color:var(--text3);font-style:italic}
@@ -83,7 +83,7 @@
     .botd-card::after{content:'';position:absolute;bottom:-40px;left:-40px;width:120px;height:120px;background:radial-gradient(circle,rgba(56,189,248,0.04) 0%,transparent 70%);pointer-events:none}
     @keyframes botdGlow{0%{opacity:0.5;transform:scale(1)}100%{opacity:1;transform:scale(1.15)}}
     .botd-badge{position:absolute;top:14px;right:16px;background:linear-gradient(135deg,var(--accent),#34d399);color:var(--bg);font-size:10px;font-weight:700;padding:4px 14px;border-radius:20px;text-transform:uppercase;letter-spacing:1px;box-shadow:0 2px 8px rgba(74,222,128,0.3)}
-    .botd-img{width:140px;height:140px;border-radius:14px;object-fit:cover;flex-shrink:0;background:var(--surface2);border:2px solid var(--border);transition:transform 0.4s ease,box-shadow 0.4s ease}
+    .botd-img{width:140px;height:140px;border-radius:14px;object-fit:contain;flex-shrink:0;background:var(--surface);border:2px solid var(--border);transition:transform 0.4s ease,box-shadow 0.4s ease}
     .botd-card:hover .botd-img{transform:scale(1.04);box-shadow:0 4px 20px rgba(0,0,0,0.3)}
     .botd-main{flex:1;min-width:250px}
     .botd-name{font-size:24px;font-weight:700;line-height:1.2}
@@ -123,7 +123,7 @@
     .dex-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;cursor:pointer;transition:background .15s}
     .dex-item:hover{background:var(--surface)}
     .dex-item.active{background:var(--surface);border-left:3px solid var(--accent)}
-    .dex-item-img{width:44px;height:44px;border-radius:10px;object-fit:cover;background:var(--surface2);flex-shrink:0}
+    .dex-item-img{width:44px;height:44px;border-radius:10px;object-fit:cover;object-position:top;background:var(--surface2);flex-shrink:0}
     .dex-item-info{flex:1;min-width:0}
     .dex-item-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .dex-item-sci{font-size:11px;color:var(--text3);font-style:italic}
@@ -133,7 +133,7 @@
     .dex-detail{padding:20px}
     .dex-back{background:none;border:none;color:var(--accent);cursor:pointer;font-size:13px;padding:0;margin-bottom:12px}
     .dex-back:hover{text-decoration:underline}
-    .dex-hero{width:100%;aspect-ratio:4/3;border-radius:14px;object-fit:cover;background:var(--surface2);margin-bottom:16px}
+    .dex-hero{width:100%;aspect-ratio:4/3;border-radius:14px;object-fit:contain;background:var(--surface);margin-bottom:16px}
     .dex-detail-name{font-size:22px;font-weight:700}
     .dex-detail-sci{font-size:13px;color:var(--text3);font-style:italic;margin-top:2px}
     .dex-detail-desc{font-size:13px;color:var(--text2);line-height:1.7;margin-top:12px}
