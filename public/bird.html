@@ -261,12 +261,22 @@ function birdPinyin(en) {
   const cached = birdTransCache[en];
   return (cached && cached.cn_name_pinyin) ? cached.cn_name_pinyin : '';
 }
-// Name + pinyin underneath as HTML
+// TTS: speak English bird name
+function speakBird(name, e) {
+  if (e) e.stopPropagation();
+  const u = new SpeechSynthesisUtterance(name);
+  u.lang = 'en-US';
+  u.rate = 0.85;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+// Name + pinyin + speak button as HTML
 function birdNameHtml(en) {
   const name = birdName(en);
   const py = birdPinyin(en);
-  if (!py) return name;
-  return `${name}<br><span style="font-size:0.65em;color:var(--text3);font-weight:normal;letter-spacing:0.5px">${py}</span>`;
+  const speakBtn = `<span onclick="speakBird('${en.replace(/'/g,"\\'")}',event)" style="cursor:pointer;font-size:0.7em;opacity:0.5;margin-left:4px" title="Pronounce">&#x1F50A;</span>`;
+  if (!py) return `${name}${speakBtn}`;
+  return `${name}${speakBtn}<br><span style="font-size:0.65em;color:var(--text3);font-weight:normal;letter-spacing:0.5px">${py}</span>`;
 }
 
 function birdDesc(en) {
@@ -1026,9 +1036,9 @@ async function showDexDetail(name, sci) {
   el.innerHTML = `<div class="dex-detail">
     <button class="dex-back" onclick="dexShowingDetail=false;renderDexList(dexSpecies)">&larr; ${cn ? '返回列表' : 'Back to list'}</button>
     ${wiki.image ? `<img class="dex-hero" src="${wiki.image}" alt="${dName}">` : `<div class="dex-hero" style="display:flex;align-items:center;justify-content:center;font-size:64px;background:var(--surface)">🐦</div>`}
-    <div class="dex-detail-name">${dName}${(() => { const u = cn ? (wiki.url_zh||wiki.url) : wiki.url; return u ? ` <a href="${u}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''; })()}</div>
+    <div class="dex-detail-name">${dName} <span onclick="speakBird('${name.replace(/'/g,"\\'")}',event)" style="cursor:pointer;font-size:14px;opacity:0.5" title="Pronounce">&#x1F50A;</span>${(() => { const u = cn ? (wiki.url_zh||wiki.url) : wiki.url; return u ? ` <a href="${u}" target="_blank" style="font-size:13px;color:var(--accent);text-decoration:none">↗</a>` : ''; })()}</div>
     ${cn && trans.cn_name_pinyin ? `<div style="font-size:13px;color:var(--text3);margin-top:2px;letter-spacing:0.5px">${trans.cn_name_pinyin}</div>` : ''}
-    <div class="dex-detail-sci">${sci}</div>
+    <div class="dex-detail-sci">${sci} <span onclick="speakBird('${name.replace(/'/g,"\\'")}',event)" style="cursor:pointer;font-size:11px;color:var(--text3)" title="Listen to English name">&#x1F50A; ${name}</span></div>
     ${desc ? `<div class="dex-detail-desc">${desc}</div>` : ''}
 
     <div class="dex-detail-grid">
