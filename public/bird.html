@@ -1053,7 +1053,46 @@ async function showDexDetail(name, sci) {
       ${cn ? '首次记录' : 'First seen'}: ${firstSeen}<br>
       ${cn ? '最后记录' : 'Last seen'}: ${lastSeen}
     </div>
+
+    <div style="margin-top:16px">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${cn ? '活跃时段（所有记录）' : 'Active Hours (All Time)'}</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <canvas id="dexHourlyChart" height="150"></canvas>
+      </div>
+    </div>
   </div>`;
+
+  // Load and render hourly chart for this species
+  try {
+    const hRes = await fetch('/api/birds/species-hours/' + encodeURIComponent(name));
+    const hData = await hRes.json();
+    const chartCanvas = document.getElementById('dexHourlyChart');
+    if (chartCanvas && hData.hourly) {
+      if (window._dexChart) window._dexChart.destroy();
+      const peak = Math.max(...hData.hourly);
+      window._dexChart = new Chart(chartCanvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: Array.from({length:24}, (_,i) => i + ':00'),
+          datasets: [{
+            data: hData.hourly,
+            backgroundColor: hData.hourly.map(v => v === peak && v > 0 ? '#f97316' : 'rgba(74,222,128,0.6)'),
+            borderRadius: 3,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: {
+            callbacks: { label: (c) => c.raw + ' ' + (cn ? '次检测' : 'detections') }
+          }},
+          scales: {
+            x: { grid: { color: 'rgba(36,67,46,0.3)' }, ticks: { color: '#5a7a66', font: { size: 9 } } },
+            y: { beginAtZero: true, grid: { color: 'rgba(36,67,46,0.2)' }, ticks: { color: '#5a7a66', stepSize: 1 } },
+          }
+        }
+      });
+    }
+  } catch (e) { console.error('species hourly:', e); }
 }
 
 async function fetchDexDetail(name, sci) {
