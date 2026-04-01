@@ -1147,7 +1147,7 @@ IMPORTANT: Use "${cnName}" as the Chinese name throughout, do NOT use any other 
 Return a JSON object with these keys:
 - cn_name: "${cnName}" (use exactly this)
 - description_en: 100-150 word English description covering appearance, size, habitat, diet, behavior, and range
-- description_cn: 150-200 character Chinese description. MUST use "${cnName}" as the bird's name, not any alternative name.
+- description_cn: 150-200 character Chinese description. MUST use "${cnName}" as the bird's name. Write ENTIRELY in Chinese, do NOT include any English words or the English bird name.
 - size_cm: typical body length in cm (number)
 - wingspan_cm: typical wingspan in cm (number)
 - weight_g: typical weight in grams (number)
