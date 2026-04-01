@@ -526,7 +526,7 @@ async function loadBotd() {
     // Fetch detailed info from Claude
     let detail = {};
     try {
-      const dr = await fetch(`/api/birds/detail/${encodeURIComponent(b.common_name)}?sci=${encodeURIComponent(b.scientific_name)}`);
+      const dr = await fetch(`/api/birds/detail/${encodeURIComponent(b.common_name)}?sci=${encodeURIComponent(b.scientific_name)}&t=${Date.now()}`);
       detail = await dr.json();
     } catch {}
 
