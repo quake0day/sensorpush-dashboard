@@ -147,8 +147,9 @@ def detect_motion(prev_gray, curr_gray):
 def record_clip(event_id):
     """Record a short video clip from RTSP main stream."""
     clip_path = str(CLIPS_DIR / f"{event_id}.mp4")
+    proc = None
     try:
-        subprocess.run([
+        proc = subprocess.Popen([
             "ffmpeg", "-y",
             "-rtsp_transport", "tcp",
             "-i", RTSP_MAIN,
@@ -158,9 +159,14 @@ def record_clip(event_id):
             "-c:a", "aac", "-ar", "16000", "-ac", "1",
             "-movflags", "+faststart",
             clip_path
-        ], capture_output=True, timeout=RECORD_DURATION + 15)
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        proc.wait(timeout=RECORD_DURATION + 15)
         return os.path.exists(clip_path) and os.path.getsize(clip_path) > 10000
+    except subprocess.TimeoutExpired:
+        if proc: proc.kill(); proc.wait()
+        print("Recording timed out (ffmpeg killed)")
     except Exception as e:
+        if proc and proc.poll() is None: proc.kill(); proc.wait()
         print(f"Recording error: {e}")
         return False
 

@@ -69,17 +69,14 @@ def save_daily(entries, d=None):
 
 def extract_audio(output_path):
     """Extract audio directly from RTSP with noise filtering for bird detection."""
+    proc = None
     try:
-        # Audio filter chain optimized for bird detection:
-        # 1. Double highpass at 800Hz — remove water/wind/traffic noise
-        # 2. Lowpass at 10kHz — remove high-freq hiss
-        # 3. Volume boost 3x — compensate for quiet mic (no clipping)
         audio_filter = (
             "highpass=f=500,"
             "lowpass=f=12000,"
             "volume=8.0"
         )
-        result = subprocess.run([
+        proc = subprocess.Popen([
             "ffmpeg", "-y",
             "-rtsp_transport", "tcp",
             "-i", RTSP_URL,
@@ -89,9 +86,19 @@ def extract_audio(output_path):
             "-acodec", "pcm_s16le",
             "-ar", "48000", "-ac", "1",
             output_path
-        ], capture_output=True, text=True, timeout=20)
-        return result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 1000
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        proc.wait(timeout=CHUNK_SECONDS + 10)
+        return proc.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 1000
+    except subprocess.TimeoutExpired:
+        if proc:
+            proc.kill()
+            proc.wait()
+        print("Audio extraction timed out (ffmpeg killed)")
+        return False
     except Exception as e:
+        if proc and proc.poll() is None:
+            proc.kill()
+            proc.wait()
         print(f"Audio extraction error: {e}")
         return False
 
