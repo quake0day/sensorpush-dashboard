@@ -46,16 +46,31 @@ function initGarden(canvasId, opts) {
   function startGarden() {
     var bgImg = useNightBg ? bgNight : bgDay;
     var ratio = bgImg.height / bgImg.width;
+    // Reference resolution (all coordinates authored at this size)
+    var REF_W = 820, REF_H = Math.round(820 * ratio);
     var cw, ch;
     if (opts.fitParent) {
       cw = canvas.parentElement.clientWidth;
       ch = canvas.parentElement.clientHeight;
     } else {
-      cw = 820;
-      ch = Math.round(cw * ratio);
+      cw = REF_W;
+      ch = REF_H;
     }
     canvas.width = cw;
     canvas.height = ch;
+
+    // Background draw params (scale-to-fill)
+    var bgScale = Math.max(cw / bgImg.naturalWidth, ch / bgImg.naturalHeight);
+    var bgDrawW = bgImg.naturalWidth * bgScale;
+    var bgDrawH = bgImg.naturalHeight * bgScale;
+    var bgOffX = (cw - bgDrawW) / 2;
+    var bgOffY = (ch - bgDrawH) / 2;
+
+    // Transform: map reference 820-space coordinates to actual canvas
+    // All sparkle/light/moon positions are in 820-space
+    function mapX(x) { return bgOffX + (x / REF_W) * bgDrawW; }
+    function mapY(y) { return bgOffY + (y / REF_H) * bgDrawH; }
+    function mapR(r) { return r * bgScale; }
 
     var timeF = ts.timeF, isNight = ts.isNight, isDawn = ts.isDawn, isDusk = ts.isDusk;
     var weatherDesc = '', showRain = false;
@@ -87,7 +102,7 @@ function initGarden(canvasId, opts) {
     var month = getETMonth();
     var isSummer = month >= 5 && month <= 8;
     var fireflies = [];
-    for (var i = 0; i < (isSummer ? 5 : 0); i++) fireflies.push({ x:200+Math.random()*400, y:150+Math.random()*250, dx:(Math.random()-0.5)*0.3, dy:(Math.random()-0.5)*0.2, phase:Math.random()*Math.PI*2 });
+    for (var i = 0; i < (isSummer ? 5 : 0); i++) fireflies.push({ x:mapX(200+Math.random()*400), y:mapY(150+Math.random()*250), dx:(Math.random()-0.5)*0.3, dy:(Math.random()-0.5)*0.2, phase:Math.random()*Math.PI*2 });
 
     var sparklePoints = useNightBg
       ? [[478,385],[493,394],[500,415],[496,434],[470,438],[530,454]]
@@ -118,9 +133,9 @@ function initGarden(canvasId, opts) {
     function getSunConfig() {
       var s = gardenSunTimes, dayLen = s.duskEnd - s.dawnStart;
       var progress = Math.max(0, Math.min(1, (timeF - s.dawnStart) / dayLen));
-      var horizonY = 82, sx = 60 + progress * (cw - 120);
-      var arcH = Math.sin(progress * Math.PI), sy = horizonY - arcH * (horizonY - 8);
-      var size = 14 + arcH * 6, edgeDist = Math.min(progress, 1 - progress);
+      var horizonY = mapY(82), sx = mapX(60) + progress * (mapX(760) - mapX(60));
+      var arcH = Math.sin(progress * Math.PI), sy = horizonY - arcH * (horizonY - mapY(8));
+      var size = mapR(14 + arcH * 6), edgeDist = Math.min(progress, 1 - progress);
       var sinkRatio = edgeDist < 0.1 ? 1 - (edgeDist / 0.1) : 0;
       var core, glow, rayColor, glowR, glowAlpha;
       if (edgeDist < 0.08) { core='#ff4020';glow='rgba(255,60,10,';rayColor='#ff5030';glowR=size*5;glowAlpha=0.25; }
@@ -201,7 +216,7 @@ function initGarden(canvasId, opts) {
 
       // Draw background (scale to fill)
       var scl = Math.max(cw / bgImg.naturalWidth, ch / bgImg.naturalHeight);
-      ctx.drawImage(bgImg, (cw - bgImg.naturalWidth*scl)/2, (ch - bgImg.naturalHeight*scl)/2, bgImg.naturalWidth*scl, bgImg.naturalHeight*scl);
+      ctx.drawImage(bgImg, bgOffX, bgOffY, bgDrawW, bgDrawH);
 
       // Time overlays
       if(isNight){ctx.fillStyle='rgba(5,8,25,0.15)';ctx.fillRect(0,0,cw,ch);}
@@ -210,7 +225,7 @@ function initGarden(canvasId, opts) {
 
       // Sun or Moon
       if(isNight){
-        drawPixelMoon(cw*0.83,45,18);
+        drawPixelMoon(mapX(680),mapY(45),mapR(18));
         ctx.fillStyle='#fff';
         for(var i=0;i<30;i++){var sx2=(i*137.5+frame*0.02)%cw,sy2=(i*97.3)%(ch*0.3);ctx.globalAlpha=0.3+0.4*Math.sin(frame*0.05+i);px(sx2,sy2,1,1,'#fff');}
         ctx.globalAlpha=1;
@@ -236,10 +251,8 @@ function initGarden(canvasId, opts) {
       // Night lights
       if(isNight){
         var lights=[{x:237,y:383,r:55,color:[255,180,80],flicker:0.15},{x:504,y:482,r:40,color:[255,190,100],flicker:0.1},{x:634,y:438,r:38,color:[255,185,90],flicker:0.12},{x:633,y:531,r:35,color:[255,190,100],flicker:0.1}];
-        // Scale light positions for fitParent
-        var scaleX = cw / 820, scaleY = ch / (820 * ratio);
         lights.forEach(function(l,i){
-          var lx = l.x * scaleX, ly = l.y * scaleY, lr = l.r * Math.min(scaleX, scaleY);
+          var lx = mapX(l.x), ly = mapY(l.y), lr = mapR(l.r);
           var pulse=1+Math.sin(frame*0.04+i*1.7)*l.flicker, rr=lr*pulse;
           var g1=ctx.createRadialGradient(lx,ly,0,lx,ly,rr);
           g1.addColorStop(0,'rgba('+l.color.join(',')+',0.25)');g1.addColorStop(0.4,'rgba('+l.color.join(',')+',0.1)');g1.addColorStop(1,'rgba('+l.color.join(',')+',0)');
@@ -251,8 +264,7 @@ function initGarden(canvasId, opts) {
       }
 
       // Water sparkles
-      var spScaleX = cw / 820, spScaleY = ch / (820 * ratio);
-      sparkles.forEach(function(s){s.phase+=0.04*s.speed;var al=0.2+0.6*Math.abs(Math.sin(s.phase));var col=isNight?'rgba(100,150,200,'+al+')':'rgba(200,230,255,'+al+')';px(s.x*spScaleX,s.y*spScaleY,2,2,col);});
+      sparkles.forEach(function(s){s.phase+=0.04*s.speed;var al=0.2+0.6*Math.abs(Math.sin(s.phase));var col=isNight?'rgba(100,150,200,'+al+')':'rgba(200,230,255,'+al+')';px(mapX(s.x),mapY(s.y),2,2,col);});
 
       // Rain
       if(showRain){ctx.strokeStyle='rgba(180,200,220,0.4)';ctx.lineWidth=1;raindrops.forEach(function(r){r.y+=r.speed;r.x-=r.speed*0.2;if(r.y>ch){r.y=-r.len;r.x=Math.random()*cw;}ctx.beginPath();ctx.moveTo(Math.round(r.x),Math.round(r.y));ctx.lineTo(Math.round(r.x+r.speed*0.2),Math.round(r.y+r.len));ctx.stroke();});}
