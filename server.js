@@ -329,90 +329,66 @@ app.use("/hls", (req, res, next) => {
 }, express.static(HLS_DIR));
 
 let ffmpegProc = null;
-let ffmpegStream = "main"; // always use main for audio + quality
-let ffmpegQuality = "1080p"; // "1080p", "720p", "4k"
+let ffmpegQuality = "stable"; // "stable" (sub, copy, 0% CPU) or "hd" (main, transcode)
 let ffmpegStartTime = 0;
 let ffmpegRestarts = 0;
 
-function rtspUrl() {
-  // Always use main stream (has audio; sub stream has NO audio)
-  return `rtsp://${encodeURIComponent(REOLINK_USER)}:${encodeURIComponent(REOLINK_PASS)}@${REOLINK_IP}:554/h264Preview_01_main`;
+function rtspUrl(stream) {
+  const profile = stream === "main" ? "h264Preview_01_main" : "h264Preview_01_sub";
+  return `rtsp://${encodeURIComponent(REOLINK_USER)}:${encodeURIComponent(REOLINK_PASS)}@${REOLINK_IP}:554/${profile}`;
 }
-
-const QUALITY_PRESETS = {
-  "4k":    { scale: null, vbr: "8000k",  maxrate: "10000k", bufsize: "16000k" },
-  "1080p": { scale: "1920:-2", vbr: "3000k", maxrate: "4000k", bufsize: "6000k" },
-  "720p":  { scale: "1280:-2", vbr: "1500k", maxrate: "2000k", bufsize: "3000k" },
-};
 
 function startFFmpeg(quality) {
   if (ffmpegProc) {
     ffmpegProc.kill("SIGTERM");
     ffmpegProc = null;
   }
-  // Clean old segments
   try {
     fs.readdirSync(HLS_DIR).forEach(f => fs.unlinkSync(path.join(HLS_DIR, f)));
   } catch (e) {}
 
   ffmpegQuality = quality || ffmpegQuality;
   ffmpegStartTime = Date.now();
-  const url = rtspUrl();
-  const preset = QUALITY_PRESETS[ffmpegQuality] || QUALITY_PRESETS["1080p"];
-  console.log(`Starting ffmpeg: RTSP main → H.264 ${ffmpegQuality} + AAC → HLS`);
+  const useHD = ffmpegQuality === "hd";
 
   const args = [
-    // Input: RTSP over TCP, stable connection
-    "-fflags", "+genpts+discardcorrupt",
+    "-fflags", "+genpts+discardcorrupt+nobuffer",
     "-rtsp_transport", "tcp",
     "-rtsp_flags", "prefer_tcp",
-    "-buffer_size", "8388608",    // 8MB input buffer
-    "-max_delay", "1000000",      // 1s max delay
-    "-reorder_queue_size", "2048",
-    "-analyzeduration", "5000000",
-    "-probesize", "5000000",
-    "-i", url,
-
-    // Explicit stream mapping (required for audio to work)
-    "-map", "0:v:0",
-    "-map", "0:a:0",
-
-    // Video: transcode HEVC→H.264 (browser-compatible)
-    "-c:v:0", "libx264",
-    "-preset", "fast",
-    "-tune", "zerolatency",
-    "-profile:v", "high",
-    "-level", "4.1",
-    "-b:v:0", preset.vbr,
-    "-maxrate:v", preset.maxrate,
-    "-bufsize:v", preset.bufsize,
+    "-buffer_size", "4194304",
+    "-analyzeduration", "2000000",
+    "-probesize", "2000000",
   ];
 
-  // Scale if not 4K passthrough — use filter_complex to avoid affecting audio
-  if (preset.scale) {
-    args.push("-filter:v", `scale=${preset.scale}`);
+  if (useHD) {
+    // Main stream: HEVC 4K → transcode to 720p H.264 (lighter than 1080p)
+    console.log("Starting ffmpeg: RTSP main → H.264 720p + AAC → HLS (transcode)");
+    args.push(
+      "-i", rtspUrl("main"),
+      "-map", "0:v:0", "-map", "0:a:0",
+      "-c:v:0", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+      "-b:v:0", "1200k", "-maxrate:v", "1500k", "-bufsize:v", "2000k",
+      "-filter:v", "scale=1280:-2",
+      "-r", "15", "-g", "30",
+      "-c:a:0", "aac", "-ar", "16000", "-ac", "1", "-b:a:0", "64k",
+      "-sc_threshold", "0",
+    );
+  } else {
+    // Sub stream: H.264 640x360 → copy (0% CPU, rock stable)
+    console.log("Starting ffmpeg: RTSP sub → H.264 copy → HLS (no transcode)");
+    args.push(
+      "-i", rtspUrl("sub"),
+      "-c:v", "copy",
+      "-an",  // sub has no audio
+    );
   }
 
   args.push(
-    "-r", "25",                    // Output 25fps
-    "-g", "50",                    // Keyframe every 2s (25fps * 2)
-    "-sc_threshold", "0",
-    "-flags", "+cgop",             // Closed GOP for HLS
-
-    // Audio: re-encode AAC with explicit params (copy loses channel metadata)
-    "-c:a:0", "aac",
-    "-ar", "16000",
-    "-ac", "1",
-    "-b:a:0", "64k",
-    "-strict", "experimental",
-
-    // HLS output
     "-f", "hls",
-    "-hls_time", "4",             // 4s segments (more stable than 2s)
-    "-hls_list_size", "5",
+    "-hls_time", "2",
+    "-hls_list_size", "6",
     "-hls_flags", "delete_segments+append_list+independent_segments",
     "-hls_segment_type", "mpegts",
-    "-hls_start_number_source", "datetime",
     "-hls_segment_filename", path.join(HLS_DIR, "seg%05d.ts"),
     path.join(HLS_DIR, "stream.m3u8"),
   );
@@ -422,9 +398,8 @@ function startFFmpeg(quality) {
   let stderrBuf = "";
   ffmpegProc.stderr.on("data", (data) => {
     stderrBuf += data.toString();
-    // Log errors and periodic status
     const lines = stderrBuf.split("\n");
-    stderrBuf = lines.pop(); // keep incomplete line
+    stderrBuf = lines.pop();
     for (const line of lines) {
       if (line.includes("error") || line.includes("Error") || line.includes("Opening") || line.includes("Output #0")) {
         console.log("ffmpeg:", line.trim());
@@ -435,20 +410,19 @@ function startFFmpeg(quality) {
   ffmpegProc.on("exit", (code) => {
     console.log(`ffmpeg exited with code ${code}`);
     ffmpegProc = null;
-    // Auto-restart if it crashed (max 10 restarts)
-    if (code !== 0 && ffmpegRestarts < 10) {
+    if (code !== 0 && ffmpegRestarts < 20) {
       ffmpegRestarts++;
-      console.log(`ffmpeg auto-restart #${ffmpegRestarts} in 3s...`);
-      setTimeout(() => startFFmpeg(ffmpegQuality), 3000);
+      const delay = Math.min(3000 + ffmpegRestarts * 2000, 30000);
+      console.log(`ffmpeg auto-restart #${ffmpegRestarts} in ${delay/1000}s...`);
+      setTimeout(() => startFFmpeg(ffmpegQuality), delay);
     }
   });
 
-  // Reset restart counter after 60s of stable operation
-  setTimeout(() => { ffmpegRestarts = Math.max(0, ffmpegRestarts - 1); }, 60000);
+  setTimeout(() => { ffmpegRestarts = Math.max(0, ffmpegRestarts - 1); }, 120000);
 }
 
-// Auto-start ffmpeg on server boot (1080p with audio)
-startFFmpeg("1080p");
+// Default: use stable sub stream (no transcode, never drops)
+startFFmpeg("stable");
 
 // API: stream status
 app.get("/api/camera/status", (req, res) => {
@@ -467,7 +441,7 @@ app.get("/api/camera/status", (req, res) => {
 // API: switch output quality (always from main RTSP stream)
 app.post("/api/camera/stream", (req, res) => {
   const { quality } = req.body;
-  if (!["4k", "1080p", "720p"].includes(quality)) return res.status(400).json({ error: "Invalid quality: 4k, 1080p, or 720p" });
+  if (!["stable", "hd"].includes(quality)) return res.status(400).json({ error: "Invalid quality: stable or hd" });
   startFFmpeg(quality);
   res.json({ ok: true, quality });
 });
