@@ -506,6 +506,9 @@ setInterval(loadWater, 60000);
 setInterval(loadBirdData, 300000);
 setInterval(loadTempChart, 300000);
 setInterval(loadExtraCharts, 300000);
+
+// Full page reload every hour to pick up any code updates
+setInterval(() => { location.reload(); }, 3600000);
 </script>
 </body>
 </html>
