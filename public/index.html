@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Smart Garden</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="/garden.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
   <style>
     :root {
@@ -645,9 +646,11 @@ function translateDay(name) {
 
 // ============ Pixel Garden ============
 // Sun times (updated from weather API)
-let gardenSunTimes = { sunrise: 6.5, sunset: 19.5, dawnStart: 6, duskEnd: 20 }; // defaults in ET hours
+var gardenSunTimes = { sunrise: 6.5, sunset: 19.5, dawnStart: 6, duskEnd: 20 }; // defaults in ET hours
 
-function renderGarden() {
+// Garden rendering is now in /garden.js (shared with TV page)
+function renderGarden() { initGarden('gardenCanvas'); }
+function renderGarden_ORIGINAL_UNUSED() {
   const canvas = document.getElementById('gardenCanvas');
   const ctx = canvas.getContext('2d');
 

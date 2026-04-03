@@ -6,6 +6,7 @@
   <title>Smart Garden TV</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="/garden.js"></script>
   <style>
     :root{--bg:#0a1a10;--surface:#12261a;--surface2:#1a3326;--border:#24432e;--text:#e8f0e8;--text2:#8aaa96;--text3:#5a7a66;--accent:#4ade80;--orange:#f97316;--blue:#38bdf8;--red:#ef4444;--green:#22c55e;--yellow:#facc15}
     *{margin:0;padding:0;box-sizing:border-box}
@@ -107,6 +108,12 @@
     .tv-bird-item .bcount{font-size:12px;color:var(--accent);font-weight:700}
     .tv-bird-item .bconf{font-size:9px;color:var(--text3)}
     .tv-bird-item .rank{font-size:10px;color:var(--text3);font-weight:700;width:20px;text-align:center;flex-shrink:0}
+
+    /* Timeline */
+    .tv-tl-item{display:flex;align-items:center;gap:6px;padding:3px 6px;font-size:11px}
+    .tv-tl-time{color:var(--text3);font-family:monospace;font-size:10px;min-width:55px;flex-shrink:0}
+    .tv-tl-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+    .tv-tl-conf{color:var(--text3);font-size:10px}
   </style>
 </head>
 <body>
@@ -125,6 +132,10 @@
     <div class="tv-sensors" id="tvSensors"></div>
     <div class="section-label" id="lblChart">24h Temperature</div>
     <div class="tv-chart-box"><canvas id="tvTempChart"></canvas></div>
+    <div class="section-label" id="lblHumChart">24h Humidity</div>
+    <div class="tv-chart-box"><canvas id="tvHumChart"></canvas></div>
+    <div class="section-label" id="lblVpdChart">24h VPD</div>
+    <div class="tv-chart-box"><canvas id="tvVpdChart"></canvas></div>
     <div class="tv-water" id="tvWater" style="display:none">
       <div><div class="level" id="tvWaterLevel">--%</div><div class="label" id="tvWaterLabel">Water Level</div></div>
       <div class="tv-water-bar"><div class="tv-water-fill" id="tvWaterFill"></div></div>
@@ -146,8 +157,10 @@
       <div class="section-label" id="tvBirdsTitle">Bird Detection</div>
       <div class="tv-bird-stats" id="tvBirdStats"></div>
       <div id="tvBotd"></div>
-      <div class="section-label" id="tvRecentTitle" style="margin-top:4px">Top Species</div>
+      <div class="section-label" id="tvRecentTitle" style="margin-top:4px">Top 5 Species</div>
       <div class="tv-bird-list" id="tvBirdList"></div>
+      <div class="section-label" id="tvTimelineTitle" style="margin-top:4px">Recent Detections</div>
+      <div id="tvTimeline"></div>
     </div>
   </div>
 </div>
@@ -242,6 +255,38 @@ async function loadTempChart() {
       type:'line', data:{ labels, datasets:[{data:temps,borderColor:'#4ade80',backgroundColor:'rgba(74,222,128,0.1)',fill:true,tension:0.3,pointRadius:0,borderWidth:1.5}] },
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'rgba(36,67,46,0.3)'},ticks:{color:'#5a7a66',font:{size:9},callback:v=>v+'°C'}}}}
     });
+  } catch {}
+}
+
+let tvHumChart = null, tvVpdChart = null;
+async function loadExtraCharts() {
+  try {
+    const sensors = await (await fetch('/api/sensors')).json();
+    const sensorIds = Object.keys(sensors);
+    if (!sensorIds.length) return;
+    const now = new Date();
+    const body = { sensors: sensorIds, startTime: new Date(now - 24*3600000).toISOString(), limit: 500 };
+    const data = await (await fetch('/api/samples',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    const samples = (data.sensors?.[sensorIds[0]] || []).reverse();
+    if (!samples.length) return;
+    const labels = samples.map(s => new Date(s.observed).toLocaleTimeString(cn?'zh-CN':'en-US',{hour:'2-digit',minute:'2-digit'}));
+    const chartOpts = (color, unit) => ({
+      type:'line', options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'rgba(36,67,46,0.3)'},ticks:{color:'#5a7a66',font:{size:9},callback:v=>v+unit}}}}
+    });
+    // Humidity
+    const humData = samples.map(s => s.humidity?.toFixed(0));
+    if (humData.some(v => v)) {
+      const ctx1 = document.getElementById('tvHumChart').getContext('2d');
+      if (tvHumChart) tvHumChart.destroy();
+      tvHumChart = new Chart(ctx1, {...chartOpts('#38bdf8','%'), data:{labels,datasets:[{data:humData,borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,0.1)',fill:true,tension:0.3,pointRadius:0,borderWidth:1.5}]}});
+    }
+    // VPD
+    const vpdData = samples.map(s => s.vpd?.toFixed(2));
+    if (vpdData.some(v => v)) {
+      const ctx2 = document.getElementById('tvVpdChart').getContext('2d');
+      if (tvVpdChart) tvVpdChart.destroy();
+      tvVpdChart = new Chart(ctx2, {...chartOpts('#a78bfa',' kPa'), data:{labels,datasets:[{data:vpdData,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,0.1)',fill:true,tension:0.3,pointRadius:0,borderWidth:1.5}]}});
+    }
   } catch {}
 }
 
@@ -379,7 +424,7 @@ async function loadBirdData() {
     // Leaderboard
     const lb = stats.leaderboard || [];
     let listHtml = '';
-    for (let i = 0; i < Math.min(lb.length, 10); i++) {
+    for (let i = 0; i < Math.min(lb.length, 5); i++) {
       const sp = lb[i];
       const t = birdTrans[sp.common_name] || {};
       const name = cn ? (t.cn_name||sp.common_name) : sp.common_name;
@@ -392,6 +437,20 @@ async function loadBirdData() {
       listHtml += `<div class="tv-bird-item" style="animation-delay:${i*0.05}s"><span class="rank">#${i+1}</span>${img}<span class="bname">${name}</span><span class="bcount">${sp.count}x</span><span class="bconf">${Math.round(sp.avg_conf*100)}%</span></div>`;
     }
     document.getElementById('tvBirdList').innerHTML = listHtml || `<div style="color:var(--text3);font-size:11px;text-align:center;padding:10px">${cn?'暂无':'None'}</div>`;
+
+    // Recent detections timeline (latest 5)
+    try {
+      function localDate(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+      const daily = await (await fetch(`/api/birds/daily/${localDate()}`)).json();
+      const recent = (daily.detections || []).slice(-5).reverse();
+      document.getElementById('tvTimelineTitle').textContent = cn ? '最近检测' : 'Recent Detections';
+      document.getElementById('tvTimeline').innerHTML = recent.length ? recent.map(d => {
+        const t = birdTrans[d.common_name] || {};
+        const nm = cn ? (t.cn_name || d.common_name) : d.common_name;
+        const tm = new Date(d.time).toLocaleTimeString(cn?'zh-CN':'en-US',{hour:'2-digit',minute:'2-digit'});
+        return `<div class="tv-tl-item"><span class="tv-tl-time">${tm}</span><span class="tv-tl-name">${nm}</span><span class="tv-tl-conf">${Math.round(d.confidence*100)}%</span></div>`;
+      }).join('') : `<div style="color:var(--text3);font-size:10px;text-align:center;padding:6px">${cn?'今日暂无':'None today'}</div>`;
+    } catch {}
 
     // BOTD
     try {
@@ -425,33 +484,18 @@ async function loadBirdData() {
   } catch(e){console.error('birds:',e)}
 }
 
-// ============ Garden Canvas ============
-const canvas = document.getElementById('gardenCanvas');
-const ctx = canvas.getContext('2d');
-const bgDay = new Image(), bgNight = new Image();
-bgDay.src = '/garden-bg.jpg';
-bgNight.src = '/garden-night.jpg';
-let gardenReady = 0;
-bgDay.onload = () => { gardenReady++; if(gardenReady>=2) animateGarden(); };
-bgNight.onload = () => { gardenReady++; if(gardenReady>=2) animateGarden(); };
+// ============ Garden Canvas (shared from garden.js) ============
+initGarden('gardenCanvas', { fitParent: true });
 
-function animateGarden() {
-  const W = canvas.parentElement.clientWidth;
-  const H = canvas.parentElement.clientHeight;
-  canvas.width = W; canvas.height = H;
-  const hour = new Date().getHours();
-  const isNight = hour < 6 || hour >= 20;
-  const bg = isNight ? bgNight : bgDay;
-  const scale = Math.max(W/bg.naturalWidth, H/bg.naturalHeight);
-  ctx.drawImage(bg, (W-bg.naturalWidth*scale)/2, (H-bg.naturalHeight*scale)/2, bg.naturalWidth*scale, bg.naturalHeight*scale);
-  if (isNight) { ctx.fillStyle = 'rgba(0,10,20,0.25)'; ctx.fillRect(0,0,W,H); }
-  requestAnimationFrame(animateGarden);
-}
+// Labels
+document.getElementById('lblHumChart').textContent = cn ? '24小时湿度' : '24h Humidity';
+document.getElementById('lblVpdChart').textContent = cn ? '24小时VPD' : '24h VPD';
 
 // ============ Init ============
 loadWeather();
 loadSensors();
 loadTempChart();
+loadExtraCharts();
 loadWater();
 initKoiCam();
 loadBirdData();
@@ -461,6 +505,7 @@ setInterval(loadWeather, 900000);
 setInterval(loadWater, 60000);
 setInterval(loadBirdData, 300000);
 setInterval(loadTempChart, 300000);
+setInterval(loadExtraCharts, 300000);
 </script>
 </body>
 </html>
