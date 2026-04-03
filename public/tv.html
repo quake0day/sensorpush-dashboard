@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1920,height=1080,initial-scale=1">
+  <title>Smart Garden TV</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    :root{--bg:#0a1a10;--surface:#12261a;--surface2:#1a3326;--border:#24432e;--text:#e8f0e8;--text2:#8aaa96;--text3:#5a7a66;--accent:#4ade80;--orange:#f97316;--blue:#38bdf8;--red:#ef4444;--green:#22c55e;--yellow:#facc15}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);width:1920px;height:1080px;overflow:hidden}
+
+    /* 3-column layout */
+    .tv-layout{display:grid;grid-template-columns:340px 1fr 420px;height:1080px;gap:0}
+
+    /* Left panel - sensors */
+    .left-panel{background:var(--surface);border-right:1px solid var(--border);padding:16px;display:flex;flex-direction:column;overflow:hidden}
+    .tv-title{font-size:18px;font-weight:700;margin-bottom:2px}
+    .tv-title .leaf{color:var(--accent)}
+    .tv-subtitle{font-size:10px;color:var(--text3);margin-bottom:12px}
+    .tv-clock{font-family:monospace;font-size:13px;color:var(--text2);margin-bottom:12px;text-align:center}
+
+    /* Weather compact */
+    .tv-wx{background:var(--surface2);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:10px}
+    .tv-wx .wx-icon{font-size:32px}
+    .tv-wx .wx-temp{font-size:28px;font-weight:700}
+    .tv-wx .wx-desc{font-size:11px;color:var(--text2)}
+    .tv-wx-details{display:flex;gap:8px;margin-bottom:10px}
+    .tv-wx-detail{flex:1;background:var(--surface2);border-radius:8px;padding:6px;text-align:center}
+    .tv-wx-detail .v{font-size:14px;font-weight:600}
+    .tv-wx-detail .l{font-size:9px;color:var(--text3)}
+
+    /* Forecast mini */
+    .tv-forecast{display:flex;gap:4px;margin-bottom:12px;overflow:hidden}
+    .tv-fc{flex:1;background:var(--surface2);border-radius:6px;padding:4px 2px;text-align:center;min-width:0}
+    .tv-fc .day{font-size:8px;color:var(--text3)}
+    .tv-fc .icon{font-size:16px}
+    .tv-fc .temp{font-size:11px;font-weight:600}
+
+    /* Sensor cards */
+    .tv-sensors{flex:1;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+    .tv-sensor{background:var(--surface2);border-radius:10px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between}
+    .tv-sensor .name{font-size:11px;color:var(--text3)}
+    .tv-sensor .val{font-size:20px;font-weight:700}
+    .tv-sensor .unit{font-size:11px;color:var(--text3)}
+    .tv-sensor .interp{font-size:9px;color:var(--text2);margin-top:2px}
+    .tv-sensor.alert .val{color:var(--orange)}
+
+    /* Water level */
+    .tv-water{background:var(--surface2);border-radius:10px;padding:10px 12px;margin-top:auto;display:flex;align-items:center;gap:10px}
+    .tv-water .level{font-size:24px;font-weight:700}
+    .tv-water .label{font-size:10px;color:var(--text3)}
+    .tv-water-bar{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden}
+    .tv-water-fill{height:100%;border-radius:4px;transition:width 1s}
+
+    /* Center - garden */
+    .center-panel{position:relative;overflow:hidden}
+    .center-panel canvas{width:100%;height:100%;display:block}
+
+    /* Right panel */
+    .right-panel{display:flex;flex-direction:column;border-left:1px solid var(--border)}
+
+    /* Koi cam */
+    .tv-cam{flex:1;background:#000;position:relative;min-height:0}
+    .tv-cam video{width:100%;height:100%;object-fit:cover}
+    .tv-cam .cam-label{position:absolute;top:8px;left:10px;background:rgba(220,38,38,0.85);color:#fff;font-size:9px;font-weight:700;padding:2px 8px;border-radius:3px;letter-spacing:1px;display:flex;align-items:center;gap:4px}
+    .tv-cam .cam-label .dot{width:5px;height:5px;border-radius:50%;background:#fff;animation:blink 1s infinite}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+    /* Birds section */
+    .tv-birds{flex:1;background:var(--surface);padding:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+    .tv-birds-title{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+    .tv-birds-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+    /* BOTD compact */
+    .tv-botd{background:var(--surface2);border-radius:10px;padding:10px;display:flex;gap:10px;margin-bottom:8px;position:relative;overflow:hidden}
+    .tv-botd::before{content:'';position:absolute;top:-20px;right:-20px;width:60px;height:60px;background:radial-gradient(circle,rgba(74,222,128,0.08),transparent);pointer-events:none}
+    .tv-botd img{width:70px;height:70px;border-radius:10px;object-fit:contain;background:var(--surface);flex-shrink:0}
+    .tv-botd .info{flex:1;min-width:0}
+    .tv-botd .badge{font-size:8px;color:var(--accent);text-transform:uppercase;letter-spacing:1px}
+    .tv-botd .name{font-size:15px;font-weight:700;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tv-botd .sci{font-size:10px;color:var(--text3);font-style:italic}
+    .tv-botd .desc{font-size:9px;color:var(--text2);margin-top:3px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+    /* Recent birds list */
+    .tv-bird-list{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:4px}
+    .tv-bird-item{display:flex;align-items:center;gap:8px;padding:4px 6px;background:var(--surface2);border-radius:6px}
+    .tv-bird-item img{width:32px;height:32px;border-radius:6px;object-fit:cover;object-position:top;background:var(--surface)}
+    .tv-bird-item .bname{font-size:12px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tv-bird-item .bcount{font-size:11px;color:var(--accent);font-weight:700}
+    .tv-bird-item .bconf{font-size:9px;color:var(--text3)}
+
+    /* Stats row */
+    .tv-bird-stats{display:flex;gap:6px;margin-bottom:8px}
+    .tv-bstat{flex:1;background:var(--surface2);border-radius:6px;padding:6px;text-align:center}
+    .tv-bstat .v{font-size:18px;font-weight:700}
+    .tv-bstat .l{font-size:8px;color:var(--text3);text-transform:uppercase}
+  </style>
+</head>
+<body>
+<div class="tv-layout">
+  <!-- LEFT: Sensors + Weather -->
+  <div class="left-panel">
+    <div class="tv-title"><span class="leaf">&#127793;</span> <span id="tvTitle">Smart Garden</span></div>
+    <div class="tv-subtitle" id="tvSub">Environmental Monitoring</div>
+    <div class="tv-clock" id="tvClock">--</div>
+    <div class="tv-wx" id="tvWx"><span class="wx-icon">--</span><div><div class="wx-temp">--</div><div class="wx-desc">--</div></div></div>
+    <div class="tv-wx-details" id="tvWxDetails"></div>
+    <div class="tv-forecast" id="tvForecast"></div>
+    <div class="tv-sensors" id="tvSensors"><div style="color:var(--text3);font-size:12px;padding:20px;text-align:center">Loading...</div></div>
+    <div class="tv-water" id="tvWater" style="display:none">
+      <div><div class="level" id="tvWaterLevel">--%</div><div class="label" id="tvWaterLabel">Water Level</div></div>
+      <div class="tv-water-bar"><div class="tv-water-fill" id="tvWaterFill" style="width:0;background:var(--blue)"></div></div>
+    </div>
+  </div>
+
+  <!-- CENTER: Garden Canvas -->
+  <div class="center-panel">
+    <canvas id="gardenCanvas"></canvas>
+  </div>
+
+  <!-- RIGHT: Koi Cam + Birds -->
+  <div class="right-panel">
+    <div class="tv-cam">
+      <video id="koiVideo" autoplay muted playsinline></video>
+      <div class="cam-label"><span class="dot"></span> <span id="camLabel">LIVE</span></div>
+    </div>
+    <div class="tv-birds">
+      <div class="tv-birds-title" id="tvBirdsTitle">Bird Detection</div>
+      <div class="tv-bird-stats" id="tvBirdStats"></div>
+      <div id="tvBotd"></div>
+      <div class="tv-birds-title" id="tvRecentTitle" style="margin-top:6px">Top Species</div>
+      <div class="tv-bird-list" id="tvBirdList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const LANG = window.location.pathname.startsWith('/cn') ? 'cn' : 'en';
+const cn = LANG === 'cn';
+
+// Labels
+document.getElementById('tvTitle').textContent = cn ? '智慧花园' : 'Smart Garden';
+document.getElementById('tvSub').textContent = cn ? '环境监测信息屏' : 'Environmental Monitoring';
+document.getElementById('tvBirdsTitle').textContent = cn ? '鸟类检测' : 'Bird Detection';
+document.getElementById('tvRecentTitle').textContent = cn ? '今日鸟种' : 'Top Species';
+document.getElementById('tvWaterLabel').textContent = cn ? '鱼塘水位' : 'Water Level';
+
+// Clock
+setInterval(() => {
+  const now = new Date();
+  document.getElementById('tvClock').textContent = now.toLocaleDateString(cn?'zh-CN':'en-US',{weekday:'long',month:'long',day:'numeric'}) + '  ' + now.toLocaleTimeString(cn?'zh-CN':'en-US');
+}, 1000);
+
+// Weather emoji map
+const wxEmoji = t => {
+  const l = (t||'').toLowerCase();
+  if (l.includes('thunder')) return '⛈';
+  if (l.includes('rain')||l.includes('shower')) return '🌧';
+  if (l.includes('snow')) return '🌨';
+  if (l.includes('cloud')||l.includes('overcast')) return '⛅';
+  if (l.includes('fog')||l.includes('mist')) return '🌫';
+  if (l.includes('sunny')||l.includes('clear')) return '☀️';
+  return '🌤';
+};
+
+async function loadWeather() {
+  try {
+    const data = await (await fetch('/api/weather')).json();
+    const cur = data.hourly?.[0] || data.forecast?.[0];
+    if (!cur) return;
+    const temp = cur.temperature;
+    const desc = cur.shortForecast || cur.name || '';
+    document.getElementById('tvWx').innerHTML = `
+      <span class="wx-icon">${wxEmoji(desc)}</span>
+      <div><div class="wx-temp">${temp}°F</div><div class="wx-desc">${desc}</div></div>`;
+
+    const details = [];
+    if (cur.windSpeed) details.push({v:cur.windSpeed, l:cn?'风速':'Wind'});
+    if (cur.relativeHumidity?.value) details.push({v:cur.relativeHumidity.value+'%', l:cn?'湿度':'Humidity'});
+    document.getElementById('tvWxDetails').innerHTML = details.map(d => `<div class="tv-wx-detail"><div class="v">${d.v}</div><div class="l">${d.l}</div></div>`).join('');
+
+    // Forecast
+    const fc = (data.forecast || []).slice(0, 7);
+    document.getElementById('tvForecast').innerHTML = fc.map(f => `
+      <div class="tv-fc">
+        <div class="day">${f.name?.split(' ')[0]?.slice(0,3) || ''}</div>
+        <div class="icon">${wxEmoji(f.shortForecast)}</div>
+        <div class="temp">${f.temperature}°</div>
+      </div>`).join('');
+  } catch {}
+}
+
+async function loadSensors() {
+  try {
+    const sensors = await (await fetch('/api/sensors')).json();
+    const ids = Object.keys(sensors);
+    if (!ids.length) return;
+    let html = '';
+    for (const id of ids) {
+      const s = sensors[id];
+      const tempC = s.temperature !== undefined ? ((s.temperature - 32) * 5/9).toFixed(1) : null;
+      const tempF = s.temperature !== undefined ? s.temperature.toFixed(1) : null;
+      if (tempF) html += `<div class="tv-sensor"><div><div class="name">${s.name || 'Sensor'}</div><div class="val">${tempF}°F <span class="unit">(${tempC}°C)</span></div></div></div>`;
+      if (s.humidity !== undefined) html += `<div class="tv-sensor"><div><div class="name">${cn?'湿度':'Humidity'}</div><div class="val">${s.humidity.toFixed(0)}%</div></div></div>`;
+      if (s.barometric_pressure) html += `<div class="tv-sensor"><div><div class="name">${cn?'气压':'Pressure'}</div><div class="val">${s.barometric_pressure.toFixed(0)} <span class="unit">hPa</span></div></div></div>`;
+      if (s.dewpoint !== undefined) {
+        const dpC = ((s.dewpoint - 32) * 5/9).toFixed(1);
+        html += `<div class="tv-sensor"><div><div class="name">${cn?'露点':'Dew Point'}</div><div class="val">${s.dewpoint.toFixed(1)}°F <span class="unit">(${dpC}°C)</span></div></div></div>`;
+      }
+      if (s.vpd !== undefined) html += `<div class="tv-sensor"><div><div class="name">VPD</div><div class="val">${s.vpd.toFixed(2)} <span class="unit">kPa</span></div></div></div>`;
+    }
+    document.getElementById('tvSensors').innerHTML = html;
+  } catch {}
+}
+
+async function loadWater() {
+  try {
+    const data = await (await fetch('/api/water/current')).json();
+    if (data.level_pct == null) return;
+    document.getElementById('tvWater').style.display = 'flex';
+    const pct = Math.round(data.level_pct);
+    document.getElementById('tvWaterLevel').textContent = pct + '%';
+    const fill = document.getElementById('tvWaterFill');
+    fill.style.width = pct + '%';
+    fill.style.background = pct >= 40 ? 'var(--blue)' : pct >= 20 ? 'var(--orange)' : 'var(--red)';
+  } catch {}
+}
+
+// HLS Koi Cam
+function initKoiCam() {
+  const video = document.getElementById('koiVideo');
+  const hlsUrl = '/hls/stream.m3u8';
+  if (Hls.isSupported()) {
+    const hls = new Hls({ liveSyncDurationCount:3, liveMaxLatencyDurationCount:8, enableWorker:true, lowLatencyMode:false });
+    hls.loadSource(hlsUrl);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(()=>{}));
+    hls.on(Hls.Events.ERROR, (e,d) => { if(d.fatal && d.type===Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError(); });
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = hlsUrl;
+  }
+  document.getElementById('camLabel').textContent = cn ? '直播' : 'LIVE';
+}
+
+// Bird data
+let birdTrans = {};
+async function loadBirdData() {
+  try {
+    birdTrans = await (await fetch('/api/birds/translations')).json();
+
+    function localDate() { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+    const stats = await (await fetch(`/api/birds/stats?date=${localDate()}&days=1`)).json();
+
+    // If no today data, use 7 days
+    let finalStats = stats;
+    if (stats.total_detections === 0) {
+      finalStats = await (await fetch(`/api/birds/stats?date=${localDate()}&days=7`)).json();
+    }
+
+    // Stats
+    document.getElementById('tvBirdStats').innerHTML = `
+      <div class="tv-bstat"><div class="v">${finalStats.total_detections}</div><div class="l">${cn?'检测':'Detections'}</div></div>
+      <div class="tv-bstat"><div class="v">${finalStats.unique_species}</div><div class="l">${cn?'鸟种':'Species'}</div></div>
+      <div class="tv-bstat"><div class="v">${finalStats.hourly ? finalStats.hourly.indexOf(Math.max(...finalStats.hourly)) + ':00' : '--'}</div><div class="l">${cn?'高峰':'Peak'}</div></div>`;
+
+    // Leaderboard
+    const lb = finalStats.leaderboard || [];
+    const listEl = document.getElementById('tvBirdList');
+    let listHtml = '';
+    for (const sp of lb.slice(0, 8)) {
+      const t = birdTrans[sp.common_name] || {};
+      const name = cn ? (t.cn_name || sp.common_name) : sp.common_name;
+      let img = '';
+      try {
+        const wiki = await (await fetch(`/api/birds/image/${encodeURIComponent(sp.common_name)}?sci=${encodeURIComponent(sp.scientific_name)}`)).json();
+        img = wiki.image ? `<img src="${wiki.image}">` : '<div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:16px;background:var(--surface);border-radius:6px">&#x1F426;</div>';
+      } catch { img = '<div style="width:32px;height:32px"></div>'; }
+      listHtml += `<div class="tv-bird-item">${img}<span class="bname">${name}</span><span class="bcount">${sp.count}x</span></div>`;
+    }
+    listEl.innerHTML = listHtml || `<div style="color:var(--text3);font-size:11px;text-align:center;padding:10px">${cn?'暂无记录':'No detections'}</div>`;
+
+    // BOTD
+    try {
+      const botd = await (await fetch('/api/birds/botd')).json();
+      if (botd.bird) {
+        const b = botd.bird;
+        const t = birdTrans[b.common_name] || {};
+        const bName = cn ? (t.cn_name || b.common_name) : b.common_name;
+        let bImg = '';
+        try {
+          const w = await (await fetch(`/api/birds/image/${encodeURIComponent(b.common_name)}?sci=${encodeURIComponent(b.scientific_name)}`)).json();
+          bImg = w.image || '';
+        } catch {}
+        const detail = await (await fetch(`/api/birds/detail/${encodeURIComponent(b.common_name)}?sci=${encodeURIComponent(b.scientific_name)}`)).json();
+        const desc = cn ? (detail.description_cn || t.cn_desc || '') : (detail.description_en || '');
+        document.getElementById('tvBotd').innerHTML = `
+          <div class="tv-botd">
+            ${bImg ? `<img src="${bImg}">` : ''}
+            <div class="info">
+              <div class="badge">${cn?'今日之鸟':'BIRD OF THE DAY'}</div>
+              <div class="name">${bName}</div>
+              <div class="sci">${b.scientific_name}</div>
+              ${desc ? `<div class="desc">${desc}</div>` : ''}
+            </div>
+          </div>`;
+      }
+    } catch {}
+  } catch (e) { console.error('birds:', e); }
+}
+
+// ============ Garden Canvas (simplified from main page) ============
+const canvas = document.getElementById('gardenCanvas');
+const ctx = canvas.getContext('2d');
+const bgDay = new Image(), bgNight = new Image();
+bgDay.src = '/garden-bg.jpg';
+bgNight.src = '/garden-night.jpg';
+
+let gardenReady = false;
+bgDay.onload = () => { gardenReady = true; drawGarden(); };
+
+function drawGarden() {
+  if (!gardenReady) return;
+  const W = canvas.parentElement.clientWidth;
+  const H = canvas.parentElement.clientHeight;
+  canvas.width = W;
+  canvas.height = H;
+
+  const hour = new Date().getHours();
+  const isNight = hour < 6 || hour >= 20;
+  const bg = isNight ? bgNight : bgDay;
+
+  // Draw background to fill center panel
+  const scale = Math.max(W / bg.naturalWidth, H / bg.naturalHeight);
+  const sw = bg.naturalWidth * scale;
+  const sh = bg.naturalHeight * scale;
+  ctx.drawImage(bg, (W - sw) / 2, (H - sh) / 2, sw, sh);
+
+  // Subtle time overlay
+  ctx.fillStyle = isNight ? 'rgba(0,10,20,0.3)' : 'rgba(0,0,0,0)';
+  ctx.fillRect(0, 0, W, H);
+}
+
+// Redraw garden periodically
+setInterval(drawGarden, 60000);
+window.addEventListener('resize', drawGarden);
+
+// ============ Init ============
+loadWeather();
+loadSensors();
+loadWater();
+initKoiCam();
+loadBirdData();
+
+// Refresh intervals
+setInterval(loadSensors, 120000);  // 2 min
+setInterval(loadWeather, 900000);  // 15 min
+setInterval(loadWater, 60000);     // 1 min
+setInterval(loadBirdData, 300000); // 5 min
+</script>
+</body>
+</html>

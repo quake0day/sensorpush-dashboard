@@ -1271,6 +1271,13 @@ app.get("/cn/bird", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "bird.html"));
 });
 
+app.get("/tv", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "tv.html"));
+});
+app.get("/cn/tv", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "tv.html"));
+});
+
 app.get("/water", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "water.html"));
 });
