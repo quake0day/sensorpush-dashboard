@@ -219,6 +219,15 @@
       </div>
     </div>
 
+    <!-- Water Timer Status -->
+    <div class="section" id="timerSection" style="display:none">
+      <div class="section-head" id="timerHead">Water Timer</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div class="water-card" id="timerValve1" style="flex:1;min-width:200px;padding:16px 20px"></div>
+        <div class="water-card" id="timerValve2" style="flex:1;min-width:200px;padding:16px 20px"></div>
+      </div>
+    </div>
+
     <!-- Charts -->
     <div class="section">
       <div class="section-head" id="chartsHead"></div>
@@ -1818,6 +1827,52 @@ async function loadCamWater() {
 
 loadCamWater();
 setInterval(loadCamWater, 60000);
+
+// ============ Water Timer Status ============
+function fmtTimerMin(m) {
+  if (m >= 60) return Math.floor(m/60) + 'h ' + (m%60) + 'm';
+  return m + 'm';
+}
+
+async function loadTimerStatus() {
+  try {
+    const res = await fetch('/api/timer/status');
+    const d = await res.json();
+    document.getElementById('timerSection').style.display = '';
+    document.getElementById('timerHead').textContent = LANG === 'cn' ? '💧 水阀定时器' : '��� Water Timer';
+
+    for (const v of [1, 2]) {
+      const s = d[`valve${v}`];
+      const el = document.getElementById(`timerValve${v}`);
+      const vLabel = LANG === 'cn' ? `水阀 ${v}` : `Valve ${v}`;
+      const stateIcon = s.on ? '🟢' : '⚪';
+      const stateText = s.on ? (LANG === 'cn' ? '开启' : 'Open') : (LANG === 'cn' ? '关闭' : 'Closed');
+      let extra = '';
+      if (s.on && s.on_since) {
+        const elapsed = Math.floor((Date.now() - s.on_since) / 60000);
+        extra += `<div style="font-size:12px;color:var(--accent);margin-top:4px">⏱ ${LANG === 'cn' ? '已运行' : 'Running'}: ${fmtTimerMin(elapsed)}</div>`;
+      }
+      if (s.countdown > 0) {
+        extra += `<div style="font-size:12px;color:var(--orange);margin-top:2px">⏳ ${LANG === 'cn' ? '倒计时' : 'Countdown'}: ${fmtTimerMin(s.countdown)}</div>`;
+      }
+      el.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">${vLabel}</div>
+            <div style="font-size:18px;font-weight:700;margin-top:4px;color:${s.on ? 'var(--green)' : 'var(--text3)'}">${stateIcon} ${stateText}</div>
+          </div>
+          <div style="font-size:9px;color:var(--text3);text-align:right">
+            ${LANG === 'cn' ? '电量' : 'Battery'}: ${d.battery ?? '--'}%<br>
+            ${s.use_time ? (LANG === 'cn' ? '累计' : 'Used') + ': ' + fmtTimerMin(s.use_time) : ''}
+          </div>
+        </div>
+        ${extra}`;
+    }
+  } catch (e) {}
+}
+
+loadTimerStatus();
+setInterval(loadTimerStatus, 30000);
 
 init();
 </script>

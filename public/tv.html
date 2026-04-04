@@ -140,6 +140,10 @@
       <div><div class="level" id="tvWaterLevel">--%</div><div class="label" id="tvWaterLabel">Water Level</div></div>
       <div class="tv-water-bar"><div class="tv-water-fill" id="tvWaterFill"></div></div>
     </div>
+    <div id="tvTimer" style="display:none;margin-top:6px;gap:5px">
+      <div class="tv-sensor" id="tvValve1" style="flex:1;padding:6px 10px"><div class="name">Valve 1</div><div class="val" style="font-size:14px">--</div></div>
+      <div class="tv-sensor" id="tvValve2" style="flex:1;padding:6px 10px"><div class="name">Valve 2</div><div class="val" style="font-size:14px">--</div></div>
+    </div>
   </div>
 
   <!-- CENTER -->
@@ -491,6 +495,30 @@ initGarden('gardenCanvas', { fitParent: true });
 document.getElementById('lblHumChart').textContent = cn ? '24小时湿度' : '24h Humidity';
 document.getElementById('lblVpdChart').textContent = cn ? '24小时VPD' : '24h VPD';
 
+// ============ Water Timer Status ============
+async function loadTimerStatus() {
+  try {
+    const res = await fetch('/api/timer/status');
+    const d = await res.json();
+    document.getElementById('tvTimer').style.display = 'flex';
+    for (const v of [1, 2]) {
+      const s = d[`valve${v}`];
+      const el = document.getElementById(`tvValve${v}`);
+      const vLabel = cn ? `水阀${v}` : `Valve ${v}`;
+      const stateIcon = s.on ? '🟢' : '⚪';
+      let detail = s.on ? (cn ? '开启' : 'ON') : (cn ? '关闭' : 'OFF');
+      if (s.on && s.on_since) {
+        const elapsed = Math.floor((Date.now() - s.on_since) / 60000);
+        detail += ` ${elapsed}m`;
+      }
+      if (s.countdown > 0) {
+        detail += ` ⏳${s.countdown}m`;
+      }
+      el.innerHTML = `<div class="name">${vLabel}</div><div class="val" style="font-size:14px;color:${s.on?'var(--green)':'var(--text3)'}">${stateIcon} ${detail}</div>`;
+    }
+  } catch (e) {}
+}
+
 // ============ Init ============
 loadWeather();
 loadSensors();
@@ -499,10 +527,12 @@ loadExtraCharts();
 loadWater();
 initKoiCam();
 loadBirdData();
+loadTimerStatus();
 
 setInterval(loadSensors, 120000);
 setInterval(loadWeather, 900000);
 setInterval(loadWater, 60000);
+setInterval(loadTimerStatus, 30000);
 setInterval(loadBirdData, 300000);
 setInterval(loadTempChart, 300000);
 setInterval(loadExtraCharts, 300000);

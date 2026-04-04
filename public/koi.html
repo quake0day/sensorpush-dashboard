@@ -107,6 +107,10 @@
     .video-modal video { max-width: 90vw; max-height: 85vh; border-radius: 12px; }
     .video-modal .close-modal { position: absolute; top: 20px; right: 24px; background: none; border: none; color: #fff; font-size: 32px; cursor: pointer; }
 
+    .valve-toggle { transition: all 0.2s; }
+    .valve-toggle.on { background: var(--green); color: #000; border-color: var(--green); }
+    .valve-toggle.on:hover { background: #16a34a; }
+
     @media (max-width: 600px) {
       .header { padding: 12px 16px; }
       .container { padding: 16px 12px; }
@@ -193,6 +197,54 @@
         <button class="ctrl-btn wide" id="btnFullscreen" title="Fullscreen [F]">&#x26F6; Full</button>
         <button class="ctrl-btn wide" id="btnMute" title="Toggle Audio [M]">&#x1F507; Unmute</button>
         <button class="ctrl-btn wide" id="btnRestart" title="Restart Stream [R]">&#x21BB; Restart</button>
+      </div>
+    </div>
+
+    <!-- Water Timer Controls -->
+    <div class="section">
+      <div class="section-head" id="headTimer">Water Timer Controls</div>
+      <div class="info-panel" id="timerPanel">
+        <div class="info-card" id="timerCard1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div>
+              <div class="info-label">Valve 1</div>
+              <div class="info-value" id="valve1Status" style="font-size:14px">--</div>
+            </div>
+            <button class="ctrl-btn wide valve-toggle" id="valve1Btn" data-valve="1" style="min-width:70px;height:36px;font-size:13px;font-weight:600">OFF</button>
+          </div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <span style="font-size:10px;color:var(--text3)">Timer:</span>
+            <button class="quality-btn timer-preset" data-valve="1" data-min="5">5m</button>
+            <button class="quality-btn timer-preset" data-valve="1" data-min="10">10m</button>
+            <button class="quality-btn timer-preset" data-valve="1" data-min="15">15m</button>
+            <button class="quality-btn timer-preset" data-valve="1" data-min="30">30m</button>
+            <button class="quality-btn timer-preset" data-valve="1" data-min="60">1h</button>
+          </div>
+          <div id="valve1Timer" style="font-size:11px;color:var(--accent);margin-top:6px;display:none"></div>
+        </div>
+        <div class="info-card" id="timerCard2">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div>
+              <div class="info-label">Valve 2</div>
+              <div class="info-value" id="valve2Status" style="font-size:14px">--</div>
+            </div>
+            <button class="ctrl-btn wide valve-toggle" id="valve2Btn" data-valve="2" style="min-width:70px;height:36px;font-size:13px;font-weight:600">OFF</button>
+          </div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <span style="font-size:10px;color:var(--text3)">Timer:</span>
+            <button class="quality-btn timer-preset" data-valve="2" data-min="5">5m</button>
+            <button class="quality-btn timer-preset" data-valve="2" data-min="10">10m</button>
+            <button class="quality-btn timer-preset" data-valve="2" data-min="15">15m</button>
+            <button class="quality-btn timer-preset" data-valve="2" data-min="30">30m</button>
+            <button class="quality-btn timer-preset" data-valve="2" data-min="60">1h</button>
+          </div>
+          <div id="valve2Timer" style="font-size:11px;color:var(--accent);margin-top:6px;display:none"></div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Timer Info</div>
+          <div class="info-value" id="timerBattery" style="font-size:14px">Battery: --%</div>
+          <div class="info-sub" id="timerOnline" style="margin-top:4px">Status: --</div>
+        </div>
       </div>
     </div>
 
@@ -674,6 +726,125 @@
 
     loadMotionEvents();
     setInterval(loadMotionEvents, 15000);
+
+    // ============ Water Timer Controls ============
+    const TIMER_T = {
+      en: { heading: 'Water Timer Controls', v1: 'Valve 1', v2: 'Valve 2', info: 'Timer Info', on: 'ON', off: 'OFF',
+            battery: 'Battery', online: 'Online', offline: 'Offline', countdown: 'Countdown', elapsed: 'Running', useTime: 'Total use' },
+      cn: { heading: '水阀定时器控制', v1: '水阀 1', v2: '水阀 2', info: '定时器信息', on: '开', off: '关',
+            battery: '电量', online: '在线', offline: '离线', countdown: '倒计时', elapsed: '已运行', useTime: '累计使用' }
+    };
+    const TT = TIMER_T[LANG];
+
+    if (LANG === 'cn') {
+      document.getElementById('headTimer').childNodes[0].textContent = TT.heading + ' ';
+      document.querySelectorAll('#timerPanel .info-label').forEach((el, i) => {
+        if (i === 0) el.textContent = TT.v1;
+        if (i === 1) el.textContent = TT.v2;
+        if (i === 2) el.textContent = TT.info;
+      });
+    }
+
+    let valveState = { 1: { on: false, countdown: 0, on_since: null }, 2: { on: false, countdown: 0, on_since: null } };
+
+    function fmtMin(m) {
+      if (m >= 60) return Math.floor(m/60) + 'h ' + (m%60) + 'm';
+      return m + 'm';
+    }
+
+    function updateValveUI() {
+      for (const v of [1, 2]) {
+        const s = valveState[v];
+        const btn = document.getElementById(`valve${v}Btn`);
+        const statusEl = document.getElementById(`valve${v}Status`);
+        const timerEl = document.getElementById(`valve${v}Timer`);
+
+        btn.textContent = s.on ? TT.on : TT.off;
+        btn.classList.toggle('on', s.on);
+        statusEl.style.color = s.on ? 'var(--green)' : 'var(--text3)';
+
+        let statusParts = [];
+        if (s.on) {
+          statusParts.push(LANG === 'cn' ? '🟢 开启中' : '🟢 Open');
+          if (s.on_since) {
+            const elapsed = Math.floor((Date.now() - s.on_since) / 60000);
+            statusParts.push(`${TT.elapsed}: ${fmtMin(elapsed)}`);
+          }
+        } else {
+          statusParts.push(LANG === 'cn' ? '⚪ 关闭' : '⚪ Closed');
+        }
+        if (s.use_time) statusParts.push(`${TT.useTime}: ${fmtMin(s.use_time)}`);
+        statusEl.textContent = statusParts.join(' · ');
+
+        if (s.countdown > 0) {
+          timerEl.style.display = '';
+          timerEl.textContent = `⏱ ${TT.countdown}: ${fmtMin(s.countdown)}`;
+        } else {
+          timerEl.style.display = 'none';
+        }
+      }
+    }
+
+    async function loadTimerStatus() {
+      try {
+        const res = await fetch('/api/timer/status');
+        const d = await res.json();
+        valveState[1] = d.valve1;
+        valveState[2] = d.valve2;
+        updateValveUI();
+        document.getElementById('timerBattery').textContent = `${TT.battery}: ${d.battery ?? '--'}%`;
+        document.getElementById('timerOnline').textContent = `Status: ${d.online ? (LANG === 'cn' ? '🟢 在线' : '🟢 Online') : (LANG === 'cn' ? '🔴 离线' : '🔴 Offline')}`;
+      } catch (e) {}
+    }
+
+    // Toggle valve
+    document.querySelectorAll('.valve-toggle').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const v = parseInt(btn.dataset.valve);
+        const newState = !valveState[v].on;
+        btn.disabled = true;
+        btn.textContent = '...';
+        try {
+          await fetch('/api/timer/valve', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ valve: v, on: newState })
+          });
+          valveState[v].on = newState;
+          if (newState) valveState[v].on_since = Date.now();
+          else valveState[v].on_since = null;
+          updateValveUI();
+        } catch (e) {
+          btn.textContent = 'ERR';
+        }
+        btn.disabled = false;
+      });
+    });
+
+    // Timer presets
+    document.querySelectorAll('.timer-preset').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const v = parseInt(btn.dataset.valve);
+        const min = parseInt(btn.dataset.min);
+        btn.style.opacity = '0.5';
+        try {
+          // Turn on + set countdown
+          await fetch('/api/timer/valve', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ valve: v, on: true, countdown: min })
+          });
+          valveState[v].on = true;
+          valveState[v].countdown = min;
+          valveState[v].on_since = Date.now();
+          updateValveUI();
+        } catch (e) {}
+        btn.style.opacity = '1';
+      });
+    });
+
+    loadTimerStatus();
+    setInterval(loadTimerStatus, 15000);
+    // Update elapsed time display every 30s
+    setInterval(updateValveUI, 30000);
   </script>
 </body>
 </html>

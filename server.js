@@ -54,12 +54,15 @@ function tuyaSign(token, t, method, path, body) {
   return crypto.createHmac("sha256", TUYA_SECRET).update(signStr).digest("hex").toUpperCase();
 }
 
-async function tuyaRequest(method, apiPath, token) {
+async function tuyaRequest(method, apiPath, token, body) {
   const t = Date.now().toString();
-  const sign = tuyaSign(token, t, method, apiPath, "");
-  const headers = { client_id: TUYA_ID, sign, t, sign_method: "HMAC-SHA256" };
+  const bodyStr = body ? JSON.stringify(body) : "";
+  const sign = tuyaSign(token, t, method, apiPath, bodyStr);
+  const headers = { client_id: TUYA_ID, sign, t, sign_method: "HMAC-SHA256", "Content-Type": "application/json" };
   if (token) headers.access_token = token;
-  const res = await fetch(`${TUYA_BASE}${apiPath}`, { method, headers });
+  const opts = { method, headers };
+  if (body) opts.body = bodyStr;
+  const res = await fetch(`${TUYA_BASE}${apiPath}`, opts);
   return res.json();
 }
 
@@ -274,6 +277,63 @@ app.get("/api/tuya/device/:id/logs", async (req, res) => {
     res.json(data.result || { logs: [] });
   } catch (err) {
     console.error("tuya logs error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ Water Timer (Tuya Smart Dual Water Timer) ============
+const WATER_TIMER_ID = "eb42c3sv54vcakok";
+
+// Track when each valve was turned on (server-side for accurate elapsed time)
+let valveOnTimes = { 1: null, 2: null };
+
+app.get("/api/timer/status", async (req, res) => {
+  try {
+    const token = await getTuyaToken();
+    const data = await tuyaRequest("GET", `/v1.0/devices/${WATER_TIMER_ID}`, token);
+    if (!data.success) return res.status(500).json({ error: data.msg });
+    const status = {};
+    (data.result.status || []).forEach(s => status[s.code] = s.value);
+    // Update on-times tracking
+    for (const v of [1, 2]) {
+      if (status[`switch_${v}`] && !valveOnTimes[v]) {
+        valveOnTimes[v] = Date.now();
+      } else if (!status[`switch_${v}`]) {
+        valveOnTimes[v] = null;
+      }
+    }
+    res.json({
+      online: data.result.online,
+      battery: status.battery_percentage,
+      valve1: { on: !!status.switch_1, countdown: status.countdown_1 || 0, use_time: status.use_time_1 || 0, on_since: valveOnTimes[1] },
+      valve2: { on: !!status.switch_2, countdown: status.countdown_2 || 0, use_time: status.use_time_2 || 0, on_since: valveOnTimes[2] },
+    });
+  } catch (err) {
+    console.error("timer status error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/timer/valve", async (req, res) => {
+  try {
+    const { valve, on, countdown } = req.body;
+    if (![1, 2].includes(valve)) return res.status(400).json({ error: "valve must be 1 or 2" });
+    const commands = [];
+    if (typeof on === "boolean") {
+      commands.push({ code: `switch_${valve}`, value: on });
+      if (on) valveOnTimes[valve] = Date.now();
+      else valveOnTimes[valve] = null;
+    }
+    if (typeof countdown === "number" && countdown >= 0 && countdown <= 1440) {
+      commands.push({ code: `countdown_${valve}`, value: countdown });
+    }
+    if (!commands.length) return res.status(400).json({ error: "provide on (bool) or countdown (0-1440 min)" });
+    const token = await getTuyaToken();
+    const data = await tuyaRequest("POST", `/v1.0/devices/${WATER_TIMER_ID}/commands`, token, { commands });
+    if (!data.success) return res.status(500).json({ error: data.msg });
+    res.json({ ok: true, commands });
+  } catch (err) {
+    console.error("timer valve error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
