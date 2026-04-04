@@ -284,8 +284,43 @@ app.get("/api/tuya/device/:id/logs", async (req, res) => {
 // ============ Water Timer (Tuya Smart Dual Water Timer) ============
 const WATER_TIMER_ID = "eb42c3sv54vcakok";
 
-// Track when each valve was turned on (server-side for accurate elapsed time)
+// Server-side valve state tracking (Tuya device countdown is unreliable)
 let valveOnTimes = { 1: null, 2: null };
+let valveAutoOff = { 1: null, 2: null };   // setTimeout handles
+let valveCountdown = { 1: 0, 2: 0 };       // countdown in minutes set by user
+let valveCountdownEnd = { 1: null, 2: null }; // timestamp when countdown expires
+
+async function turnOffValve(valve) {
+  try {
+    const token = await getTuyaToken();
+    await tuyaRequest("POST", `/v1.0/devices/${WATER_TIMER_ID}/commands`, token, {
+      commands: [{ code: `switch_${valve}`, value: false }],
+    });
+    console.log(`Valve ${valve} auto-off by server timer`);
+  } catch (err) {
+    console.error(`Valve ${valve} auto-off failed:`, err.message);
+  }
+  valveOnTimes[valve] = null;
+  valveCountdown[valve] = 0;
+  valveCountdownEnd[valve] = null;
+  valveAutoOff[valve] = null;
+}
+
+function scheduleAutoOff(valve, minutes) {
+  // Clear any existing timer
+  if (valveAutoOff[valve]) clearTimeout(valveAutoOff[valve]);
+  valveCountdown[valve] = minutes;
+  valveCountdownEnd[valve] = Date.now() + minutes * 60000;
+  valveAutoOff[valve] = setTimeout(() => turnOffValve(valve), minutes * 60000);
+  console.log(`Valve ${valve} scheduled auto-off in ${minutes} min`);
+}
+
+function clearAutoOff(valve) {
+  if (valveAutoOff[valve]) clearTimeout(valveAutoOff[valve]);
+  valveAutoOff[valve] = null;
+  valveCountdown[valve] = 0;
+  valveCountdownEnd[valve] = null;
+}
 
 app.get("/api/timer/status", async (req, res) => {
   try {
@@ -294,19 +329,25 @@ app.get("/api/timer/status", async (req, res) => {
     if (!data.success) return res.status(500).json({ error: data.msg });
     const status = {};
     (data.result.status || []).forEach(s => status[s.code] = s.value);
-    // Update on-times tracking
+    // Sync on-times with actual device state
     for (const v of [1, 2]) {
       if (status[`switch_${v}`] && !valveOnTimes[v]) {
         valveOnTimes[v] = Date.now();
       } else if (!status[`switch_${v}`]) {
         valveOnTimes[v] = null;
+        clearAutoOff(v);
       }
     }
+    // Compute remaining countdown from server-side timer
+    const remaining = v => {
+      if (!valveCountdownEnd[v] || !valveOnTimes[v]) return 0;
+      return Math.max(0, Math.ceil((valveCountdownEnd[v] - Date.now()) / 60000));
+    };
     res.json({
       online: data.result.online,
       battery: status.battery_percentage,
-      valve1: { on: !!status.switch_1, countdown: status.countdown_1 || 0, use_time: status.use_time_1 || 0, on_since: valveOnTimes[1] },
-      valve2: { on: !!status.switch_2, countdown: status.countdown_2 || 0, use_time: status.use_time_2 || 0, on_since: valveOnTimes[2] },
+      valve1: { on: !!status.switch_1, countdown: remaining(1), use_time: status.use_time_1 || 0, on_since: valveOnTimes[1] },
+      valve2: { on: !!status.switch_2, countdown: remaining(2), use_time: status.use_time_2 || 0, on_since: valveOnTimes[2] },
     });
   } catch (err) {
     console.error("timer status error:", err.message);
@@ -318,20 +359,30 @@ app.post("/api/timer/valve", async (req, res) => {
   try {
     const { valve, on, countdown } = req.body;
     if (![1, 2].includes(valve)) return res.status(400).json({ error: "valve must be 1 or 2" });
+
+    // Build Tuya command (only switch, no Tuya countdown — it's unreliable)
     const commands = [];
     if (typeof on === "boolean") {
       commands.push({ code: `switch_${valve}`, value: on });
-      if (on) valveOnTimes[valve] = Date.now();
-      else valveOnTimes[valve] = null;
     }
-    if (typeof countdown === "number" && countdown >= 0 && countdown <= 1440) {
-      commands.push({ code: `countdown_${valve}`, value: countdown });
-    }
-    if (!commands.length) return res.status(400).json({ error: "provide on (bool) or countdown (0-1440 min)" });
+    if (!commands.length) return res.status(400).json({ error: "provide on (bool)" });
+
     const token = await getTuyaToken();
     const data = await tuyaRequest("POST", `/v1.0/devices/${WATER_TIMER_ID}/commands`, token, { commands });
     if (!data.success) return res.status(500).json({ error: data.msg });
-    res.json({ ok: true, commands });
+
+    // Server-side timer management
+    if (on) {
+      valveOnTimes[valve] = Date.now();
+      if (typeof countdown === "number" && countdown > 0 && countdown <= 1440) {
+        scheduleAutoOff(valve, countdown);
+      }
+    } else {
+      valveOnTimes[valve] = null;
+      clearAutoOff(valve);
+    }
+
+    res.json({ ok: true, valve, on, countdown: countdown || 0 });
   } catch (err) {
     console.error("timer valve error:", err.message);
     res.status(500).json({ error: err.message });
