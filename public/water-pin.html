@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Water Timer - Pin Tool</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #111; color: #eee; font-family: monospace; }
+    .header { padding: 10px 20px; background: #1a1a2e; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+    .header h2 { font-size: 16px; }
+    .header .info { font-size: 12px; color: #888; }
+    .mode-btns { display: flex; gap: 6px; }
+    .mode-btn { background: #333; border: 1px solid #555; color: #ccc; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .mode-btn.active { background: #4ade80; color: #000; border-color: #4ade80; }
+    .canvas-wrap { position: relative; display: inline-block; }
+    canvas { display: block; cursor: crosshair; }
+    .pins-panel { position: fixed; right: 0; top: 0; width: 320px; height: 100vh; background: #1a1a2e; padding: 12px; overflow-y: auto; font-size: 11px; border-left: 1px solid #333; }
+    .pins-panel h3 { font-size: 13px; margin-bottom: 8px; color: #4ade80; }
+    .pin-item { background: #222; padding: 6px 8px; margin-bottom: 4px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+    .pin-item .coords { color: #4ade80; }
+    .pin-item .label { color: #888; }
+    .pin-item .del { color: #f44; cursor: pointer; margin-left: 8px; }
+    #copyBtn { background: #4ade80; color: #000; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-top: 8px; }
+    #clearBtn { background: #ef4444; color: #fff; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-top: 4px; }
+    .crosshair { position: absolute; pointer-events: none; z-index: 10; }
+    .crosshair-h { position: absolute; height: 1px; background: rgba(74,222,128,0.5); width: 100%; left: 0; }
+    .crosshair-v { position: absolute; width: 1px; background: rgba(74,222,128,0.5); height: 100%; top: 0; }
+    .coord-label { position: absolute; background: rgba(0,0,0,0.8); color: #4ade80; padding: 2px 6px; font-size: 11px; border-radius: 3px; pointer-events: none; z-index: 11; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>Water Timer Pin Tool</h2>
+    <div class="info">Click image to place pins. Reference: 800x436 (scaled from 2816x1536)</div>
+    <div class="mode-btns">
+      <button class="mode-btn active" data-mode="point" onclick="setMode('point')">Point</button>
+      <button class="mode-btn" data-mode="path" onclick="setMode('path')">Path (water flow)</button>
+    </div>
+  </div>
+  <div style="display:flex">
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="c"></canvas>
+      <div class="crosshair crosshair-h" id="crossH"></div>
+      <div class="crosshair crosshair-v" id="crossV"></div>
+      <div class="coord-label" id="coordLabel" style="display:none"></div>
+    </div>
+    <div class="pins-panel">
+      <h3>Pins</h3>
+      <div id="pinList"></div>
+      <button id="copyBtn" onclick="copyPins()">Copy JSON</button>
+      <button id="clearBtn" onclick="clearPins()">Clear All</button>
+      <pre id="jsonOut" style="margin-top:10px;color:#888;white-space:pre-wrap;font-size:10px"></pre>
+    </div>
+  </div>
+
+  <script>
+    const REF_W = 800;
+    const IMG_W = 2816, IMG_H = 1536;
+    const REF_H = Math.round(REF_W * IMG_H / IMG_W);
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const wrap = document.getElementById('canvasWrap');
+
+    canvas.width = REF_W;
+    canvas.height = REF_H;
+
+    const img = new Image();
+    img.src = '/water-timer-bg.png';
+
+    let pins = [];
+    let currentPath = [];
+    let mode = 'point'; // 'point' or 'path'
+
+    function setMode(m) {
+      if (mode === 'path' && currentPath.length > 1) {
+        pins.push({ type: 'path', points: [...currentPath] });
+        currentPath = [];
+      }
+      mode = m;
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+      draw();
+      updateList();
+    }
+
+    img.onload = () => draw();
+
+    function draw() {
+      ctx.clearRect(0, 0, REF_W, REF_H);
+      ctx.drawImage(img, 0, 0, REF_W, REF_H);
+
+      // Draw existing pins
+      for (const pin of pins) {
+        if (pin.type === 'point') {
+          ctx.beginPath();
+          ctx.arc(pin.x, pin.y, 5, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(239,68,68,0.8)';
+          ctx.fill();
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.fillStyle = '#fff';
+          ctx.font = '10px monospace';
+          ctx.fillText(`(${pin.x},${pin.y})`, pin.x + 8, pin.y - 4);
+        } else if (pin.type === 'path') {
+          drawPath(pin.points, '#38bdf8');
+        }
+      }
+
+      // Draw current path being built
+      if (currentPath.length > 0) {
+        drawPath(currentPath, '#4ade80');
+      }
+    }
+
+    function drawPath(points, color) {
+      if (points.length < 2) {
+        if (points.length === 1) {
+          ctx.beginPath();
+          ctx.arc(points[0].x, points[0].y, 4, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+        }
+        return;
+      }
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+      // Draw points
+      for (const p of points) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
+    }
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = REF_W / rect.width;
+      const scaleY = REF_H / rect.height;
+      const x = Math.round((e.clientX - rect.left) * scaleX);
+      const y = Math.round((e.clientY - rect.top) * scaleY);
+
+      if (mode === 'point') {
+        pins.push({ type: 'point', x, y });
+      } else {
+        currentPath.push({ x, y });
+      }
+      draw();
+      updateList();
+    });
+
+    // Double-click to finish path
+    canvas.addEventListener('dblclick', (e) => {
+      if (mode === 'path' && currentPath.length > 1) {
+        pins.push({ type: 'path', points: [...currentPath] });
+        currentPath = [];
+        draw();
+        updateList();
+      }
+    });
+
+    // Crosshair
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = REF_W / rect.width;
+      const scaleY = REF_H / rect.height;
+      const x = Math.round((e.clientX - rect.left) * scaleX);
+      const y = Math.round((e.clientY - rect.top) * scaleY);
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+
+      document.getElementById('crossH').style.top = cy + 'px';
+      document.getElementById('crossV').style.left = cx + 'px';
+      const label = document.getElementById('coordLabel');
+      label.style.display = '';
+      label.style.left = (cx + 12) + 'px';
+      label.style.top = (cy - 20) + 'px';
+      label.textContent = `${x}, ${y}`;
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      document.getElementById('coordLabel').style.display = 'none';
+    });
+
+    function updateList() {
+      const list = document.getElementById('pinList');
+      const all = [...pins];
+      if (currentPath.length > 0) all.push({ type: 'path-building', points: currentPath });
+
+      list.innerHTML = all.map((p, i) => {
+        if (p.type === 'point') {
+          return `<div class="pin-item"><span class="coords">Point (${p.x}, ${p.y})</span><span class="del" onclick="delPin(${i})">x</span></div>`;
+        } else if (p.type === 'path') {
+          return `<div class="pin-item"><span class="coords">Path [${p.points.length} pts]</span><span class="label">${p.points.map(pt=>`(${pt.x},${pt.y})`).join(' ')}</span><span class="del" onclick="delPin(${i})">x</span></div>`;
+        } else {
+          return `<div class="pin-item" style="border:1px solid #4ade80"><span class="coords">Building path [${p.points.length} pts]</span><span class="label">dbl-click to finish</span></div>`;
+        }
+      }).join('');
+
+      document.getElementById('jsonOut').textContent = JSON.stringify(pins, null, 2);
+    }
+
+    function delPin(i) {
+      pins.splice(i, 1);
+      draw();
+      updateList();
+    }
+
+    function clearPins() {
+      pins = [];
+      currentPath = [];
+      draw();
+      updateList();
+    }
+
+    function copyPins() {
+      navigator.clipboard.writeText(JSON.stringify(pins, null, 2));
+      document.getElementById('copyBtn').textContent = 'Copied!';
+      setTimeout(() => document.getElementById('copyBtn').textContent = 'Copy JSON', 1500);
+    }
+  </script>
+</body>
+</html>
