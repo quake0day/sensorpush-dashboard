@@ -246,9 +246,7 @@
 
             <!-- VALVE 1 water flow: T-junction up & left to hanging basket -->
             <g id="v1Flow" style="display:none" filter="url(#waterGlow)">
-              <!-- Path follows the pipe: up from T-junction, left elbow, up vertical, right elbow along top pipe, then down to basket -->
-              <path id="v1Path" d="M400,293 L310,293 L310,185 L195,185 L195,105 Q195,60 184,64" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
-              <!-- Animated water particles along path -->
+              <path id="v1Path" d="M398,262 L311,181 L307,69 L294,57 L198,59 L178,71 L168,105 L161,137 L158,166 L157,193 L157,200" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
               <circle r="4" fill="#bae6fd" opacity="0.9">
                 <animateMotion dur="2.2s" repeatCount="indefinite"><mpath href="#v1Path"/></animateMotion>
               </circle>
@@ -263,84 +261,80 @@
               </circle>
             </g>
 
-            <!-- VALVE 1 waterfall splash at basket (184,64) -->
+            <!-- VALVE 1 waterfall splash at basket end (157,200) -->
             <g id="v1Splash" style="display:none">
-              <line x1="184" y1="64" x2="184" y2="95" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" opacity="0.6">
+              <line x1="157" y1="200" x2="157" y2="235" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" opacity="0.6">
                 <animate attributeName="opacity" values="0.4;0.8;0.4" dur="0.6s" repeatCount="indefinite"/>
               </line>
-              <circle cx="180" cy="80" r="2" fill="#7dd3fc">
-                <animate attributeName="cy" values="70;95;70" dur="0.7s" repeatCount="indefinite"/>
+              <circle cx="153" cy="215" r="2" fill="#7dd3fc">
+                <animate attributeName="cy" values="205;230;205" dur="0.7s" repeatCount="indefinite"/>
                 <animate attributeName="opacity" values="0.9;0;0.9" dur="0.7s" repeatCount="indefinite"/>
               </circle>
-              <circle cx="188" cy="75" r="1.5" fill="#bae6fd">
-                <animate attributeName="cy" values="68;92;68" dur="0.5s" repeatCount="indefinite"/>
+              <circle cx="161" cy="210" r="1.5" fill="#bae6fd">
+                <animate attributeName="cy" values="203;228;203" dur="0.5s" repeatCount="indefinite"/>
                 <animate attributeName="opacity" values="0.8;0;0.8" dur="0.5s" repeatCount="indefinite"/>
               </circle>
-              <circle cx="184" cy="72" r="2.5" fill="#38bdf8">
-                <animate attributeName="cy" values="64;98;64" dur="0.9s" repeatCount="indefinite"/>
+              <circle cx="157" cy="208" r="2.5" fill="#38bdf8">
+                <animate attributeName="cy" values="200;238;200" dur="0.9s" repeatCount="indefinite"/>
                 <animate attributeName="opacity" values="0.7;0;0.7" dur="0.9s" repeatCount="indefinite"/>
               </circle>
-              <circle cx="176" cy="78" r="1.5" fill="#7dd3fc">
-                <animate attributeName="cy" values="72;90;72" dur="0.6s" repeatCount="indefinite"/>
+              <circle cx="149" cy="212" r="1.5" fill="#7dd3fc">
+                <animate attributeName="cy" values="208;226;208" dur="0.6s" repeatCount="indefinite"/>
                 <animate attributeName="opacity" values="0.6;0;0.6" dur="0.6s" repeatCount="indefinite"/>
               </circle>
-              <circle cx="192" cy="76" r="1.5" fill="#bae6fd">
-                <animate attributeName="cy" values="66;88;66" dur="0.8s" repeatCount="indefinite"/>
+              <circle cx="165" cy="210" r="1.5" fill="#bae6fd">
+                <animate attributeName="cy" values="202;224;202" dur="0.8s" repeatCount="indefinite"/>
                 <animate attributeName="opacity" values="0.7;0;0.7" dur="0.8s" repeatCount="indefinite"/>
               </circle>
             </g>
 
             <!-- VALVE 2 water flow: T-junction right to koi pond -->
             <g id="v2Flow" style="display:none" filter="url(#waterGlow)">
-              <!-- Path follows pipe: right from T-junction to pond edge -->
-              <path id="v2Path" d="M400,293 L470,293 L530,275 L570,260 L600,240" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+              <path id="v2Path" d="M403,262 L437,239 L589,240 L637,274 L655,300" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
               <circle r="4" fill="#bae6fd" opacity="0.9">
-                <animateMotion dur="1.4s" repeatCount="indefinite"><mpath href="#v2Path"/></animateMotion>
+                <animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#v2Path"/></animateMotion>
               </circle>
               <circle r="3" fill="#7dd3fc" opacity="0.7">
-                <animateMotion dur="1.4s" repeatCount="indefinite" begin="0.35s"><mpath href="#v2Path"/></animateMotion>
+                <animateMotion dur="1.6s" repeatCount="indefinite" begin="0.4s"><mpath href="#v2Path"/></animateMotion>
               </circle>
               <circle r="3.5" fill="#bae6fd" opacity="0.8">
-                <animateMotion dur="1.4s" repeatCount="indefinite" begin="0.7s"><mpath href="#v2Path"/></animateMotion>
+                <animateMotion dur="1.6s" repeatCount="indefinite" begin="0.8s"><mpath href="#v2Path"/></animateMotion>
               </circle>
               <circle r="2.5" fill="#7dd3fc" opacity="0.6">
-                <animateMotion dur="1.4s" repeatCount="indefinite" begin="1.05s"><mpath href="#v2Path"/></animateMotion>
+                <animateMotion dur="1.6s" repeatCount="indefinite" begin="1.2s"><mpath href="#v2Path"/></animateMotion>
               </circle>
             </g>
 
-            <!-- VALVE 2 waterfall splash at pond (600,240) -->
+            <!-- VALVE 2 waterfall splash at pond (655,300) -->
             <g id="v2Splash" style="display:none">
-              <!-- Waterfall arc into pond -->
-              <path d="M600,240 Q610,255 615,275" stroke="#38bdf8" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.7">
+              <path d="M655,300 Q660,320 665,340" stroke="#38bdf8" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.7">
                 <animate attributeName="opacity" values="0.4;0.9;0.4" dur="0.8s" repeatCount="indefinite"/>
               </path>
-              <!-- Splash ripples in pond -->
-              <circle cx="615" cy="275" r="5" fill="none" stroke="#7dd3fc" stroke-width="1.5" opacity="0.5">
+              <circle cx="665" cy="340" r="5" fill="none" stroke="#7dd3fc" stroke-width="1.5" opacity="0.5">
                 <animate attributeName="r" values="3;15;3" dur="1.2s" repeatCount="indefinite"/>
                 <animate attributeName="opacity" values="0.6;0;0.6" dur="1.2s" repeatCount="indefinite"/>
               </circle>
-              <circle cx="615" cy="275" r="3" fill="none" stroke="#bae6fd" stroke-width="1" opacity="0.4">
+              <circle cx="665" cy="340" r="3" fill="none" stroke="#bae6fd" stroke-width="1" opacity="0.4">
                 <animate attributeName="r" values="2;10;2" dur="0.8s" repeatCount="indefinite"/>
                 <animate attributeName="opacity" values="0.5;0;0.5" dur="0.8s" repeatCount="indefinite"/>
               </circle>
-              <circle cx="615" cy="275" r="2" fill="none" stroke="#38bdf8" stroke-width="0.8" opacity="0.3">
+              <circle cx="665" cy="340" r="2" fill="none" stroke="#38bdf8" stroke-width="0.8" opacity="0.3">
                 <animate attributeName="r" values="1;8;1" dur="1.5s" repeatCount="indefinite"/>
                 <animate attributeName="opacity" values="0.4;0;0.4" dur="1.5s" repeatCount="indefinite"/>
               </circle>
-              <!-- Drops -->
-              <circle cx="608" cy="260" r="2" fill="#7dd3fc">
-                <animate attributeName="cy" values="255;270;255" dur="0.5s" repeatCount="indefinite"/>
+              <circle cx="658" cy="320" r="2" fill="#7dd3fc">
+                <animate attributeName="cy" values="310;335;310" dur="0.5s" repeatCount="indefinite"/>
                 <animate attributeName="opacity" values="0.8;0;0.8" dur="0.5s" repeatCount="indefinite"/>
               </circle>
-              <circle cx="618" cy="265" r="1.5" fill="#bae6fd">
-                <animate attributeName="cy" values="258;278;258" dur="0.7s" repeatCount="indefinite"/>
+              <circle cx="668" cy="325" r="1.5" fill="#bae6fd">
+                <animate attributeName="cy" values="315;342;315" dur="0.7s" repeatCount="indefinite"/>
                 <animate attributeName="opacity" values="0.7;0;0.7" dur="0.7s" repeatCount="indefinite"/>
               </circle>
             </g>
 
             <!-- INPUT pipe flow (visible when either valve is on) -->
             <g id="inputFlow" style="display:none" filter="url(#waterGlow)">
-              <path id="inputPath" d="M400,434 L401,293" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" opacity="0.6"/>
+              <path id="inputPath" d="M400,435 L398,261" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" opacity="0.6"/>
               <circle r="4" fill="#bae6fd" opacity="0.9">
                 <animateMotion dur="1s" repeatCount="indefinite"><mpath href="#inputPath"/></animateMotion>
               </circle>
