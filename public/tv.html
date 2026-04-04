@@ -17,47 +17,47 @@
     /* Left panel */
     .left-panel{background:var(--surface);border-right:1px solid var(--border);padding:14px 16px;display:flex;flex-direction:column;overflow:hidden}
     .tv-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-    .tv-title{font-size:20px;font-weight:700}
+    .tv-title{font-size:26px;font-weight:700}
     .tv-title .leaf{color:var(--accent)}
-    .tv-clock{font-family:monospace;font-size:12px;color:var(--accent)}
-    .tv-subtitle{font-size:10px;color:var(--text3);margin-bottom:10px}
+    .tv-clock{font-family:monospace;font-size:18px;color:var(--accent)}
+    .tv-subtitle{font-size:13px;color:var(--text3);margin-bottom:10px}
 
     /* Weather */
     .tv-wx{background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
     .tv-wx .wx-icon{font-size:36px}
     .tv-wx .wx-temp{font-size:32px;font-weight:700}
-    .tv-wx .wx-desc{font-size:11px;color:var(--text2)}
-    .tv-wx .wx-loc{font-size:9px;color:var(--text3)}
+    .tv-wx .wx-desc{font-size:14px;color:var(--text2)}
+    .tv-wx .wx-loc{font-size:12px;color:var(--text3)}
     .tv-wx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:8px}
     .tv-wx-item{background:var(--surface2);border-radius:6px;padding:5px;text-align:center}
-    .tv-wx-item .v{font-size:13px;font-weight:600}
-    .tv-wx-item .l{font-size:8px;color:var(--text3)}
+    .tv-wx-item .v{font-size:16px;font-weight:600}
+    .tv-wx-item .l{font-size:11px;color:var(--text3)}
 
     /* Forecast */
     .tv-forecast{display:flex;gap:3px;margin-bottom:10px}
     .tv-fc{flex:1;background:var(--surface2);border-radius:6px;padding:4px 2px;text-align:center}
-    .tv-fc .day{font-size:8px;color:var(--text3)}
-    .tv-fc .icon{font-size:16px}
-    .tv-fc .temp{font-size:11px;font-weight:600}
+    .tv-fc .day{font-size:11px;color:var(--text3)}
+    .tv-fc .icon{font-size:22px}
+    .tv-fc .temp{font-size:14px;font-weight:600}
 
     /* Sensors */
-    .section-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin:6px 0 4px;display:flex;align-items:center;gap:6px}
+    .section-label{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin:6px 0 4px;display:flex;align-items:center;gap:6px}
     .section-label::after{content:'';flex:1;height:1px;background:var(--border)}
     .tv-sensors{display:flex;flex-direction:column;gap:5px}
     .tv-sensor{background:var(--surface2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between}
-    .tv-sensor .name{font-size:10px;color:var(--text3)}
-    .tv-sensor .val{font-size:18px;font-weight:700}
-    .tv-sensor .unit{font-size:10px;color:var(--text3);margin-left:2px}
+    .tv-sensor .name{font-size:13px;color:var(--text3)}
+    .tv-sensor .val{font-size:22px;font-weight:700}
+    .tv-sensor .unit{font-size:12px;color:var(--text3);margin-left:2px}
 
     /* Mini chart */
     .tv-chart-box{background:var(--surface2);border-radius:8px;padding:8px;margin-top:6px}
-    .tv-chart-box canvas{height:90px!important}
+    .tv-chart-box canvas{height:80px!important}
 
     /* Water */
     .tv-water{background:var(--surface2);border-radius:8px;padding:8px 12px;margin-top:6px;display:flex;align-items:center;gap:10px}
-    .tv-water .level{font-size:22px;font-weight:700}
-    .tv-water .label{font-size:9px;color:var(--text3)}
-    .tv-water-bar{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden}
+    .tv-water .level{font-size:26px;font-weight:700}
+    .tv-water .label{font-size:12px;color:var(--text3)}
+    .tv-water-bar{flex:1;height:12px;background:var(--border);border-radius:4px;overflow:hidden}
     .tv-water-fill{height:100%;border-radius:4px;transition:width 1s}
 
     /* Center - garden */
@@ -70,11 +70,11 @@
     /* Koi cam */
     .tv-cam{height:440px;background:#000;position:relative;flex-shrink:0}
     .tv-cam video{width:100%;height:100%;object-fit:cover}
-    .tv-cam .cam-label{position:absolute;top:8px;left:10px;background:rgba(220,38,38,0.85);color:#fff;font-size:9px;font-weight:700;padding:2px 8px;border-radius:3px;letter-spacing:1px;display:flex;align-items:center;gap:4px}
+    .tv-cam .cam-label{position:absolute;top:8px;left:10px;background:rgba(220,38,38,0.85);color:#fff;font-size:12px;font-weight:700;padding:2px 8px;border-radius:3px;letter-spacing:1px;display:flex;align-items:center;gap:4px}
     .tv-cam .cam-label .dot{width:5px;height:5px;border-radius:50%;background:#fff;animation:blink 1s infinite}
-    .tv-cam .cam-status{position:absolute;bottom:8px;right:10px;font-size:9px;color:rgba(255,255,255,0.5);font-family:monospace}
+    .tv-cam .cam-status{position:absolute;bottom:8px;right:10px;font-size:12px;color:rgba(255,255,255,0.5);font-family:monospace}
     @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-    .cam-reconnect{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);color:var(--text3);font-size:13px;flex-direction:column;gap:6px}
+    .cam-reconnect{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);color:var(--text3);font-size:16px;flex-direction:column;gap:6px}
 
     /* Birds section */
     .tv-birds{flex:1;background:var(--surface);padding:12px;display:flex;flex-direction:column;overflow:hidden}
@@ -85,35 +85,35 @@
     @keyframes glow{0%{opacity:.5;transform:scale(1)}100%{opacity:1;transform:scale(1.2)}}
     .tv-botd img{width:80px;height:80px;border-radius:10px;object-fit:contain;background:var(--surface);flex-shrink:0}
     .tv-botd .info{flex:1;min-width:0}
-    .tv-botd .badge{font-size:8px;color:var(--accent);text-transform:uppercase;letter-spacing:1px}
-    .tv-botd .bname{font-size:16px;font-weight:700;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .tv-botd .sci{font-size:10px;color:var(--text3);font-style:italic}
-    .tv-botd .desc{font-size:9px;color:var(--text2);margin-top:3px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .tv-botd .badge{font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:1px}
+    .tv-botd .bname{font-size:20px;font-weight:700;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tv-botd .sci{font-size:12px;color:var(--text3);font-style:italic}
+    .tv-botd .desc{font-size:11px;color:var(--text2);margin-top:3px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .tv-botd .bstats{display:flex;gap:8px;margin-top:4px}
-    .tv-botd .bstat{font-size:9px;color:var(--text3)}
-    .tv-botd .bstat b{color:var(--text);font-size:11px}
+    .tv-botd .bstat{font-size:11px;color:var(--text3)}
+    .tv-botd .bstat b{color:var(--text);font-size:14px}
 
     /* Bird stats row */
     .tv-bird-stats{display:flex;gap:5px;margin-bottom:8px}
     .tv-bstat{flex:1;background:var(--surface2);border-radius:6px;padding:6px;text-align:center}
-    .tv-bstat .v{font-size:18px;font-weight:700}
-    .tv-bstat .l{font-size:8px;color:var(--text3);text-transform:uppercase}
+    .tv-bstat .v{font-size:22px;font-weight:700}
+    .tv-bstat .l{font-size:11px;color:var(--text3);text-transform:uppercase}
 
     /* Bird list */
     .tv-bird-list{flex:1;display:flex;flex-direction:column;gap:3px;overflow:hidden}
     .tv-bird-item{display:flex;align-items:center;gap:8px;padding:4px 8px;background:var(--surface2);border-radius:6px;animation:fadeIn 0.5s ease}
     @keyframes fadeIn{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
-    .tv-bird-item img{width:34px;height:34px;border-radius:6px;object-fit:cover;object-position:top;background:var(--surface);flex-shrink:0}
-    .tv-bird-item .bname{font-size:12px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .tv-bird-item .bcount{font-size:12px;color:var(--accent);font-weight:700}
-    .tv-bird-item .bconf{font-size:9px;color:var(--text3)}
-    .tv-bird-item .rank{font-size:10px;color:var(--text3);font-weight:700;width:20px;text-align:center;flex-shrink:0}
+    .tv-bird-item img{width:40px;height:40px;border-radius:6px;object-fit:cover;object-position:top;background:var(--surface);flex-shrink:0}
+    .tv-bird-item .bname{font-size:15px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tv-bird-item .bcount{font-size:15px;color:var(--accent);font-weight:700}
+    .tv-bird-item .bconf{font-size:12px;color:var(--text3)}
+    .tv-bird-item .rank{font-size:13px;color:var(--text3);font-weight:700;width:20px;text-align:center;flex-shrink:0}
 
     /* Timeline */
-    .tv-tl-item{display:flex;align-items:center;gap:6px;padding:3px 6px;font-size:11px}
-    .tv-tl-time{color:var(--text3);font-family:monospace;font-size:10px;min-width:55px;flex-shrink:0}
+    .tv-tl-item{display:flex;align-items:center;gap:6px;padding:3px 6px;font-size:14px}
+    .tv-tl-time{color:var(--text3);font-family:monospace;font-size:13px;min-width:55px;flex-shrink:0}
     .tv-tl-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
-    .tv-tl-conf{color:var(--text3);font-size:10px}
+    .tv-tl-conf{color:var(--text3);font-size:13px}
   </style>
 </head>
 <body>
@@ -121,7 +121,7 @@
   <!-- LEFT -->
   <div class="left-panel">
     <div class="tv-header">
-      <div class="tv-title"><span class="leaf">&#127793;</span> <span id="tvTitle">Smart Garden</span></div>
+      <div class="tv-title"><span class="leaf">[*]</span> <span id="tvTitle">Smart Garden</span></div>
       <div class="tv-clock" id="tvClock"></div>
     </div>
     <div class="tv-subtitle" id="tvSub">Environmental Monitoring</div>
@@ -140,9 +140,54 @@
       <div><div class="level" id="tvWaterLevel">--%</div><div class="label" id="tvWaterLabel">Water Level</div></div>
       <div class="tv-water-bar"><div class="tv-water-fill" id="tvWaterFill"></div></div>
     </div>
-    <div id="tvTimer" style="display:none;margin-top:6px;gap:5px">
-      <div class="tv-sensor" id="tvValve1" style="flex:1;padding:6px 10px"><div class="name">Valve 1</div><div class="val" style="font-size:14px">--</div></div>
-      <div class="tv-sensor" id="tvValve2" style="flex:1;padding:6px 10px"><div class="name">Valve 2</div><div class="val" style="font-size:14px">--</div></div>
+    <div id="tvTimer" style="display:none;margin-top:6px">
+      <div style="position:relative;border-radius:6px;overflow:hidden">
+        <img src="/water-timer-bg.png" style="width:100%;display:block;border-radius:6px">
+        <svg id="tvTimerSvg" viewBox="0 0 800 436" preserveAspectRatio="xMidYMid meet" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none">
+          <defs>
+            <filter id="tvWaterGlow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <g id="tvInputFlow" style="display:none" filter="url(#tvWaterGlow)">
+            <path id="tvInputPath" d="M400,435 L398,261" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" opacity="0.6"/>
+            <circle r="4" fill="#bae6fd" opacity="0.9"><animateMotion dur="1s" repeatCount="indefinite"><mpath href="#tvInputPath"/></animateMotion></circle>
+            <circle r="3" fill="#7dd3fc" opacity="0.7"><animateMotion dur="1s" repeatCount="indefinite" begin="0.33s"><mpath href="#tvInputPath"/></animateMotion></circle>
+            <circle r="3.5" fill="#bae6fd" opacity="0.8"><animateMotion dur="1s" repeatCount="indefinite" begin="0.66s"><mpath href="#tvInputPath"/></animateMotion></circle>
+          </g>
+          <g id="tvV1Flow" style="display:none" filter="url(#tvWaterGlow)">
+            <path id="tvV1Path" d="M398,262 L311,181 L307,69 L294,57 L198,59 L178,71 L168,105 L161,137 L158,166 L157,193 L157,200" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+            <circle r="4" fill="#bae6fd" opacity="0.9"><animateMotion dur="2.2s" repeatCount="indefinite"><mpath href="#tvV1Path"/></animateMotion></circle>
+            <circle r="3" fill="#7dd3fc" opacity="0.7"><animateMotion dur="2.2s" repeatCount="indefinite" begin="0.55s"><mpath href="#tvV1Path"/></animateMotion></circle>
+            <circle r="3.5" fill="#bae6fd" opacity="0.8"><animateMotion dur="2.2s" repeatCount="indefinite" begin="1.1s"><mpath href="#tvV1Path"/></animateMotion></circle>
+          </g>
+          <g id="tvV1Splash" style="display:none">
+            <line x1="157" y1="200" x2="157" y2="235" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" opacity="0.6"><animate attributeName="opacity" values="0.4;0.8;0.4" dur="0.6s" repeatCount="indefinite"/></line>
+            <circle cx="153" cy="215" r="2" fill="#7dd3fc"><animate attributeName="cy" values="205;230;205" dur="0.7s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.9;0;0.9" dur="0.7s" repeatCount="indefinite"/></circle>
+            <circle cx="161" cy="210" r="1.5" fill="#bae6fd"><animate attributeName="cy" values="203;228;203" dur="0.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.8;0;0.8" dur="0.5s" repeatCount="indefinite"/></circle>
+            <circle cx="157" cy="208" r="2.5" fill="#38bdf8"><animate attributeName="cy" values="200;238;200" dur="0.9s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.7;0;0.7" dur="0.9s" repeatCount="indefinite"/></circle>
+          </g>
+          <g id="tvV2Flow" style="display:none" filter="url(#tvWaterGlow)">
+            <path id="tvV2Path" d="M403,262 L437,239 L589,240 L637,274 L655,300" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+            <circle r="4" fill="#bae6fd" opacity="0.9"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#tvV2Path"/></animateMotion></circle>
+            <circle r="3" fill="#7dd3fc" opacity="0.7"><animateMotion dur="1.6s" repeatCount="indefinite" begin="0.4s"><mpath href="#tvV2Path"/></animateMotion></circle>
+            <circle r="3.5" fill="#bae6fd" opacity="0.8"><animateMotion dur="1.6s" repeatCount="indefinite" begin="0.8s"><mpath href="#tvV2Path"/></animateMotion></circle>
+          </g>
+          <g id="tvV2Splash" style="display:none">
+            <path d="M655,300 Q660,320 665,340" stroke="#38bdf8" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.7"><animate attributeName="opacity" values="0.4;0.9;0.4" dur="0.8s" repeatCount="indefinite"/></path>
+            <circle cx="665" cy="340" r="5" fill="none" stroke="#7dd3fc" stroke-width="1.5" opacity="0.5"><animate attributeName="r" values="3;15;3" dur="1.2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="1.2s" repeatCount="indefinite"/></circle>
+            <circle cx="665" cy="340" r="3" fill="none" stroke="#bae6fd" stroke-width="1" opacity="0.4"><animate attributeName="r" values="2;10;2" dur="0.8s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;0;0.5" dur="0.8s" repeatCount="indefinite"/></circle>
+          </g>
+          <g id="tvV1Status">
+            <rect x="20" y="375" width="160" height="50" rx="8" fill="#0f172a" opacity="0.85" stroke="#1e293b" stroke-width="1"/>
+            <text x="100" y="395" font-size="11" fill="#94a3b8" text-anchor="middle" font-family="sans-serif" id="tvV1Label">Valve 1</text>
+            <text x="100" y="415" font-size="14" font-weight="700" text-anchor="middle" font-family="sans-serif" id="tvV1Text" fill="#5a7a66">OFF</text>
+          </g>
+          <g id="tvV2Status">
+            <rect x="580" y="375" width="200" height="50" rx="8" fill="#0f172a" opacity="0.85" stroke="#1e293b" stroke-width="1"/>
+            <text x="680" y="395" font-size="11" fill="#94a3b8" text-anchor="middle" font-family="sans-serif" id="tvV2Label">Valve 2</text>
+            <text x="680" y="415" font-size="14" font-weight="700" text-anchor="middle" font-family="sans-serif" id="tvV2Text" fill="#5a7a66">OFF</text>
+          </g>
+        </svg>
+      </div>
     </div>
   </div>
 
@@ -155,7 +200,7 @@
       <video id="koiVideo" autoplay muted playsinline></video>
       <div class="cam-label"><span class="dot"></span> <span id="camLabel">LIVE</span></div>
       <div class="cam-status" id="camStatus"></div>
-      <div class="cam-reconnect" id="camReconnect" style="display:none"><div>&#x1F4F7;</div><div id="camReconnectText">Connecting...</div></div>
+      <div class="cam-reconnect" id="camReconnect" style="display:none"><div>[CAM]</div><div id="camReconnectText">Connecting...</div></div>
     </div>
     <div class="tv-birds">
       <div class="section-label" id="tvBirdsTitle">Bird Detection</div>
@@ -190,13 +235,13 @@ setInterval(() => {
 
 const wxEmoji = t => {
   const l = (t||'').toLowerCase();
-  if (l.includes('thunder')) return '&#x26C8;';
-  if (l.includes('rain')||l.includes('shower')) return '&#x1F327;';
-  if (l.includes('snow')) return '&#x1F328;';
-  if (l.includes('cloud')||l.includes('overcast')) return '&#x26C5;';
-  if (l.includes('fog')||l.includes('mist')) return '&#x1F32B;';
-  if (l.includes('sunny')||l.includes('clear')) return '&#x2600;&#xFE0F;';
-  return '&#x1F324;';
+  if (l.includes('thunder')) return '<span style="color:#facc15">*</span>';
+  if (l.includes('rain')||l.includes('shower')) return '<span style="color:#38bdf8">//</span>';
+  if (l.includes('snow')) return '<span style="color:#e2e8f0">**</span>';
+  if (l.includes('cloud')||l.includes('overcast')) return '<span style="color:#94a3b8">~~</span>';
+  if (l.includes('fog')||l.includes('mist')) return '<span style="color:#64748b">==</span>';
+  if (l.includes('sunny')||l.includes('clear')) return '<span style="color:#facc15">O</span>';
+  return '<span style="color:#94a3b8">~O</span>';
 };
 
 async function loadWeather() {
@@ -207,8 +252,8 @@ async function loadWeather() {
     document.getElementById('tvWx').innerHTML = `
       <span class="wx-icon" style="font-size:36px">${wxEmoji(cur.shortForecast)}</span>
       <div style="flex:1">
-        <div style="display:flex;align-items:baseline;gap:8px"><span class="wx-temp" style="font-size:32px;font-weight:700">${cur.temperature}°F</span><span class="wx-desc" style="font-size:11px;color:var(--text2)">${cur.shortForecast}</span></div>
-        <div class="wx-loc" style="font-size:9px;color:var(--text3)">${cn?'宾州 西切斯特':'West Chester, PA'}</div>
+        <div style="display:flex;align-items:baseline;gap:8px"><span class="wx-temp" style="font-size:32px;font-weight:700">${cur.temperature}°F</span><span class="wx-desc" style="font-size:14px;color:var(--text2)">${cur.shortForecast}</span></div>
+        <div class="wx-loc" style="font-size:12px;color:var(--text3)">${cn?'宾州 西切斯特':'West Chester, PA'}</div>
       </div>`;
     const grid = [];
     if (cur.windSpeed) grid.push({v:cur.windSpeed,l:cn?'风速':'Wind'});
@@ -473,7 +518,7 @@ async function loadBirdData() {
         const w = await (await fetch(`/api/birds/image/${encodeURIComponent(sp.common_name)}?sci=${encodeURIComponent(sp.scientific_name)}`)).json();
         img = w.image ? `<img src="${w.image}">` : '';
       } catch {}
-      if (!img) img = '<div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:14px;background:var(--surface);border-radius:6px">&#x1F426;</div>';
+      if (!img) img = '<div style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:14px;background:var(--surface);border-radius:6px;color:var(--text3)">?</div>';
       listHtml += `<div class="tv-bird-item" style="animation-delay:${i*0.05}s"><span class="rank">#${i+1}</span>${img}<span class="bname">${name}</span><span class="bcount">${sp.count}x</span><span class="bconf">${Math.round(sp.avg_conf*100)}%</span></div>`;
     }
     document.getElementById('tvBirdList').innerHTML = listHtml || `<div style="color:var(--text3);font-size:11px;text-align:center;padding:10px">${cn?'暂无':'None'}</div>`;
@@ -536,22 +581,28 @@ async function loadTimerStatus() {
   try {
     const res = await fetch('/api/timer/status');
     const d = await res.json();
-    document.getElementById('tvTimer').style.display = 'flex';
+    document.getElementById('tvTimer').style.display = '';
+    function fmtMin(m) { return m >= 60 ? Math.floor(m/60) + 'h ' + (m%60) + 'm' : m + 'm'; }
     for (const v of [1, 2]) {
       const s = d[`valve${v}`];
-      const el = document.getElementById(`tvValve${v}`);
-      const vLabel = cn ? `水阀${v}` : `Valve ${v}`;
-      const stateIcon = s.on ? '🟢' : '⚪';
-      let detail = s.on ? (cn ? '开启' : 'ON') : (cn ? '关闭' : 'OFF');
+      const flow = document.getElementById(`tvV${v}Flow`);
+      const splash = document.getElementById(`tvV${v}Splash`);
+      const txt = document.getElementById(`tvV${v}Text`);
+      const lbl = document.getElementById(`tvV${v}Label`);
+      if (flow) flow.style.display = s.on ? '' : 'none';
+      if (splash) splash.style.display = s.on ? '' : 'none';
+      lbl.textContent = cn ? '\u6C34\u9600 ' + v : 'Valve ' + v;
+      let st = s.on ? (cn ? '\u5F00\u542F' : 'OPEN') : 'OFF';
       if (s.on && s.on_since) {
         const elapsed = Math.floor((Date.now() - s.on_since) / 60000);
-        detail += ` ${elapsed}m`;
+        st += ' (' + fmtMin(elapsed) + ')';
       }
-      if (s.countdown > 0) {
-        detail += ` ⏳${s.countdown}m`;
-      }
-      el.innerHTML = `<div class="name">${vLabel}</div><div class="val" style="font-size:14px;color:${s.on?'var(--green)':'var(--text3)'}">${stateIcon} ${detail}</div>`;
+      if (s.countdown > 0) st += ' ' + fmtMin(s.countdown);
+      txt.textContent = st;
+      txt.setAttribute('fill', s.on ? '#22c55e' : '#5a7a66');
     }
+    const inputFlow = document.getElementById('tvInputFlow');
+    if (inputFlow) inputFlow.style.display = (d.valve1.on || d.valve2.on) ? '' : 'none';
   } catch (e) {}
 }
 
