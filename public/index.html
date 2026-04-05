@@ -141,15 +141,21 @@
 
     /* Responsive */
     @media (max-width: 640px) {
-      .header{padding:10px 14px;flex-direction:column;align-items:flex-start;gap:8px}
-      .header-right{width:100%;justify-content:flex-start;gap:8px;flex-wrap:wrap}
+      .header{padding:10px 14px;flex-direction:column;align-items:stretch;gap:6px}
+      .header-left h1{font-size:18px}
+      .header-left .subtitle{font-size:11px}
+      .header-right{width:100%;gap:6px;flex-wrap:wrap;justify-content:flex-start}
+      .header-right>*{flex-shrink:0}
+      .weather-brief{font-size:12px}
+      .lang-btn,.unit-btn{padding:4px 10px;font-size:12px}
+      .status{font-size:11px}
       .container{padding:12px 10px}
       .sensor-grid{grid-template-columns:1fr}
       .weather-now{padding:16px}
       .weather-now .temp{font-size:42px}
       .forecast-grid{grid-template-columns:repeat(auto-fill,minmax(65px,1fr))}
       .chart-section canvas{height:180px!important}
-      .music-btn{width:40px;height:40px;font-size:18px}
+      .music-btn{width:36px;height:36px;font-size:16px}
       .bird-toast-container{right:10px;left:10px;max-width:none}
       .time-btns button{padding:5px 10px;font-size:12px}
       .water-card{padding:14px;flex-direction:column;align-items:stretch}
