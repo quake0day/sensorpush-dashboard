@@ -252,7 +252,7 @@ async function loadWeather() {
     document.getElementById('tvWx').innerHTML = `
       <span class="wx-icon" style="font-size:36px">${wxEmoji(cur.shortForecast)}</span>
       <div style="flex:1">
-        <div style="display:flex;align-items:baseline;gap:8px"><span class="wx-temp" style="font-size:32px;font-weight:700">${cur.temperature}°F</span><span class="wx-desc" style="font-size:14px;color:var(--text2)">${cur.shortForecast}</span></div>
+        <div style="display:flex;align-items:baseline;gap:8px"><span class="wx-temp" style="font-size:32px;font-weight:700">${cn ? Math.round((cur.temperature-32)*5/9)+'°C' : cur.temperature+'°F'}</span><span class="wx-desc" style="font-size:14px;color:var(--text2)">${cur.shortForecast}</span></div>
         <div class="wx-loc" style="font-size:12px;color:var(--text3)">${cn?'宾州 西切斯特':'West Chester, PA'}</div>
       </div>`;
     const grid = [];
@@ -261,7 +261,7 @@ async function loadWeather() {
     grid.push({v:new Date(data.updated||'').toLocaleTimeString(cn?'zh-CN':'en-US',{hour:'2-digit',minute:'2-digit'}),l:cn?'更新':'Updated'});
     document.getElementById('tvWxGrid').innerHTML = grid.map(d=>`<div class="tv-wx-item"><div class="v">${d.v}</div><div class="l">${d.l}</div></div>`).join('');
     const fc = (data.forecast||[]).slice(0,7);
-    document.getElementById('tvForecast').innerHTML = fc.map(f=>`<div class="tv-fc"><div class="day">${(f.name||'').split(' ')[0]?.slice(0,3)}</div><div class="icon">${wxEmoji(f.shortForecast)}</div><div class="temp">${f.temperature}°</div></div>`).join('');
+    document.getElementById('tvForecast').innerHTML = fc.map(f=>`<div class="tv-fc"><div class="day">${(f.name||'').split(' ')[0]?.slice(0,3)}</div><div class="icon">${wxEmoji(f.shortForecast)}</div><div class="temp">${cn ? Math.round((f.temperature-32)*5/9)+'°' : f.temperature+'°'}</div></div>`).join('');
   } catch {}
 }
 
@@ -276,7 +276,7 @@ async function loadSensors() {
       const s = sensors[id];
       const tC = s.temperature!==undefined ? ((s.temperature-32)*5/9).toFixed(1) : null;
       const tF = s.temperature!==undefined ? s.temperature.toFixed(1) : null;
-      if (tF) html += `<div class="tv-sensor"><div><div class="name">${s.name||'Sensor'} - ${cn?'温度':'Temp'}</div></div><div class="val">${tF}°F<span class="unit"> (${tC}°C)</span></div></div>`;
+      if (tF) html += `<div class="tv-sensor"><div><div class="name">${s.name||'Sensor'} - ${cn?'温度':'Temp'}</div></div><div class="val">${cn ? tC+'°C' : tF+'°F'}<span class="unit"> (${cn ? tF+'°F' : tC+'°C'})</span></div></div>`;
       if (s.humidity!==undefined) html += `<div class="tv-sensor"><div><div class="name">${cn?'湿度':'Humidity'}</div></div><div class="val">${s.humidity.toFixed(0)}<span class="unit">%</span></div></div>`;
       if (s.barometric_pressure) html += `<div class="tv-sensor"><div><div class="name">${cn?'气压':'Pressure'}</div></div><div class="val">${s.barometric_pressure.toFixed(0)}<span class="unit"> hPa</span></div></div>`;
       if (s.dewpoint!==undefined) html += `<div class="tv-sensor"><div><div class="name">${cn?'露点':'Dew Point'}</div></div><div class="val">${((s.dewpoint-32)*5/9).toFixed(1)}<span class="unit">°C</span></div></div>`;
