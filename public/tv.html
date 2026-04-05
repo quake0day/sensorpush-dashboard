@@ -352,10 +352,10 @@ async function loadWater() {
   } catch {}
 }
 
-// ============ HLS Koi Cam (matches koi.html player) ============
+// ============ HLS Koi Cam (never give up, always reconnect) ============
 let hlsInstance = null;
 let hlsRetryCount = 0;
-const HLS_MAX_RETRY = 50;
+let lastFragTime = 0; // timestamp of last successful fragment
 
 function destroyHls() {
   if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
@@ -376,12 +376,9 @@ function initKoiCam() {
 
   function scheduleRetry() {
     hlsRetryCount++;
-    if (hlsRetryCount > HLS_MAX_RETRY) {
-      showReconnect(cn ? '视频流离线' : 'Stream offline');
-      return;
-    }
-    const delay = Math.min(2000 + hlsRetryCount * 1000, 15000);
-    showReconnect(`${cn?'重连中':'Reconnecting'}... (${hlsRetryCount})`);
+    // Never give up — cap delay at 15s, reset counter periodically
+    const delay = Math.min(3000 + Math.min(hlsRetryCount, 10) * 1000, 15000);
+    showReconnect(`${cn?'\u91CD\u8FDE\u4E2D':'Reconnecting'}... (${hlsRetryCount})`);
     statusEl.textContent = `retry #${hlsRetryCount}`;
     setTimeout(connect, delay);
   }
@@ -389,7 +386,7 @@ function initKoiCam() {
   function connect() {
     destroyHls();
     const hlsUrl = '/hls/stream.m3u8?t=' + Date.now();
-    showReconnect(cn ? '连接中...' : 'Connecting...');
+    showReconnect(cn ? '\u8FDE\u63A5\u4E2D...' : 'Connecting...');
 
     if (!Hls.isSupported()) {
       if (video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -402,7 +399,7 @@ function initKoiCam() {
 
     hlsInstance = new Hls({
       liveSyncDurationCount: 3,
-      liveMaxLatencyDurationCount: 8,
+      liveMaxLatencyDurationCount: 10,
       liveDurationInfinity: true,
       enableWorker: true,
       lowLatencyMode: false,
@@ -410,15 +407,15 @@ function initKoiCam() {
       maxBufferLength: 30,
       maxMaxBufferLength: 60,
       maxBufferHole: 0.5,
-      manifestLoadingTimeOut: 15000,
-      manifestLoadingMaxRetry: 10,
-      manifestLoadingRetryDelay: 1000,
-      levelLoadingTimeOut: 15000,
-      levelLoadingMaxRetry: 10,
-      levelLoadingRetryDelay: 1000,
+      manifestLoadingTimeOut: 20000,
+      manifestLoadingMaxRetry: 30,
+      manifestLoadingRetryDelay: 2000,
+      levelLoadingTimeOut: 20000,
+      levelLoadingMaxRetry: 30,
+      levelLoadingRetryDelay: 2000,
       fragLoadingTimeOut: 30000,
-      fragLoadingMaxRetry: 10,
-      fragLoadingRetryDelay: 1000,
+      fragLoadingMaxRetry: 30,
+      fragLoadingRetryDelay: 2000,
     });
 
     hlsInstance.loadSource(hlsUrl);
@@ -436,15 +433,22 @@ function initKoiCam() {
       if (data.fatal) {
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
           mediaRecoveryAttempts++;
-          if (mediaRecoveryAttempts <= 3) {
+          if (mediaRecoveryAttempts <= 5) {
             hlsInstance.recoverMediaError();
           } else {
             mediaRecoveryAttempts = 0;
             scheduleRetry();
           }
         } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          // Try reloading source first, then full reconnect
           hlsInstance.startLoad();
-          setTimeout(() => { if (hlsInstance) hlsInstance.loadSource(hlsUrl); }, 3000);
+          setTimeout(() => {
+            if (hlsInstance) {
+              try { hlsInstance.loadSource(hlsUrl); } catch(e) { scheduleRetry(); }
+            } else {
+              scheduleRetry();
+            }
+          }, 3000);
         } else {
           scheduleRetry();
         }
@@ -455,6 +459,7 @@ function initKoiCam() {
       hideReconnect();
       hlsRetryCount = 0;
       mediaRecoveryAttempts = 0;
+      lastFragTime = Date.now();
     });
 
     hlsInstance.on(Hls.Events.BUFFER_APPENDING, () => {
@@ -469,8 +474,8 @@ function initKoiCam() {
 
   // Wait for stream to be ready before connecting
   async function waitAndConnect() {
-    showReconnect(cn ? '等待视频流...' : 'Waiting for stream...');
-    for (let i = 0; i < 15; i++) {
+    showReconnect(cn ? '\u7B49\u5F85\u89C6\u9891\u6D41...' : 'Waiting for stream...');
+    for (let i = 0; i < 30; i++) {
       try {
         const res = await fetch('/api/camera/status');
         const data = await res.json();
@@ -483,12 +488,24 @@ function initKoiCam() {
 
   waitAndConnect();
 
-  // Periodic health check
+  // Aggressive health check every 15s — detect stalls and reconnect
   setInterval(() => {
+    // If video is paused but we think we're connected, try to play
     if (reconnectEl.style.display === 'none' && video.paused && hlsInstance) {
       video.play().catch(() => { connect(); });
     }
-  }, 30000);
+    // If no fragment received for 30s while supposedly connected, force reconnect
+    if (lastFragTime && (Date.now() - lastFragTime > 30000) && reconnectEl.style.display === 'none') {
+      statusEl.textContent = 'stale, reconnecting...';
+      connect();
+    }
+  }, 15000);
+
+  // Full reconnect every 10 minutes regardless, to prevent drift/memory leaks
+  setInterval(() => {
+    hlsRetryCount = 0;
+    connect();
+  }, 600000);
 }
 
 // ============ Birds ============
