@@ -1107,6 +1107,78 @@ async function showDexDetail(name, sci) {
   } catch (e) { console.error('species hourly:', e); }
 }
 
+// ============ Touch Gestures for Dex Panel ============
+(function() {
+  const panel = document.getElementById('dexPanel');
+  let startX = 0, startY = 0, startTime = 0, dragging = false, dx = 0;
+
+  panel.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    startX = t.clientX;
+    startY = t.clientY;
+    startTime = Date.now();
+    dragging = false;
+    dx = 0;
+    panel.style.transition = 'none';
+  }, { passive: true });
+
+  panel.addEventListener('touchmove', (e) => {
+    const t = e.touches[0];
+    dx = t.clientX - startX;
+    const dy = Math.abs(t.clientY - startY);
+    // Only track horizontal swipes (dx > dy means horizontal)
+    if (Math.abs(dx) > 10 && Math.abs(dx) > dy) {
+      dragging = true;
+      // Swipe right: slide panel to close (only allow positive dx)
+      if (dx > 0) {
+        panel.style.right = -dx + 'px';
+      }
+    }
+  }, { passive: true });
+
+  panel.addEventListener('touchend', () => {
+    panel.style.transition = 'right .3s';
+    if (!dragging) return;
+    const elapsed = Date.now() - startTime;
+    const velocity = dx / Math.max(elapsed, 1);
+
+    if (dx > 100 || (dx > 40 && velocity > 0.3)) {
+      // Swipe right far/fast enough → close panel or go back
+      if (dexShowingDetail) {
+        // In detail view: go back to list
+        dexShowingDetail = false;
+        renderDexList(dexSpecies);
+        panel.style.right = '0';
+      } else {
+        // In list view: close panel
+        toggleDex();
+      }
+    } else {
+      // Not enough → snap back
+      panel.style.right = '0';
+    }
+    dragging = false;
+    dx = 0;
+  });
+
+  // Pull down on panel body to refresh species list
+  const body = document.getElementById('dexBody');
+  let pullStartY = 0, pulling = false;
+  body.addEventListener('touchstart', (e) => {
+    if (body.scrollTop === 0) {
+      pullStartY = e.touches[0].clientY;
+      pulling = true;
+    }
+  }, { passive: true });
+  body.addEventListener('touchend', (e) => {
+    if (pulling && e.changedTouches[0].clientY - pullStartY > 80 && body.scrollTop === 0) {
+      // Pull down > 80px at top → refresh
+      loadDexData();
+    }
+    pulling = false;
+  });
+})();
+
 async function fetchDexDetail(name, sci) {
   if (dexDetailCache[name]) return dexDetailCache[name];
   try {
