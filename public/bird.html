@@ -948,12 +948,13 @@ let dexOpen = false;
 let dexSpecies = []; // all species ever detected
 let dexDetailCache = {};
 let dexShowingDetail = false; // true when showing a bird's detail page
+let dexOpenedDirect = false;  // true when detail opened directly (not from guide list)
 
 function toggleDex() {
   dexOpen = !dexOpen;
   document.getElementById('dexOverlay').classList.toggle('open', dexOpen);
   document.getElementById('dexPanel').classList.toggle('open', dexOpen);
-  if (!dexOpen) dexShowingDetail = false;
+  if (!dexOpen) { dexShowingDetail = false; dexOpenedDirect = false; }
   if (dexOpen && !dexSpecies.length) loadDexData();
 }
 
@@ -961,6 +962,7 @@ async function openDexDetail(name, sci) {
   // Open panel if not open
   if (!dexOpen) {
     dexOpen = true;
+    dexOpenedDirect = true; // opened from outside, not from guide list
     document.getElementById('dexOverlay').classList.add('open');
     document.getElementById('dexPanel').classList.add('open');
   }
@@ -1037,6 +1039,8 @@ function filterDex() {
 
 async function showDexDetail(name, sci) {
   dexShowingDetail = true;
+  // If opened from list (not direct), clear the direct flag so swipe goes back to list
+  if (!dexOpenedDirect) dexOpenedDirect = false;
   const cn = DLANG === 'cn';
   const el = document.getElementById('dexBody');
   el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">Loading...</div>';
@@ -1187,10 +1191,14 @@ async function showDexDetail(name, sci) {
       panel.style.right = -panelWidth() + 'px';
       setTimeout(() => {
         clearInlineRight();
-        if (dexShowingDetail) {
+        if (dexShowingDetail && !dexOpenedDirect) {
+          // Opened detail from guide list → go back to list
           dexShowingDetail = false;
           renderDexList(dexSpecies);
         } else {
+          // Direct open or list view → close entirely
+          dexShowingDetail = false;
+          dexOpenedDirect = false;
           if (dexOpen) toggleDex();
         }
       }, 220);
