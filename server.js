@@ -521,8 +521,9 @@ function startFFmpeg(quality) {
   ffmpegProc.on("exit", (code) => {
     console.log(`ffmpeg exited with code ${code}`);
     ffmpegProc = null;
-    if (code !== 0 && ffmpegRestarts < 20) {
+    if (code !== 0) {
       ffmpegRestarts++;
+      // Infinite retry: camera may be offline for hours; auto-recover when it returns
       const delay = Math.min(3000 + ffmpegRestarts * 2000, 30000);
       console.log(`ffmpeg auto-restart #${ffmpegRestarts} in ${delay/1000}s...`);
       setTimeout(() => startFFmpeg(ffmpegQuality), delay);
