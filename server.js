@@ -533,6 +533,20 @@ function startFFmpeg(quality) {
   setTimeout(() => { ffmpegRestarts = Math.max(0, ffmpegRestarts - 1); }, 120000);
 }
 
+// Watchdog: if ffmpeg is "running" but produces no segments for 20s, it's hung — kill it so the
+// exit handler restarts. Catches stuck HD transcodes and silent RTSP stalls.
+setInterval(() => {
+  if (!ffmpegProc) return;
+  const uptime = Date.now() - ffmpegStartTime;
+  if (uptime < 20000) return;
+  let segs = 0;
+  try { segs = fs.readdirSync(HLS_DIR).filter(f => f.endsWith(".ts")).length; } catch (e) {}
+  if (segs === 0) {
+    console.log(`ffmpeg watchdog: no segments after ${Math.floor(uptime/1000)}s, killing for restart`);
+    try { ffmpegProc.kill("SIGKILL"); } catch (e) {}
+  }
+}, 10000);
+
 // Default: use stable sub stream (no transcode, never drops)
 startFFmpeg("stable");
 
