@@ -334,8 +334,21 @@ app.get("/api/timer/status", async (req, res) => {
       if (status[`switch_${v}`] && !valveOnTimes[v]) {
         valveOnTimes[v] = Date.now();
       } else if (!status[`switch_${v}`]) {
-        valveOnTimes[v] = null;
-        clearAutoOff(v);
+        // Device reports off — check if server still has an active countdown
+        if (valveCountdownEnd[v] && valveCountdownEnd[v] > Date.now()) {
+          // Server timer still active: Tuya device shut off on its own (unreliable internal timer)
+          // Re-send switch-on command to keep the valve running
+          console.log(`Valve ${v} turned off by device while server timer active (${Math.ceil((valveCountdownEnd[v] - Date.now()) / 60000)}m left), re-opening...`);
+          tuyaRequest("POST", `/v1.0/devices/${WATER_TIMER_ID}/commands`, token, {
+            commands: [{ code: `switch_${v}`, value: true }],
+          }).catch(err => console.error(`Valve ${v} re-open failed:`, err.message));
+          // Keep server state as-is (on + countdown active), report as on
+          status[`switch_${v}`] = true;
+        } else {
+          // No active server timer — valve is genuinely off
+          valveOnTimes[v] = null;
+          clearAutoOff(v);
+        }
       }
     }
     // Compute remaining countdown from server-side timer

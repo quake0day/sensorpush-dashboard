@@ -765,6 +765,7 @@
     }
 
     let valveState = { 1: { on: false, countdown: 0, on_since: null }, 2: { on: false, countdown: 0, on_since: null } };
+    let valveActionTime = 0; // timestamp of last user valve action (debounce polls)
 
     function fmtMin(m) {
       if (m >= 60) return Math.floor(m/60) + 'h ' + (m%60) + 'm';
@@ -806,6 +807,8 @@
 
     async function loadTimerStatus() {
       try {
+        // Skip poll for 5s after user action to avoid UI flicker
+        if (Date.now() - valveActionTime < 5000) return;
         const res = await fetch('/api/timer/status');
         const d = await res.json();
         valveState[1] = d.valve1;
@@ -824,13 +827,14 @@
         btn.disabled = true;
         btn.textContent = '...';
         try {
+          valveActionTime = Date.now();
           await fetch('/api/timer/valve', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ valve: v, on: newState })
           });
           valveState[v].on = newState;
           if (newState) valveState[v].on_since = Date.now();
-          else valveState[v].on_since = null;
+          else { valveState[v].on_since = null; valveState[v].countdown = 0; }
           updateValveUI();
         } catch (e) {
           btn.textContent = 'ERR';
@@ -847,6 +851,7 @@
         btn.style.opacity = '0.5';
         try {
           // Turn on + set countdown
+          valveActionTime = Date.now();
           await fetch('/api/timer/valve', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ valve: v, on: true, countdown: min })
