@@ -354,6 +354,7 @@
     let currentQuality = "1080p";
     let retryTimer = null;
     let stallTimer = null;
+    let hlsLatencyTimer = null;
     let retryCount = 0;
     const MAX_RETRY = 30;
 
@@ -369,13 +370,13 @@
       if (Hls.isSupported()) {
         hls = new Hls({
           liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 8,
+          liveMaxLatencyDurationCount: 6,
           liveDurationInfinity: true,
           enableWorker: true,
-          lowLatencyMode: false,
-          backBufferLength: 30,
-          maxBufferLength: 30,
-          maxMaxBufferLength: 60,
+          lowLatencyMode: true,
+          backBufferLength: 5,
+          maxBufferLength: 15,
+          maxMaxBufferLength: 30,
           maxBufferHole: 0.5,
           manifestLoadingTimeOut: 15000,
           manifestLoadingMaxRetry: 10,
@@ -390,7 +391,28 @@
         hls.loadSource(hlsUrl);
         hls.attachMedia(video);
 
+        // Seek to live edge
+        function seekToLive() {
+          if (hls && hls.liveSyncPosition) {
+            video.currentTime = hls.liveSyncPosition;
+          } else if (video.buffered.length > 0) {
+            video.currentTime = video.buffered.end(video.buffered.length - 1);
+          }
+        }
+
+        // Periodic latency watchdog — if >20s behind live, force seek
+        if (hlsLatencyTimer) clearInterval(hlsLatencyTimer);
+        hlsLatencyTimer = setInterval(() => {
+          if (!hls || video.paused) return;
+          const livePos = hls.liveSyncPosition;
+          if (livePos && (livePos - video.currentTime) > 20) {
+            console.log('Koi latency watchdog: ' + (livePos - video.currentTime).toFixed(0) + 's behind, seeking to live');
+            video.currentTime = livePos;
+          }
+        }, 10000);
+
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          seekToLive();
           video.play().catch(() => {});
           setStatus("on", "Live");
           camError.classList.remove("show");
@@ -457,6 +479,7 @@
     }
 
     function destroyHLS() {
+      if (hlsLatencyTimer) { clearInterval(hlsLatencyTimer); hlsLatencyTimer = null; }
       if (hls) {
         hls.destroy();
         hls = null;

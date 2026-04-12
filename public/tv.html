@@ -356,8 +356,10 @@ async function loadWater() {
 let hlsInstance = null;
 let hlsRetryCount = 0;
 let lastFragTime = 0; // timestamp of last successful fragment
+let hlsLatencyTimer = null;
 
 function destroyHls() {
+  if (hlsLatencyTimer) { clearInterval(hlsLatencyTimer); hlsLatencyTimer = null; }
   if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
 }
 
@@ -399,13 +401,13 @@ function initKoiCam() {
 
     hlsInstance = new Hls({
       liveSyncDurationCount: 3,
-      liveMaxLatencyDurationCount: 10,
+      liveMaxLatencyDurationCount: 6,
       liveDurationInfinity: true,
       enableWorker: true,
-      lowLatencyMode: false,
-      backBufferLength: 30,
-      maxBufferLength: 30,
-      maxMaxBufferLength: 60,
+      lowLatencyMode: true,
+      backBufferLength: 5,
+      maxBufferLength: 15,
+      maxMaxBufferLength: 30,
       maxBufferHole: 0.5,
       manifestLoadingTimeOut: 20000,
       manifestLoadingMaxRetry: 30,
@@ -421,7 +423,28 @@ function initKoiCam() {
     hlsInstance.loadSource(hlsUrl);
     hlsInstance.attachMedia(video);
 
+    // Seek to live edge
+    function seekToLive() {
+      if (hlsInstance && hlsInstance.liveSyncPosition) {
+        video.currentTime = hlsInstance.liveSyncPosition;
+      } else if (video.buffered.length > 0) {
+        video.currentTime = video.buffered.end(video.buffered.length - 1);
+      }
+    }
+
+    // Periodic latency watchdog — if >20s behind live, force seek
+    if (hlsLatencyTimer) clearInterval(hlsLatencyTimer);
+    hlsLatencyTimer = setInterval(() => {
+      if (!hlsInstance || video.paused) return;
+      const livePos = hlsInstance.liveSyncPosition;
+      if (livePos && (livePos - video.currentTime) > 20) {
+        console.log('TV latency watchdog: ' + (livePos - video.currentTime).toFixed(0) + 's behind, seeking to live');
+        video.currentTime = livePos;
+      }
+    }, 10000);
+
     hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+      seekToLive();
       video.play().catch(()=>{});
       hideReconnect();
       hlsRetryCount = 0;
