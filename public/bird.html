@@ -340,8 +340,10 @@ function applyLang() {
   document.getElementById('dashBtn').textContent = cn ? '仪表板' : 'Dashboard';
   const dexBtn = document.getElementById('dexBtnText');
   const dexTtl = document.getElementById('dexTitle');
+  const dexSearch = document.getElementById('dexSearchInput');
   if (dexBtn) dexBtn.textContent = cn ? '鸟类图鉴' : 'Field Guide';
   if (dexTtl) dexTtl.textContent = cn ? '鸟类图鉴' : 'Bird Field Guide';
+  if (dexSearch) dexSearch.placeholder = cn ? '搜索鸟种...' : 'Search species...';
 }
 document.getElementById('langBtn').addEventListener('click', (e) => {
   e.preventDefault();

@@ -918,13 +918,15 @@ async function translateBird(commonName, scientificName) {
     const msg = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 600,
-      system: "You are an ornithology JSON API. Use OFFICIAL standard Chinese bird names. Return ONLY valid JSON with no extra text.",
+      system: "You are an ornithology JSON API specializing in birds (Aves). Use OFFICIAL standard Chinese bird names from Chinese ornithological references. The cn_name MUST be a real bird species name — NEVER a fish, insect, plant, or any non-bird organism. Return ONLY valid JSON with no extra text.",
       messages: [{
         role: "user",
         content: `Bird: ${commonName} (${scientificName})
 
 Known correct Chinese names for reference:
-Northern Cardinal=北美红雀, Blue Jay=冠蓝鸦, American Robin=旅鸫, American Crow=美洲鸦, American Goldfinch=美洲金翅雀, House Sparrow=家麻雀, House Finch=家朱雀, Mourning Dove=哀鸽, Song Sparrow=歌带鹀, Carolina Wren=卡罗来纳鹪鹩, Tufted Titmouse=丛林山雀, Black-capped Chickadee=黑顶山雀, Carolina Chickadee=卡罗来纳山雀, White-breasted Nuthatch=白胸鳾, Red-bellied Woodpecker=红腹啄木鸟, Downy Woodpecker=绒啄木鸟, Northern Flicker=扑动鴷, Eastern Bluebird=东蓝鸲, Northern Mockingbird=北方嘲鸫, Fox Sparrow=狐色雀鹀, Least Bittern=小苇鳽, Pied-billed Grebe=斑嘴巨鸊鷉, Summer Tanager=夏裸鹎鵐, Green-winged Teal=绿翅鸭, Northern Shoveler=琵嘴鸭, Eurasian Collared-Dove=灰斑鸠, Yellow-billed Cuckoo=黄嘴美洲鹃, Tree Swallow=树燕
+Northern Cardinal=北美红雀, Blue Jay=冠蓝鸦, American Robin=旅鸫, American Crow=美洲鸦, American Goldfinch=美洲金翅雀, House Sparrow=家麻雀, House Finch=家朱雀, Mourning Dove=哀鸽, Song Sparrow=歌带鹀, Carolina Wren=卡罗来纳鹪鹩, Tufted Titmouse=丛林山雀, Black-capped Chickadee=黑顶山雀, Carolina Chickadee=卡罗来纳山雀, White-breasted Nuthatch=白胸鳾, Red-bellied Woodpecker=红腹啄木鸟, Downy Woodpecker=绒啄木鸟, Northern Flicker=扑动鴷, Eastern Bluebird=东蓝鸲, Northern Mockingbird=北方嘲鸫, Fox Sparrow=狐色雀鹀, Least Bittern=小苇鳽, Pied-billed Grebe=斑嘴巨鸊鷉, Summer Tanager=夏裸鹎鵐, Green-winged Teal=绿翅鸭, Northern Shoveler=琵嘴鸭, Eurasian Collared-Dove=灰斑鸠, Yellow-billed Cuckoo=黄嘴美洲鹃, Tree Swallow=树燕, Purple Martin=紫崖燕, Barn Swallow=家燕, Chimney Swift=烟囱雨燕, Ruby-throated Hummingbird=红喉北蜂鸟, Indigo Bunting=靛蓝彩鹀, Baltimore Oriole=巴尔的摩拟黄鹂, Cedar Waxwing=雪松太平鸟, Red-winged Blackbird=红翅黑鹂, Common Grackle=紫拟椋鸟, Brown-headed Cowbird=褐头牛鹂, Eastern Phoebe=东菲比霸鹟, Great Crested Flycatcher=大冠鹟, Eastern Kingbird=东王霸鹟
+
+CRITICAL: The scientific name "${scientificName}" belongs to a BIRD. Look up the correct Chinese name for this bird species. Do NOT confuse with fish, reptiles, or other animals.
 
 Return JSON:
 {"cn_name":"official Chinese name","cn_name_pinyin":"FULL pinyin with tone marks for entire cn_name, e.g. bei3 mei3 hong2 que4","cn_desc":"50-80 char Chinese description. For any rare bird characters (鳽鸊鷉鹪鹩鹀鸲鹂鹟鸮鵟鴷鸫鹃鳾) add pinyin in parentheses after them","call_desc":"20 char call description in Chinese","call_desc_en":"20 word call description in English"}`,
@@ -1244,8 +1246,16 @@ app.get("/api/birds/detail/:name", async (req, res) => {
 
   if (!anthropic) return res.json({});
 
-  // Get the already-translated Chinese name to ensure consistency
-  const existingTrans = birdTranslations[name];
+  // Ensure translation exists before generating details
+  let existingTrans = birdTranslations[name];
+  if (!existingTrans?.cn_name && sci) {
+    const freshTrans = await translateBird(name, sci);
+    if (freshTrans?.cn_name) {
+      birdTranslations[name] = freshTrans;
+      existingTrans = freshTrans;
+      fs.writeFileSync(BIRD_TRANS_FILE, JSON.stringify(birdTranslations, null, 2));
+    }
+  }
   const cnName = existingTrans?.cn_name || name;
 
   try {
