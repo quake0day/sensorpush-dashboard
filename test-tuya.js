@@ -1,8 +1,9 @@
+require("dotenv").config();
 const crypto = require("crypto");
 
-const ACCESS_ID = "TUYA_ACCESS_ID_REDACTED";
-const ACCESS_SECRET = "TUYA_ACCESS_SECRET_REDACTED";
-const BASE_URL = "https://openapi.tuyaus.com"; // US data center
+const ACCESS_ID = process.env.TUYA_ACCESS_ID;
+const ACCESS_SECRET = process.env.TUYA_ACCESS_SECRET;
+const BASE_URL = process.env.TUYA_BASE_URL || "https://openapi.tuyaus.com";
 
 async function getToken() {
   const t = Date.now().toString();
