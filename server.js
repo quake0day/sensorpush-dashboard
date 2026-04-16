@@ -1411,4 +1411,11 @@ app.get("/cn/water", (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Smart Garden Dashboard running at http://localhost:${PORT}`);
+  if (process.env.BACKUP_ENABLED === "1") {
+    try {
+      require("./backup/logger").start(`http://127.0.0.1:${PORT}/api/sensors`);
+    } catch (e) {
+      console.error("[backup] sensor logger failed to start:", e.message);
+    }
+  }
 });

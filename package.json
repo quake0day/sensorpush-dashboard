@@ -3,10 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "backup:init": "node backup/init.js",
+    "backup:sync": "node backup/sync.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
+    "@aws-sdk/client-s3": "^3.670.0",
+    "better-sqlite3": "^11.5.0",
     "crypto-js": "^4.2.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
