@@ -1,9 +1,10 @@
 const Database = require("better-sqlite3");
 const path = require("path");
+const os = require("os");
 const fs = require("fs");
 
-const DB_PATH = process.env.BACKUP_DB_PATH ||
-  path.join(__dirname, "..", "..", "data", "backup.db");
+const DATA_DIR = process.env.DATA_DIR || path.join(os.homedir(), "sensorpush-data");
+const DB_PATH = process.env.BACKUP_DB_PATH || path.join(DATA_DIR, "backup.db");
 
 let db = null;
 

@@ -51,6 +51,19 @@ node server.js  # starts on port 3088
 cp .env.example .env  # configure SensorPush, Tuya, Reolink, Anthropic keys
 ```
 
+### Runtime data location (important)
+
+All runtime data (bird detections, motion events, water level, gardens,
+HLS cache, pond alarm log, backup SQLite) lives **outside the repo** at
+`$DATA_DIR` — default `~/sensorpush-data/`. This is to guarantee no git
+operation (`pull`, `reset --hard`, `clean -fdx`, even `rm -rf && git clone`)
+can ever delete it. On 2026-04-13 we lost bird data to exactly that.
+
+Override via `.env`: `DATA_DIR=/some/other/path`. Both `server.js` and
+the Python detectors (`bird_detector.py`, `motion_detector.py`,
+`water_detector.py`) and the backup scripts (`backup/sync.js`,
+`backup/lib/db.js`) all read the same env var with the same default.
+
 ### HLS Streaming
 - **Stable mode** (default): Sub stream copy, 0% CPU, 640x360
 - **HD mode**: Main stream transcode to 720p H.264 + AAC

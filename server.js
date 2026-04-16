@@ -2,7 +2,14 @@ require("dotenv").config();
 const express = require("express");
 const crypto = require("crypto");
 const path = require("path");
+const os = require("os");
+const fsSync = require("fs");
 const Anthropic = require("@anthropic-ai/sdk");
+
+// External data dir — lives outside the git repo so git operations
+// (pull/reset/clean) can never delete runtime data.
+const DATA_DIR = process.env.DATA_DIR || path.join(os.homedir(), "sensorpush-data");
+fsSync.mkdirSync(DATA_DIR, { recursive: true });
 
 const app = express();
 app.use(express.json());
@@ -197,7 +204,7 @@ app.post("/api/samples", async (req, res) => {
 
 // ============ Pond Alarm Log (server-side tracking) ============
 const fs = require("fs");
-const POND_LOG_FILE = path.join(__dirname, "pond-alarm-log.json");
+const POND_LOG_FILE = path.join(DATA_DIR, "pond-alarm-log.json");
 let pondLog = [];
 let lastPondState = {};
 
@@ -403,7 +410,7 @@ app.post("/api/timer/valve", async (req, res) => {
 });
 
 // ============ Garden Editor API ============
-const GARDENS_DIR = path.join(__dirname, "data", "gardens");
+const GARDENS_DIR = path.join(DATA_DIR, "gardens");
 if (!fs.existsSync(GARDENS_DIR)) fs.mkdirSync(GARDENS_DIR, { recursive: true });
 
 app.get("/api/gardens", (req, res) => {
@@ -440,7 +447,7 @@ const { spawn } = require("child_process");
 const REOLINK_IP = process.env.REOLINK_IP || "192.168.68.96";
 const REOLINK_USER = process.env.REOLINK_USER || "admin";
 const REOLINK_PASS = process.env.REOLINK_PASSWORD || "";
-const HLS_DIR = path.join(__dirname, "hls-cam");
+const HLS_DIR = path.join(DATA_DIR, "hls-cam");
 
 // Ensure HLS output directory exists
 if (!fs.existsSync(HLS_DIR)) fs.mkdirSync(HLS_DIR, { recursive: true });
@@ -652,7 +659,7 @@ app.get("/api/camera/info", async (req, res) => {
 });
 
 // ============ Bird Detection API ============
-const BIRD_DIR = path.join(__dirname, "data", "bird-detections");
+const BIRD_DIR = path.join(DATA_DIR, "bird-detections");
 const BIRD_CLIPS = path.join(BIRD_DIR, "clips");
 const BIRD_FILE = path.join(BIRD_DIR, "latest.json");
 if (!fs.existsSync(BIRD_CLIPS)) fs.mkdirSync(BIRD_CLIPS, { recursive: true });
@@ -1065,7 +1072,7 @@ process.on("SIGTERM", cleanup);
 process.on("SIGINT", cleanup);
 
 // ============ Water Level API ============
-const WATER_DIR = path.join(__dirname, "data", "water-level");
+const WATER_DIR = path.join(DATA_DIR, "water-level");
 if (!fs.existsSync(WATER_DIR)) fs.mkdirSync(WATER_DIR, { recursive: true });
 const WATER_CAL_FILE = path.join(WATER_DIR, "calibration.json");
 const WATER_READINGS_FILE = path.join(WATER_DIR, "readings.json");
@@ -1301,7 +1308,7 @@ Return a JSON object with these keys:
 });
 
 // ============ Motion Detection API ============
-const MOTION_DIR = path.join(__dirname, "data", "motion-events");
+const MOTION_DIR = path.join(DATA_DIR, "motion-events");
 const MOTION_CLIPS = path.join(MOTION_DIR, "clips");
 const MOTION_THUMBS = path.join(MOTION_DIR, "thumbs");
 const MOTION_FILE = path.join(MOTION_DIR, "latest.json");

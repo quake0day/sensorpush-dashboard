@@ -15,7 +15,8 @@ from pathlib import Path
 # Config
 RTSP_URL = "rtsp://admin:%40Lara4chensi@192.168.68.96:554/h264Preview_01_sub"
 BASE_DIR = Path(__file__).parent
-WATER_DIR = BASE_DIR / "data" / "water-level"
+DATA_DIR = Path(os.environ.get("DATA_DIR") or Path.home() / "sensorpush-data")
+WATER_DIR = DATA_DIR / "water-level"
 CAL_FILE = WATER_DIR / "calibration.json"
 READINGS_FILE = WATER_DIR / "readings.json"
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "qk0d-koi-xk7m")

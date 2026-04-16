@@ -1,10 +1,13 @@
 node_modules/
 .env
 .DS_Store
-pond-alarm-log.json
-data/gardens/*.json
-hls-cam/
-data/bird-detections/
-data/motion-events/
-data/water-level/
 models/
+__pycache__/
+
+# Runtime data lives OUTSIDE the repo at $DATA_DIR (default ~/sensorpush-data).
+# The entries below are safety nets — if old code or a misconfig ever writes
+# into the repo, git should never commit it.
+data/
+hls-cam/
+pond-alarm-log.json
+sensorpush-data/

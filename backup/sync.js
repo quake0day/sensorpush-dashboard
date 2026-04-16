@@ -5,11 +5,12 @@
 require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") });
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const db = require("./lib/db");
 const d1 = require("./lib/d1");
 const r2 = require("./lib/r2");
 
-const DATA_DIR = path.join(__dirname, "..", "data");
+const DATA_DIR = process.env.DATA_DIR || path.join(os.homedir(), "sensorpush-data");
 const BIRD_DIR = path.join(DATA_DIR, "bird-detections");
 const MOTION_DIR = path.join(DATA_DIR, "motion-events");
 
