@@ -8,7 +8,7 @@
     "backup:sync": "node backup/sync.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0",
+    "@anthropic-ai/sdk": "^0.90.0",
     "@aws-sdk/client-s3": "^3.670.0",
     "better-sqlite3": "^11.5.0",
     "crypto-js": "^4.2.0",
