@@ -553,16 +553,23 @@ function startFFmpeg(quality) {
   setTimeout(() => { ffmpegRestarts = Math.max(0, ffmpegRestarts - 1); }, 120000);
 }
 
-// Watchdog: if ffmpeg is "running" but produces no segments for 20s, it's hung — kill it so the
-// exit handler restarts. Catches stuck HD transcodes and silent RTSP stalls.
+// Watchdog: kill ffmpeg if it stops writing fresh segments. Two failure modes:
+//   (a) startup never produces segments (no .ts after 20s)
+//   (b) running process hangs mid-stream — playlist mtime stops advancing (seen Apr 29: 18h stale)
 setInterval(() => {
   if (!ffmpegProc) return;
   const uptime = Date.now() - ffmpegStartTime;
   if (uptime < 20000) return;
-  let segs = 0;
-  try { segs = fs.readdirSync(HLS_DIR).filter(f => f.endsWith(".ts")).length; } catch (e) {}
-  if (segs === 0) {
-    console.log(`ffmpeg watchdog: no segments after ${Math.floor(uptime/1000)}s, killing for restart`);
+  let segs = 0, playlistAge = Infinity;
+  try {
+    segs = fs.readdirSync(HLS_DIR).filter(f => f.endsWith(".ts")).length;
+    const m3u8 = path.join(HLS_DIR, "stream.m3u8");
+    if (fs.existsSync(m3u8)) playlistAge = Date.now() - fs.statSync(m3u8).mtimeMs;
+  } catch (e) {}
+  // Healthy stream rewrites m3u8 every ~2s. >20s without an update = hung.
+  const stalled = segs === 0 || playlistAge > 20000;
+  if (stalled) {
+    console.log(`ffmpeg watchdog: stalled (segs=${segs}, playlistAge=${Math.floor(playlistAge/1000)}s, uptime=${Math.floor(uptime/1000)}s), killing for restart`);
     try { ffmpegProc.kill("SIGKILL"); } catch (e) {}
   }
 }, 10000);
@@ -595,7 +602,7 @@ app.post("/api/camera/stream", (req, res) => {
 // API: restart stream
 app.post("/api/camera/restart", (req, res) => {
   ffmpegRestarts = 0;
-  startFFmpeg(ffmpegStream);
+  startFFmpeg(ffmpegQuality);
   res.json({ ok: true });
 });
 
@@ -865,20 +872,38 @@ async function wikiLookup(term, lang) {
   } catch { return null; }
 }
 
+// Heuristic: does this Wikipedia article actually describe a bird? Catches cases where the
+// common-name slug resolves to a non-bird article (plant, place, etc.) that still has an image.
+function looksLikeBird(result, sci) {
+  if (!result?.extract) return false;
+  const text = result.extract.toLowerCase();
+  if (/\b(bird|aves|avian|songbird|warbler|sparrow|finch|thrush|hawk|owl|duck|heron|egret|swallow|wren|jay|chickadee|woodpecker|hummingbird|raptor|seabird|shorebird|waterfowl)\b/.test(text)) return true;
+  // Genus from scientific name often appears in the article body
+  if (sci) {
+    const genus = sci.split(/\s+/)[0];
+    if (genus && genus.length > 3 && text.includes(genus.toLowerCase())) return true;
+  }
+  return false;
+}
+
 app.get("/api/birds/image/:name", async (req, res) => {
   const name = req.params.name;
-  if (birdImageCache[name]) {
+  const sci = req.query.sci;
+  // Only honor cache when it has a real image. Null entries are retried so a transient
+  // Wikipedia hiccup doesn't poison the cache for the lifetime of the process.
+  if (birdImageCache[name]?.image) {
     return res.json(birdImageCache[name]);
   }
   try {
-    // Try common name first, then scientific name via query param
     let result = await wikiLookup(name);
-    // If common name fails, try with " (bird)" suffix
+    // Reject if the article doesn't look like a bird (wrong species fix)
+    if (result && !looksLikeBird(result, sci)) result = null;
+    // Try " (bird)" disambiguation suffix
     if (!result || !result.image) {
-      result = await wikiLookup(name + " (bird)") || result;
+      const alt = await wikiLookup(name + " (bird)");
+      if (alt && looksLikeBird(alt, sci)) result = alt;
     }
-    // Try scientific name if provided
-    const sci = req.query.sci;
+    // Fall through to scientific name — unambiguous
     if ((!result || !result.image) && sci) {
       const sciResult = await wikiLookup(sci);
       if (sciResult) {
@@ -891,13 +916,13 @@ app.get("/api/birds/image/:name", async (req, res) => {
       }
     }
     const final = result || { image: null, extract: "", url: "" };
-    // Also look up Chinese Wikipedia URL
     const cnName = birdTranslations[name]?.cn_name;
     if (cnName) {
       const zhResult = await wikiLookup(cnName, "zh");
       final.url_zh = zhResult?.url || "";
     }
-    birdImageCache[name] = final;
+    // Only cache successful lookups; a null today shouldn't permanently break this bird.
+    if (final.image) birdImageCache[name] = final;
     res.json(final);
   } catch (e) {
     res.json({ image: null, extract: "", url: "" });
