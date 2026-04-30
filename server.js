@@ -912,21 +912,23 @@ app.get("/api/birds/image/:name", async (req, res) => {
     return res.json(birdImageCache[name]);
   }
   try {
-    // Prefer common name (Wikipedia bird articles are titled by common name); fall back to
-    // " (bird)" disambiguation, then scientific name. The scientific-name fallback is the
-    // unambiguous safety net — Wikipedia redirects from binomial → bird article.
-    let result = await wikiLookup(name);
+    // Try scientific name first when available — the binomial is unambiguous, while common
+    // names can collide with non-bird articles (e.g. "Redhead" → "Red hair", a human-hair
+    // article). Fall back to common name and " (bird)" disambiguation if sci has no page.
+    let result = sci ? await wikiLookup(sci) : null;
+    // If sci has no page (rare for documented species), try " (bird)" disambiguation before
+    // bare common name — the latter can land on a non-bird article ("Redhead" → "Red hair").
     if (!result || !result.image) {
       result = await wikiLookup(name + " (bird)") || result;
     }
-    if ((!result || !result.image) && sci) {
-      const sciResult = await wikiLookup(sci);
-      if (sciResult) {
+    if (!result || !result.image) {
+      const byName = await wikiLookup(name);
+      if (byName?.image) {
         result = {
-          image: sciResult.image || result?.image || null,
-          extract: result?.extract || sciResult.extract || "",
-          url: result?.url || sciResult.url || "",
-          title: result?.title || sciResult.title || name,
+          image: byName.image,
+          extract: byName.extract || result?.extract || "",
+          url: byName.url || result?.url || "",
+          title: byName.title || result?.title || name,
         };
       }
     }
@@ -967,20 +969,15 @@ async function warmupBirdImages() {
     for (const [name, sci] of seen) {
       if (birdImageCache[name]?.image) continue;
       tried++;
-      let result = await wikiLookup(name);
+      // Same chain as the HTTP handler: sci first (unambiguous), then " (bird)", then bare
+      // common name. Avoids cases like "Redhead" → "Red hair" overwriting the duck article.
+      let result = sci ? await wikiLookup(sci) : null;
       if (!result || !result.image) {
         result = await wikiLookup(name + " (bird)") || result;
       }
-      if ((!result || !result.image) && sci) {
-        const sciResult = await wikiLookup(sci);
-        if (sciResult) {
-          result = {
-            image: sciResult.image || result?.image || null,
-            extract: result?.extract || sciResult.extract || "",
-            url: result?.url || sciResult.url || "",
-            title: result?.title || sciResult.title || name,
-          };
-        }
+      if (!result || !result.image) {
+        const byName = await wikiLookup(name);
+        if (byName?.image) result = byName;
       }
       if (result?.image) {
         const cnName = birdTranslations[name]?.cn_name;
