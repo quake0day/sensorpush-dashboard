@@ -889,20 +889,6 @@ async function wikiLookup(term, lang) {
   } catch { return null; }
 }
 
-// Heuristic: does this Wikipedia article actually describe a bird? Catches cases where the
-// common-name slug resolves to a non-bird article (plant, place, etc.) that still has an image.
-function looksLikeBird(result, sci) {
-  if (!result?.extract) return false;
-  const text = result.extract.toLowerCase();
-  if (/\b(bird|aves|avian|songbird|warbler|sparrow|finch|thrush|hawk|owl|duck|heron|egret|swallow|wren|jay|chickadee|woodpecker|hummingbird|raptor|seabird|shorebird|waterfowl)\b/.test(text)) return true;
-  // Genus from scientific name often appears in the article body
-  if (sci) {
-    const genus = sci.split(/\s+/)[0];
-    if (genus && genus.length > 3 && text.includes(genus.toLowerCase())) return true;
-  }
-  return false;
-}
-
 app.get("/api/birds/image/:name", async (req, res) => {
   const name = req.params.name;
   const sci = req.query.sci;
@@ -912,15 +898,13 @@ app.get("/api/birds/image/:name", async (req, res) => {
     return res.json(birdImageCache[name]);
   }
   try {
+    // Prefer common name (Wikipedia bird articles are titled by common name); fall back to
+    // " (bird)" disambiguation, then scientific name. The scientific-name fallback is the
+    // unambiguous safety net — Wikipedia redirects from binomial → bird article.
     let result = await wikiLookup(name);
-    // Reject if the article doesn't look like a bird (wrong species fix)
-    if (result && !looksLikeBird(result, sci)) result = null;
-    // Try " (bird)" disambiguation suffix
     if (!result || !result.image) {
-      const alt = await wikiLookup(name + " (bird)");
-      if (alt && looksLikeBird(alt, sci)) result = alt;
+      result = await wikiLookup(name + " (bird)") || result;
     }
-    // Fall through to scientific name — unambiguous
     if ((!result || !result.image) && sci) {
       const sciResult = await wikiLookup(sci);
       if (sciResult) {
@@ -970,10 +954,8 @@ async function warmupBirdImages() {
       if (birdImageCache[name]?.image) continue;
       tried++;
       let result = await wikiLookup(name);
-      if (result && !looksLikeBird(result, sci)) result = null;
       if (!result || !result.image) {
-        const alt = await wikiLookup(name + " (bird)");
-        if (alt && looksLikeBird(alt, sci)) result = alt;
+        result = await wikiLookup(name + " (bird)") || result;
       }
       if ((!result || !result.image) && sci) {
         const sciResult = await wikiLookup(sci);
