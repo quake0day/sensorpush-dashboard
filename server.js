@@ -866,15 +866,27 @@ function saveBirdImageCache() {
   }, 2000);
 }
 
+// Wikipedia REST API expects a descriptive UA with a contact channel — generic UAs get
+// throttled aggressively. https://meta.wikimedia.org/wiki/User-Agent_policy
+const WIKI_UA = "SmartGardenDashboard/1.0 (https://github.com/quake0day/sensorpush-dashboard; quake0day@gmail.com) node-fetch";
+let wikiBackoffUntil = 0;
 async function wikiLookup(term, lang) {
+  // If a recent 429 told us to back off, return null instead of compounding the rate limit.
+  if (Date.now() < wikiBackoffUntil) return null;
   const prefix = lang || "en";
   const slug = term.replace(/ /g, "_");
   const url = `https://${prefix}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`;
   try {
     const resp = await fetch(url, {
-      headers: { "User-Agent": "SmartGardenDashboard/1.0" },
-      signal: AbortSignal.timeout(5000),
+      headers: { "User-Agent": WIKI_UA, "Api-User-Agent": WIKI_UA },
+      signal: AbortSignal.timeout(8000),
     });
+    if (resp.status === 429) {
+      const retryAfter = parseInt(resp.headers.get("retry-after") || "30", 10);
+      wikiBackoffUntil = Date.now() + Math.max(retryAfter, 30) * 1000;
+      console.warn(`wiki: 429 rate limited, backing off ${Math.max(retryAfter, 30)}s`);
+      return null;
+    }
     if (!resp.ok) return null;
     const data = await resp.json();
     if (data.type === "disambiguation" || !data.extract) return null;
@@ -978,13 +990,15 @@ async function warmupBirdImages() {
         saveBirdImageCache();
         filled++;
       }
-      await new Promise(r => setTimeout(r, 1000)); // 1 req/sec
+      // 3s between species — gentle on Wikipedia and well under any rate limit.
+      // If we got 429'd, wikiBackoffUntil will short-circuit subsequent calls.
+      await new Promise(r => setTimeout(r, 3000));
     }
     if (tried) console.log(`bird image warmup: filled ${filled}/${tried} missing entries (${Object.keys(birdImageCache).length} total cached)`);
   } catch (e) { console.error("bird warmup:", e.message); }
 }
 setTimeout(warmupBirdImages, 60_000); // 1 min after boot
-setInterval(warmupBirdImages, 24 * 60 * 60 * 1000); // and daily after that
+setInterval(warmupBirdImages, 6 * 60 * 60 * 1000); // and every 6h after — picks up any leftovers
 
 // ============ Bird Translation (Claude API + local cache) ============
 const BIRD_TRANS_FILE = path.join(BIRD_DIR, "translations.json");
