@@ -435,13 +435,14 @@ function renderHourlyChart(hourly) {
 
 async function getBirdImage(name, sci) {
   const key = name + (sci || '');
-  if (imgCache[key]) return imgCache[key];
+  // Only honor cache when we have an image — null is a transient miss, not a permanent answer.
+  if (imgCache[key]?.image) return imgCache[key];
   try {
     let url = `/api/birds/image/${encodeURIComponent(name)}`;
     if (sci) url += `?sci=${encodeURIComponent(sci)}`;
     const r = await fetch(url);
     const d = await r.json();
-    imgCache[key] = d;
+    if (d.image) imgCache[key] = d;
     return d;
   } catch { return { image: null, extract: '' }; }
 }
