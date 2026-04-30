@@ -890,8 +890,10 @@ async function wikiLookup(term, lang) {
     if (!resp.ok) return null;
     const data = await resp.json();
     if (data.type === "disambiguation" || !data.extract) return null;
-    const img = data.originalimage?.source || data.thumbnail?.source || null;
-    const image = img ? img.replace(/\/\d+px-/, "/400px-") : null;
+    // Use the thumbnail URL Wikipedia gave us *as-is*. Their thumb server only serves
+    // pre-cached widths (typically 220/330/500 — not always 400), so substituting an
+    // arbitrary width turns valid URLs into HTTP 400s. originalimage is full-res fallback.
+    const image = data.thumbnail?.source || data.originalimage?.source || null;
     return {
       image,
       extract: data.extract || "",
