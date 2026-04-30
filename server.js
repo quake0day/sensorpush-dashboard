@@ -846,8 +846,25 @@ app.get("/api/birds/status", (req, res) => {
   res.json({ running: !!birdProc });
 });
 
-// Wikipedia image + info proxy for bird photos
-const birdImageCache = {};
+// Wikipedia image + info proxy for bird photos.
+// Persisted to disk so a node restart + a Wikipedia hiccup can't wipe known-good entries.
+const BIRD_IMG_CACHE_FILE = path.join(BIRD_DIR, "image_cache.json");
+let birdImageCache = {};
+try {
+  if (fs.existsSync(BIRD_IMG_CACHE_FILE)) {
+    birdImageCache = JSON.parse(fs.readFileSync(BIRD_IMG_CACHE_FILE, "utf8")) || {};
+  }
+} catch (e) { birdImageCache = {}; }
+let birdImgSaveTimer = null;
+function saveBirdImageCache() {
+  if (birdImgSaveTimer) return;
+  birdImgSaveTimer = setTimeout(() => {
+    birdImgSaveTimer = null;
+    try {
+      fs.writeFileSync(BIRD_IMG_CACHE_FILE, JSON.stringify(birdImageCache, null, 2));
+    } catch (e) { console.error("bird image cache save:", e.message); }
+  }, 2000);
+}
 
 async function wikiLookup(term, lang) {
   const prefix = lang || "en";
@@ -922,12 +939,70 @@ app.get("/api/birds/image/:name", async (req, res) => {
       final.url_zh = zhResult?.url || "";
     }
     // Only cache successful lookups; a null today shouldn't permanently break this bird.
-    if (final.image) birdImageCache[name] = final;
+    if (final.image) {
+      birdImageCache[name] = final;
+      saveBirdImageCache();
+    }
     res.json(final);
   } catch (e) {
     res.json({ image: null, extract: "", url: "" });
   }
 });
+
+// Background warmup: walk every species we've ever detected and fill any gaps.
+// Throttled (1 req/sec) so we don't hammer Wikipedia. Runs once at startup, then daily.
+async function warmupBirdImages() {
+  try {
+    const dailyDir = path.join(BIRD_DIR, "daily");
+    if (!fs.existsSync(dailyDir)) return;
+    const seen = new Map(); // common_name → scientific_name
+    for (const f of fs.readdirSync(dailyDir)) {
+      if (!f.endsWith(".json")) continue;
+      try {
+        const arr = JSON.parse(fs.readFileSync(path.join(dailyDir, f), "utf8"));
+        for (const d of arr) {
+          if (d.common_name && !seen.has(d.common_name)) seen.set(d.common_name, d.scientific_name || "");
+        }
+      } catch (e) {}
+    }
+    let filled = 0, tried = 0;
+    for (const [name, sci] of seen) {
+      if (birdImageCache[name]?.image) continue;
+      tried++;
+      let result = await wikiLookup(name);
+      if (result && !looksLikeBird(result, sci)) result = null;
+      if (!result || !result.image) {
+        const alt = await wikiLookup(name + " (bird)");
+        if (alt && looksLikeBird(alt, sci)) result = alt;
+      }
+      if ((!result || !result.image) && sci) {
+        const sciResult = await wikiLookup(sci);
+        if (sciResult) {
+          result = {
+            image: sciResult.image || result?.image || null,
+            extract: result?.extract || sciResult.extract || "",
+            url: result?.url || sciResult.url || "",
+            title: result?.title || sciResult.title || name,
+          };
+        }
+      }
+      if (result?.image) {
+        const cnName = birdTranslations[name]?.cn_name;
+        if (cnName) {
+          const zhResult = await wikiLookup(cnName, "zh");
+          result.url_zh = zhResult?.url || "";
+        }
+        birdImageCache[name] = result;
+        saveBirdImageCache();
+        filled++;
+      }
+      await new Promise(r => setTimeout(r, 1000)); // 1 req/sec
+    }
+    if (tried) console.log(`bird image warmup: filled ${filled}/${tried} missing entries (${Object.keys(birdImageCache).length} total cached)`);
+  } catch (e) { console.error("bird warmup:", e.message); }
+}
+setTimeout(warmupBirdImages, 60_000); // 1 min after boot
+setInterval(warmupBirdImages, 24 * 60 * 60 * 1000); // and daily after that
 
 // ============ Bird Translation (Claude API + local cache) ============
 const BIRD_TRANS_FILE = path.join(BIRD_DIR, "translations.json");
