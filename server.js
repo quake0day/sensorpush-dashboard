@@ -1018,20 +1018,97 @@ async function translateBird(commonName, scientificName) {
   if (!anthropic) return null;
   try {
     const msg = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 600,
-      system: "You are an ornithology JSON API specializing in birds (Aves). Use OFFICIAL standard Chinese bird names from Chinese ornithological references. The cn_name MUST be a real bird species name — NEVER a fish, insect, plant, or any non-bird organism. Return ONLY valid JSON with no extra text.",
+      model: "claude-opus-4-7",
+      max_tokens: 800,
+      system: `You are a senior ornithologist (Aves specialist) and Chinese-English translator. Output ONLY valid JSON with no extra text.
+
+Use the OFFICIAL standard Chinese name (中文学名) as published in:
+- 《世界鸟类分类与分布名录》(郑光美 主编, 科学出版社)
+- 《中国鸟类分类与分布名录》(第三版)
+- IOC World Bird List 中文对照名录
+
+Every Chinese character in cn_name MUST appear in published Chinese ornithology references for this species or its family. Never invent characters. Never use 病鸟 / 假鸟 / 未知 or any non-existent name.`,
       messages: [{
         role: "user",
-        content: `Bird: ${commonName} (${scientificName})
+        content: `Translate this bird species into its OFFICIAL standard Chinese name.
 
-Known correct Chinese names for reference:
-Northern Cardinal=北美红雀, Blue Jay=冠蓝鸦, American Robin=旅鸫, American Crow=美洲鸦, American Goldfinch=美洲金翅雀, House Sparrow=家麻雀, House Finch=家朱雀, Mourning Dove=哀鸽, Song Sparrow=歌带鹀, Carolina Wren=卡罗来纳鹪鹩, Tufted Titmouse=丛林山雀, Black-capped Chickadee=黑顶山雀, Carolina Chickadee=卡罗来纳山雀, White-breasted Nuthatch=白胸鳾, Red-bellied Woodpecker=红腹啄木鸟, Downy Woodpecker=绒啄木鸟, Northern Flicker=扑动鴷, Eastern Bluebird=东蓝鸲, Northern Mockingbird=北方嘲鸫, Fox Sparrow=狐色雀鹀, Least Bittern=小苇鳽, Pied-billed Grebe=斑嘴巨鸊鷉, Summer Tanager=夏裸鹎鵐, Green-winged Teal=绿翅鸭, Northern Shoveler=琵嘴鸭, Eurasian Collared-Dove=灰斑鸠, Yellow-billed Cuckoo=黄嘴美洲鹃, Tree Swallow=树燕, Purple Martin=紫崖燕, Barn Swallow=家燕, Chimney Swift=烟囱雨燕, Ruby-throated Hummingbird=红喉北蜂鸟, Indigo Bunting=靛蓝彩鹀, Baltimore Oriole=巴尔的摩拟黄鹂, Cedar Waxwing=雪松太平鸟, Red-winged Blackbird=红翅黑鹂, Common Grackle=紫拟椋鸟, Brown-headed Cowbird=褐头牛鹂, Eastern Phoebe=东菲比霸鹟, Great Crested Flycatcher=大冠鹟, Eastern Kingbird=东王霸鹟
+Bird: ${commonName}
+Scientific: ${scientificName}
 
-CRITICAL: The scientific name "${scientificName}" belongs to a BIRD. Look up the correct Chinese name for this bird species. Do NOT confuse with fish, reptiles, or other animals.
+# Decomposition rule
+Break the English name into [descriptor] + [group]. The [group] maps to a fixed family suffix in Chinese ornithology:
 
-Return JSON:
-{"cn_name":"official Chinese name","cn_name_pinyin":"FULL pinyin with tone marks for entire cn_name, e.g. bei3 mei3 hong2 que4","cn_desc":"50-80 char Chinese description. For any rare bird characters (鳽鸊鷉鹪鹩鹀鸲鹂鹟鸮鵟鴷鸫鹃鳾) add pinyin in parentheses after them","call_desc":"20 char call description in Chinese","call_desc_en":"20 word call description in English"}`,
+| English group | Family (科) | Chinese suffix |
+|---|---|---|
+| vireo | Vireonidae | 绿鹃 |
+| (New World) warbler | Parulidae | 林莺 / 森莺 |
+| (Old World) warbler | Sylviidae / Phylloscopidae | 莺 / 柳莺 |
+| (tyrant) flycatcher | Tyrannidae | 霸鹟 |
+| (Old World) flycatcher | Muscicapidae | 鹟 |
+| (New World) sparrow | Passerellidae | 雀鹀 / 鹀 |
+| (Old World) sparrow | Passeridae | 麻雀 |
+| jay | Corvidae | 蓝鸦 / 鸦 |
+| crow / raven | Corvidae | 鸦 |
+| thrush | Turdidae | 鸫 |
+| robin (American) | Turdidae | 鸫 (旅鸫) |
+| wren | Troglodytidae | 鹪鹩 |
+| nuthatch | Sittidae | 鳾 |
+| chickadee / titmouse | Paridae | 山雀 |
+| woodpecker | Picidae | 啄木鸟 |
+| flicker | Picidae | 鴷 |
+| (New World) oriole | Icteridae | 拟黄鹂 |
+| tanager | Cardinalidae / Thraupidae | 丽唐纳雀 / 裸鼻雀 |
+| swallow | Hirundinidae | 燕 |
+| martin | Hirundinidae | 崖燕 |
+| (New World) blackbird | Icteridae | 黑鹂 |
+| grackle | Icteridae | 拟椋鸟 |
+| cowbird | Icteridae | 牛鹂 |
+| hummingbird | Trochilidae | 蜂鸟 |
+| cardinal | Cardinalidae | 红雀 |
+| bunting (NW) | Cardinalidae | 彩鹀 |
+| waxwing | Bombycillidae | 太平鸟 |
+| bluebird | Turdidae | 蓝鸲 |
+| mockingbird | Mimidae | 嘲鸫 |
+| catbird | Mimidae | 猫鹊 |
+| dove / pigeon | Columbidae | 鸠 / 鸽 |
+| cuckoo | Cuculidae | 杜鹃 / 鹃 |
+| swift | Apodidae | 雨燕 |
+| nightjar | Caprimulgidae | 夜鹰 |
+| owl | Strigidae / Tytonidae | 鸮 |
+| hawk | Accipitridae | 鹰 / 鵟 |
+| eagle | Accipitridae | 雕 |
+| falcon | Falconidae | 隼 |
+| heron | Ardeidae | 鹭 |
+| egret | Ardeidae | 白鹭 |
+| bittern | Ardeidae | 鳽 |
+| duck | Anatidae | 鸭 |
+| goose | Anatidae | 雁 |
+| grebe | Podicipedidae | 鸊鷉 |
+| sandpiper | Scolopacidae | 鹬 |
+| plover | Charadriidae | 鸻 |
+| gull | Laridae | 鸥 |
+| tern | Laridae / Sternidae | 燕鸥 |
+| kingfisher | Alcedinidae | 翠鸟 |
+| starling | Sturnidae | 椋鸟 |
+
+# Worked example — LEARN FROM THIS
+"Yellow-throated Vireo" (Vireo flavifrons)
+- yellow-throated → 黄喉
+- vireo → 绿鹃 (Vireonidae = 绿鹃科)
+- ✓ Correct: 黄喉绿鹃
+- Common mistake to AVOID: 黄喉病鸟 — 病 means "sick" and is never part of a Chinese bird name. If you cannot recall the canonical name, fall back to descriptor + family suffix from the table above.
+
+# Reference (verified Chinese names)
+Northern Cardinal=北美红雀, Blue Jay=冠蓝鸦, American Robin=旅鸫, American Crow=美洲鸦, American Goldfinch=美洲金翅雀, House Sparrow=家麻雀, House Finch=家朱雀, Mourning Dove=哀鸽, Song Sparrow=歌带鹀, Carolina Wren=卡罗来纳鹪鹩, Tufted Titmouse=丛林山雀, Black-capped Chickadee=黑顶山雀, Carolina Chickadee=卡罗来纳山雀, White-breasted Nuthatch=白胸鳾, Red-bellied Woodpecker=红腹啄木鸟, Downy Woodpecker=绒啄木鸟, Northern Flicker=扑动鴷, Eastern Bluebird=东蓝鸲, Northern Mockingbird=北方嘲鸫, Fox Sparrow=狐色雀鹀, Least Bittern=小苇鳽, Pied-billed Grebe=斑嘴巨鸊鷉, Summer Tanager=夏丽唐纳雀, Green-winged Teal=绿翅鸭, Northern Shoveler=琵嘴鸭, Eurasian Collared-Dove=灰斑鸠, Yellow-billed Cuckoo=黄嘴美洲鹃, Tree Swallow=树燕, Purple Martin=紫崖燕, Barn Swallow=家燕, Chimney Swift=烟囱雨燕, Ruby-throated Hummingbird=红喉北蜂鸟, Indigo Bunting=靛蓝彩鹀, Baltimore Oriole=巴尔的摩拟黄鹂, Cedar Waxwing=雪松太平鸟, Red-winged Blackbird=红翅黑鹂, Common Grackle=紫拟椋鸟, Brown-headed Cowbird=褐头牛鹂, Eastern Phoebe=东菲比霸鹟, Great Crested Flycatcher=大冠鹟, Eastern Kingbird=东王霸鹟, Yellow-throated Vireo=黄喉绿鹃, Blue-headed Vireo=蓝头绿鹃, Red-eyed Vireo=红眼绿鹃, White-eyed Vireo=白眼绿鹃, Warbling Vireo=歌绿鹃, Yellow Warbler=黄林莺, Yellow-rumped Warbler=黄腰白喉林莺, Pine Warbler=松莺, American Redstart=橙尾鸲莺, Common Yellowthroat=黄喉地莺
+
+# Output format
+Return JSON only:
+{
+  "cn_name": "official Chinese name (verified, no fabricated characters)",
+  "cn_desc": "60-90 character Chinese field-guide style description noting key field marks. For rare bird characters (鳽鸊鷉鹪鹩鹀鸲鹂鹟鸮鵟鴷鸫鹃鳾) add pinyin in parentheses on first occurrence",
+  "call_desc": "20 character Chinese call description",
+  "call_desc_en": "20 word English call description"
+}`,
       }],
     });
     let text = msg.content[0].text.trim();
@@ -1072,17 +1149,16 @@ function generatePinyin(chinese) {
   });
 }
 
-// Get or create translation for a bird
+// Get or create translation for a bird. Pass ?force=1 to bypass cache.
 app.get("/api/birds/translate/:name", async (req, res) => {
   const name = req.params.name;
-  const sci = req.query.sci || "";
+  const sci = req.query.sci || birdTranslations[name]?.scientific_name || "";
+  const force = req.query.force === "1" || req.query.force === "true";
 
-  // Check cache first
-  if (birdTranslations[name]) {
+  if (!force && birdTranslations[name]) {
     return res.json(birdTranslations[name]);
   }
 
-  // Call Claude API for translation
   const result = await translateBird(name, sci);
   if (result) {
     // Generate accurate pinyin via pypinyin (not Claude)
@@ -1125,6 +1201,68 @@ app.post("/api/birds/fix-pinyin", async (req, res) => {
   }
   saveBirdTranslations();
   res.json({ fixed, total: Object.keys(birdTranslations).length });
+});
+
+function detailCachePath(name) {
+  return path.join(BIRD_DIR, "details", `${name.replace(/[^a-zA-Z0-9]/g, '_')}.json`);
+}
+
+function clearDetailCache(name) {
+  try {
+    const p = detailCachePath(name);
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  } catch {}
+}
+
+// Force regenerate translation + clear detail cache for one bird
+app.post("/api/birds/regenerate/:name", async (req, res) => {
+  const name = req.params.name;
+  const sci = req.query.sci || (req.body && req.body.sci) || birdTranslations[name]?.scientific_name || "";
+  const result = await translateBird(name, sci);
+  if (!result || !result.cn_name) return res.status(502).json({ ok: false, error: "translation failed" });
+  const py = await generatePinyin(result.cn_name);
+  birdTranslations[name] = {
+    cn_name: result.cn_name,
+    cn_name_pinyin: py,
+    cn_desc: result.cn_desc,
+    call_desc: result.call_desc || "",
+    call_desc_en: result.call_desc_en || "",
+    sound_url: allAboutBirdsUrl(name),
+    common_name: name,
+    scientific_name: sci,
+    translated_at: new Date().toISOString(),
+  };
+  saveBirdTranslations();
+  clearDetailCache(name);
+  res.json({ ok: true, translation: birdTranslations[name] });
+});
+
+// Force regenerate every cached translation + clear all detail caches.
+// Detail entries are repopulated lazily next time a bird is viewed.
+app.post("/api/birds/regenerate-all", async (req, res) => {
+  const names = Object.keys(birdTranslations);
+  const updated = [];
+  const failed = [];
+  for (const name of names) {
+    const sci = birdTranslations[name]?.scientific_name || "";
+    const result = await translateBird(name, sci);
+    if (!result || !result.cn_name) { failed.push(name); continue; }
+    const py = await generatePinyin(result.cn_name);
+    const old = birdTranslations[name].cn_name;
+    birdTranslations[name] = {
+      ...birdTranslations[name],
+      cn_name: result.cn_name,
+      cn_name_pinyin: py,
+      cn_desc: result.cn_desc,
+      call_desc: result.call_desc || "",
+      call_desc_en: result.call_desc_en || "",
+      translated_at: new Date().toISOString(),
+    };
+    clearDetailCache(name);
+    updated.push({ name, old, new: result.cn_name });
+  }
+  saveBirdTranslations();
+  res.json({ total: names.length, updated, failed });
 });
 
 // Cleanup on exit
@@ -1334,58 +1472,86 @@ app.get("/api/birds/botd", (req, res) => {
   }
 });
 
-// Detailed bird info via Claude
+// Detailed bird info via Claude. Pass ?force=1 to bypass cache.
 app.get("/api/birds/detail/:name", async (req, res) => {
   const name = req.params.name;
   const sci = req.query.sci || "";
+  const force = req.query.force === "1" || req.query.force === "true";
   const cacheFile = path.join(BIRD_DIR, "details", `${name.replace(/[^a-zA-Z0-9]/g, '_')}.json`);
   const detailDir = path.join(BIRD_DIR, "details");
   if (!fs.existsSync(detailDir)) fs.mkdirSync(detailDir, { recursive: true });
 
-  if (fs.existsSync(cacheFile)) {
+  if (!force && fs.existsSync(cacheFile)) {
     try { return res.json(JSON.parse(fs.readFileSync(cacheFile, "utf8"))); } catch {}
   }
 
   if (!anthropic) return res.json({});
 
-  // Ensure translation exists before generating details
+  // Ensure translation exists (or is current) before generating details
   let existingTrans = birdTranslations[name];
-  if (!existingTrans?.cn_name && sci) {
+  if ((!existingTrans?.cn_name || force) && sci) {
     const freshTrans = await translateBird(name, sci);
     if (freshTrans?.cn_name) {
-      birdTranslations[name] = freshTrans;
-      existingTrans = freshTrans;
-      fs.writeFileSync(BIRD_TRANS_FILE, JSON.stringify(birdTranslations, null, 2));
+      const py = await generatePinyin(freshTrans.cn_name);
+      birdTranslations[name] = {
+        cn_name: freshTrans.cn_name,
+        cn_name_pinyin: py,
+        cn_desc: freshTrans.cn_desc,
+        call_desc: freshTrans.call_desc || "",
+        call_desc_en: freshTrans.call_desc_en || "",
+        sound_url: allAboutBirdsUrl(name),
+        common_name: name,
+        scientific_name: sci,
+        translated_at: new Date().toISOString(),
+      };
+      existingTrans = birdTranslations[name];
+      saveBirdTranslations();
     }
   }
   const cnName = existingTrans?.cn_name || name;
 
   try {
     const msg = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1200,
-      system: "You are an ornithology JSON API. Return ONLY valid JSON with no extra text.",
-      messages: [{ role: "user", content: `Bird: ${name} (${sci}), Chinese name: ${cnName}
+      model: "claude-opus-4-7",
+      max_tokens: 2200,
+      system: "You are a senior ornithologist (Aves specialist). Provide scientifically accurate, citation-grade information at the level of Birds of the World / Cornell Lab. Use OFFICIAL Chinese bird names from 《世界鸟类分类与分布名录》(郑光美). Never fabricate characters or species names. Output ONLY valid JSON with no extra text.",
+      messages: [{ role: "user", content: `Bird: ${name}
+Scientific name: ${sci}
+Required Chinese name (use exactly this in every cn_* field): ${cnName}
 
-IMPORTANT: Use "${cnName}" as the Chinese name throughout, do NOT use any other Chinese name.
+Return a JSON object with these keys. All "_cn" / "_en" fields must be in the named language only — do not mix English into cn fields. Numbers as bare JSON numbers. Be specific and scientifically accurate; no padding, no generic statements.
 
-Return a JSON object with these keys:
-- cn_name: "${cnName}" (use exactly this)
-- description_en: 100-150 word English description covering appearance, size, habitat, diet, behavior, and range
-- description_cn: 150-200 character Chinese description. MUST use "${cnName}" as the bird's name. Write ENTIRELY in Chinese, do NOT include any English words or the English bird name.
-- size_cm: typical body length in cm (number)
-- wingspan_cm: typical wingspan in cm (number)
-- weight_g: typical weight in grams (number)
-- diet: main diet in English (short phrase)
-- diet_cn: main diet in Chinese
-- habitat: typical habitat in English
-- habitat_cn: typical habitat in Chinese
-- conservation: IUCN conservation status (e.g. "Least Concern")
-- conservation_cn: conservation status in Chinese
-- fun_fact_en: one interesting fact in English (1 sentence)
-- fun_fact_cn: same fact in Chinese
-- call_desc_en: description of its song/call in English (1 sentence)
-- call_desc_cn: description of its song/call in Chinese` }],
+{
+  "cn_name": "${cnName}",
+  "order_en": "Latin order with -formes suffix (e.g. Passeriformes)",
+  "order_cn": "中文目名 (例: 雀形目)",
+  "family_en": "Latin family with -idae suffix and authorship if known (e.g. Vireonidae Swainson, 1837)",
+  "family_cn": "中文科名 (例: 绿鹃科)",
+  "genus_en": "genus only (e.g. Vireo)",
+  "etymology_en": "1-2 sentences on origin of genus + species epithet, including Latin/Greek roots and original describer when known",
+  "etymology_cn": "1-2句中文说明属名与种加词的词源",
+  "description_en": "120-160 word English field-guide description: plumage, sexual dimorphism, body size, habitat, diet, characteristic behavior, breeding/winter range",
+  "description_cn": "150-220字中文field-guide描述, 必须使用 \\"${cnName}\\" 作为名称, 全中文(不混入英文词)",
+  "field_marks_en": "3-5 diagnostic field marks as a single string with • separators (e.g. 'Bright yellow throat and breast • Yellow spectacles • Two bold white wing bars • Olive head and back')",
+  "field_marks_cn": "3-5个诊断性识别特征, 用 • 分隔",
+  "similar_species_en": "1-3 confusable species (common names) with brief distinguishing note in parentheses; comma-separated. Empty string if none.",
+  "similar_species_cn": "1-3 个易混淆物种, 用中文名, 括号内注明区别, 顿号分隔。无则留空字符串。",
+  "size_cm": typical body length in cm (number),
+  "wingspan_cm": typical wingspan in cm (number),
+  "weight_g": typical weight in grams (number),
+  "diet": "main diet in English (short phrase)",
+  "diet_cn": "主要食性(中文短语)",
+  "habitat": "typical habitat in English",
+  "habitat_cn": "典型栖息地",
+  "migration_en": "migration pattern (resident / short-distance / Neotropical migrant / etc.) with breeding and non-breeding range",
+  "migration_cn": "迁徙模式与繁殖/越冬范围",
+  "conservation": "IUCN Red List status (e.g. Least Concern)",
+  "conservation_cn": "IUCN保护等级中文(例: 无危)",
+  "fun_fact_en": "one specific, sourced ornithology fact (1 sentence)",
+  "fun_fact_cn": "同一事实的中文版",
+  "call_desc_en": "specific song/call description (1 sentence, mnemonic phrasing welcome)",
+  "call_desc_cn": "鸣声特征(中文一句)"
+}` }],
     });
     let text = msg.content[0].text.trim();
     text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');

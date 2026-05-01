@@ -1068,6 +1068,13 @@ async function showDexDetail(name, sci) {
   const conservation = cn ? (detail.conservation_cn || '') : (detail.conservation || '');
   const funFact = cn ? (detail.fun_fact_cn || '') : (detail.fun_fact_en || '');
   const callDesc = cn ? (detail.call_desc_cn || trans.call_desc || '') : (detail.call_desc_en || trans.call_desc_en || '');
+  const orderTxt = cn ? (detail.order_cn || '') : (detail.order_en || '');
+  const familyTxt = cn ? (detail.family_cn || '') : (detail.family_en || '');
+  const genusTxt = detail.genus_en || '';
+  const fieldMarks = cn ? (detail.field_marks_cn || '') : (detail.field_marks_en || '');
+  const similar = cn ? (detail.similar_species_cn || '') : (detail.similar_species_en || '');
+  const migration = cn ? (detail.migration_cn || '') : (detail.migration_en || '');
+  const etymology = cn ? (detail.etymology_cn || '') : (detail.etymology_en || '');
 
   // Find observation stats
   const sp = dexSpecies.find(s => s.common_name === name);
@@ -1094,10 +1101,16 @@ async function showDexDetail(name, sci) {
     </div>
 
     <div class="dex-detail-tags">
+      ${(orderTxt || familyTxt) ? `<div class="dex-detail-tag"><b>${cn ? '分类' : 'Taxonomy'}:</b> ${[orderTxt, familyTxt, genusTxt].filter(Boolean).join(' · ')}</div>` : ''}
       ${diet ? `<div class="dex-detail-tag"><b>${cn ? '食物' : 'Diet'}:</b> ${diet}</div>` : ''}
       ${habitat ? `<div class="dex-detail-tag"><b>${cn ? '栖息地' : 'Habitat'}:</b> ${habitat}</div>` : ''}
+      ${migration ? `<div class="dex-detail-tag"><b>${cn ? '迁徙' : 'Migration'}:</b> ${migration}</div>` : ''}
       ${conservation ? `<div class="dex-detail-tag"><b>${cn ? '保护状态' : 'Status'}:</b> ${conservation}</div>` : ''}
     </div>
+
+    ${fieldMarks ? `<div class="dex-detail-tag" style="margin-top:8px"><b>${cn ? '识别特征' : 'Field marks'}:</b> ${fieldMarks}</div>` : ''}
+    ${similar ? `<div class="dex-detail-tag" style="margin-top:6px"><b>${cn ? '易混物种' : 'Similar species'}:</b> ${similar}</div>` : ''}
+    ${etymology ? `<div class="dex-detail-tag" style="margin-top:6px"><b>${cn ? '词源' : 'Etymology'}:</b> ${etymology}</div>` : ''}
 
     ${funFact ? `<div class="dex-detail-fact">💡 ${funFact}</div>` : ''}
     ${callDesc ? `<div class="dex-detail-call">🔊 ${callDesc}</div>` : ''}
