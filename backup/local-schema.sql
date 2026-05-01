@@ -53,3 +53,38 @@ CREATE TABLE IF NOT EXISTS r2_uploads (
   size INTEGER,
   uploaded_at INTEGER NOT NULL
 );
+
+-- Bird name + short-description cache (Claude-generated, regenerable)
+CREATE TABLE IF NOT EXISTS bird_translations (
+  common_name TEXT PRIMARY KEY,
+  scientific_name TEXT,
+  cn_name TEXT NOT NULL,
+  cn_name_pinyin TEXT,
+  cn_desc TEXT,
+  call_desc TEXT,
+  call_desc_en TEXT,
+  sound_url TEXT,
+  translated_at TEXT
+);
+
+-- Bird field-guide details (Claude-generated, regenerable)
+CREATE TABLE IF NOT EXISTS bird_details (
+  common_name TEXT PRIMARY KEY,
+  scientific_name TEXT,
+  cn_name TEXT,
+  order_en TEXT, order_cn TEXT,
+  family_en TEXT, family_cn TEXT,
+  genus_en TEXT,
+  etymology_en TEXT, etymology_cn TEXT,
+  description_en TEXT, description_cn TEXT,
+  field_marks_en TEXT, field_marks_cn TEXT,
+  similar_species_en TEXT, similar_species_cn TEXT,
+  size_cm REAL, wingspan_cm REAL, weight_g REAL,
+  diet TEXT, diet_cn TEXT,
+  habitat TEXT, habitat_cn TEXT,
+  migration_en TEXT, migration_cn TEXT,
+  conservation TEXT, conservation_cn TEXT,
+  fun_fact_en TEXT, fun_fact_cn TEXT,
+  call_desc_en TEXT, call_desc_cn TEXT,
+  generated_at TEXT
+);

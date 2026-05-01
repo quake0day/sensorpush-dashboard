@@ -999,17 +999,28 @@ async function warmupBirdImages() {
 setTimeout(warmupBirdImages, 60_000); // 1 min after boot
 setInterval(warmupBirdImages, 6 * 60 * 60 * 1000); // and every 6h after — picks up any leftovers
 
-// ============ Bird Translation (Claude API + local cache) ============
-const BIRD_TRANS_FILE = path.join(BIRD_DIR, "translations.json");
-let birdTranslations = {};
-try {
-  if (fs.existsSync(BIRD_TRANS_FILE)) {
-    birdTranslations = JSON.parse(fs.readFileSync(BIRD_TRANS_FILE, "utf8"));
-  }
-} catch (e) { birdTranslations = {}; }
+// ============ Bird Translation (Claude API + SQLite cache) ============
+// In-memory mirror of bird_translations table — populated at startup,
+// kept in sync via persistTranslation() so reads in hot paths (BirdNET
+// detection, BOTD scoring) stay synchronous.
+const birdsDb = require("./lib/birds-db");
+let birdTranslations = birdsDb.getAllTranslations();
+
+function persistTranslation(name) {
+  const entry = birdTranslations[name];
+  if (!entry || !entry.cn_name) return;
+  birdsDb.upsertTranslation({ ...entry, common_name: name });
+}
 
 function saveBirdTranslations() {
-  fs.writeFileSync(BIRD_TRANS_FILE, JSON.stringify(birdTranslations, null, 2));
+  // Bulk persist (used after fix-pinyin / regenerate-all). One transaction
+  // so a crash mid-way doesn't leave the DB partially updated.
+  const tx = birdsDb.transaction(() => {
+    for (const [name, entry] of Object.entries(birdTranslations)) {
+      if (entry && entry.cn_name) birdsDb.upsertTranslation({ ...entry, common_name: name });
+    }
+  });
+  tx();
 }
 
 const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
@@ -1176,7 +1187,7 @@ app.get("/api/birds/translate/:name", async (req, res) => {
       scientific_name: sci,
       translated_at: new Date().toISOString(),
     };
-    saveBirdTranslations();
+    persistTranslation(name);
     return res.json(birdTranslations[name]);
   }
 
@@ -1204,15 +1215,8 @@ app.post("/api/birds/fix-pinyin", async (req, res) => {
   res.json({ fixed, total: Object.keys(birdTranslations).length });
 });
 
-function detailCachePath(name) {
-  return path.join(BIRD_DIR, "details", `${name.replace(/[^a-zA-Z0-9]/g, '_')}.json`);
-}
-
 function clearDetailCache(name) {
-  try {
-    const p = detailCachePath(name);
-    if (fs.existsSync(p)) fs.unlinkSync(p);
-  } catch {}
+  try { birdsDb.deleteDetail(name); } catch {}
 }
 
 // Force regenerate translation + clear detail cache for one bird
@@ -1233,7 +1237,7 @@ app.post("/api/birds/regenerate/:name", async (req, res) => {
     scientific_name: sci,
     translated_at: new Date().toISOString(),
   };
-  saveBirdTranslations();
+  persistTranslation(name);
   clearDetailCache(name);
   res.json({ ok: true, translation: birdTranslations[name] });
 });
@@ -1478,12 +1482,10 @@ app.get("/api/birds/detail/:name", async (req, res) => {
   const name = req.params.name;
   const sci = req.query.sci || "";
   const force = req.query.force === "1" || req.query.force === "true";
-  const cacheFile = path.join(BIRD_DIR, "details", `${name.replace(/[^a-zA-Z0-9]/g, '_')}.json`);
-  const detailDir = path.join(BIRD_DIR, "details");
-  if (!fs.existsSync(detailDir)) fs.mkdirSync(detailDir, { recursive: true });
 
-  if (!force && fs.existsSync(cacheFile)) {
-    try { return res.json(JSON.parse(fs.readFileSync(cacheFile, "utf8"))); } catch {}
+  if (!force) {
+    const cached = birdsDb.getDetail(name);
+    if (cached) return res.json(cached);
   }
 
   if (!anthropic) return res.json({});
@@ -1506,7 +1508,7 @@ app.get("/api/birds/detail/:name", async (req, res) => {
         translated_at: new Date().toISOString(),
       };
       existingTrans = birdTranslations[name];
-      saveBirdTranslations();
+      persistTranslation(name);
     }
   }
   const cnName = existingTrans?.cn_name || name;
@@ -1561,7 +1563,8 @@ Return a JSON object with these keys. All "_cn" / "_en" fields must be in the na
     const detail = JSON.parse(match[0]);
     detail.common_name = name;
     detail.scientific_name = sci;
-    fs.writeFileSync(cacheFile, JSON.stringify(detail, null, 2));
+    detail.generated_at = new Date().toISOString();
+    birdsDb.upsertDetail(detail);
     res.json(detail);
   } catch (e) {
     console.error("Bird detail error:", e.message);
