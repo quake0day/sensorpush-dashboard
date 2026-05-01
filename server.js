@@ -1112,18 +1112,19 @@ Return JSON only:
       }],
     });
     let text = msg.content[0].text.trim();
-    // Strip any markdown fences or extra text
     text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-    // Extract JSON object if surrounded by other text
+    // Normalize full-width / curly quotes that occasionally slip through and break JSON
+    text = text
+      .replace(/[“”〝〞＂]/g, '"')
+      .replace(/[‘’＇]/g, "'");
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) { console.error("No JSON found in:", text.slice(0, 200)); return null; }
     try {
       return JSON.parse(match[0]);
     } catch (parseErr) {
-      // Try fixing common JSON issues: unescaped quotes in values
       let fixed = match[0].replace(/:\s*"([^"]*?)(?:"([^",}\]]*?))"/g, ': "$1\\"$2"');
       try { return JSON.parse(fixed); } catch {}
-      console.error("Translation parse error:", parseErr.message, "text:", match[0].slice(0, 200));
+      console.error("Translation parse error:", parseErr.message, "text:", match[0].slice(0, 300));
       return null;
     }
   } catch (e) {
