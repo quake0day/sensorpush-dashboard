@@ -357,6 +357,11 @@ let hlsInstance = null;
 let hlsRetryCount = 0;
 let lastFragTime = 0; // timestamp of last successful fragment
 let hlsLatencyTimer = null;
+let hiddenSince = 0; // timestamp the tab last went hidden, 0 = visible
+// Exposed so the visibilitychange handler can poke the player from outside initKoiCam().
+let kcConnect = null;
+let kcSeekToLive = null;
+let kcVideo = null;
 
 function destroyHls() {
   if (hlsLatencyTimer) { clearInterval(hlsLatencyTimer); hlsLatencyTimer = null; }
@@ -431,17 +436,40 @@ function initKoiCam() {
         video.currentTime = video.buffered.end(video.buffered.length - 1);
       }
     }
+    kcSeekToLive = seekToLive;
 
-    // Periodic latency watchdog — if >20s behind live, force seek
+    // Periodic latency watchdog — if >8s behind live, force seek.
+    // Threshold was 20s previously; that was too forgiving for a wall-mounted
+    // TV display: a sub-stream HLS playlist only holds ~12s of segments, so by
+    // the time we caught ">20s behind" the buffer had often dropped past live,
+    // requiring a full reconnect to recover. 8s catches drift early.
+    // Also covers paused video now: if we're paused but not by the user (no
+    // tab hidden, no reconnect overlay), we likely got there via a transient
+    // stall — try to resume + seek instead of waiting silently.
     if (hlsLatencyTimer) clearInterval(hlsLatencyTimer);
     hlsLatencyTimer = setInterval(() => {
-      if (!hlsInstance || video.paused) return;
+      if (!hlsInstance) return;
       const livePos = hlsInstance.liveSyncPosition;
-      if (livePos && (livePos - video.currentTime) > 20) {
+      if (video.paused && !document.hidden && reconnectEl.style.display === 'none') {
+        // Stuck-paused recovery: seek to live, then resume. If the buffer is
+        // stale (>8s behind live) this lands us back on the live edge instead
+        // of replaying old frames.
+        if (livePos) {
+          const behind = livePos - video.currentTime;
+          if (behind > 8) {
+            console.log('TV watchdog: paused & ' + behind.toFixed(0) + 's behind live, seeking + playing');
+            video.currentTime = livePos;
+          }
+        }
+        video.play().catch(()=>{});
+        return;
+      }
+      if (video.paused) return;
+      if (livePos && (livePos - video.currentTime) > 8) {
         console.log('TV latency watchdog: ' + (livePos - video.currentTime).toFixed(0) + 's behind, seeking to live');
         video.currentTime = livePos;
       }
-    }, 10000);
+    }, 5000);
 
     hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
       seekToLive();
@@ -510,6 +538,8 @@ function initKoiCam() {
   }
 
   waitAndConnect();
+  kcConnect = connect;
+  kcVideo = video;
 
   // Aggressive health check every 15s — detect stalls and reconnect
   setInterval(() => {
@@ -517,12 +547,14 @@ function initKoiCam() {
     if (reconnectEl.style.display === 'none' && video.paused && hlsInstance) {
       video.play().catch(() => { connect(); });
     }
-    // If no fragment received for 30s while supposedly connected, force reconnect
-    if (lastFragTime && (Date.now() - lastFragTime > 30000) && reconnectEl.style.display === 'none') {
+    // If no fragment received for 20s while supposedly connected, force reconnect.
+    // Tightened from 30s -> 20s so a wedged stream is replaced before the HLS
+    // buffer (~12s on the sub stream) empties out and we see a frozen frame.
+    if (lastFragTime && (Date.now() - lastFragTime > 20000) && reconnectEl.style.display === 'none') {
       statusEl.textContent = 'stale, reconnecting...';
       connect();
     }
-  }, 15000);
+  }, 10000);
 
   // Full reconnect every 10 minutes regardless, to prevent drift/memory leaks
   setInterval(() => {
@@ -530,6 +562,34 @@ function initKoiCam() {
     connect();
   }, 600000);
 }
+
+// Wake-from-hidden handler. The TV display can go to sleep (HDMI signal loss,
+// screensaver, energy-saving mode) which puts the browser tab in the hidden
+// state. While hidden: setInterval is throttled to ~1 Hz, the video element
+// stops decoding, and hls.js's liveSyncPosition can freeze. On resume the
+// player will happily continue from the *old* buffered position — which is
+// exactly the "delayed by hours/days" symptom on the TV. Forcing a fresh
+// connect() on wakeup pulls the current segments and discards the stale buffer.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    hiddenSince = Date.now();
+    return;
+  }
+  const wasHiddenFor = hiddenSince ? (Date.now() - hiddenSince) : 0;
+  hiddenSince = 0;
+  if (!kcConnect) return;
+  // Any non-trivial hidden period (>10s) gets a full reconnect — cheap and
+  // guarantees we're on live, not on stale buffer.
+  if (wasHiddenFor > 10000) {
+    console.log('TV: tab visible after ' + Math.floor(wasHiddenFor/1000) + 's hidden — reconnecting to live');
+    hlsRetryCount = 0;
+    try { kcConnect(); } catch (e) {}
+  } else if (kcSeekToLive) {
+    // Tiny blink — just snap to live edge.
+    try { kcSeekToLive(); } catch (e) {}
+    if (kcVideo && kcVideo.paused) kcVideo.play().catch(()=>{});
+  }
+});
 
 // ============ Birds ============
 let birdTrans = {};

@@ -463,6 +463,14 @@ let ffmpegProc = null;
 let ffmpegQuality = "stable"; // "stable" (sub, copy, 0% CPU) or "hd" (main, transcode)
 let ffmpegStartTime = 0;
 let ffmpegRestarts = 0;
+// Monotonic generation tag — bumped on every (re)start so a stale exit handler
+// from the previous process can't clobber the new process's state. Without
+// this, killing+respawning ffmpeg races: the old exit handler runs after the
+// new spawn assignment and sets ffmpegProc = null, leaving the watchdog blind
+// to a still-running ffmpeg that's gone "headless." Seen as the source of the
+// TV-page "stale by days" bug.
+let ffmpegGen = 0;
+let ffmpegDeadSince = 0; // timestamp when ffmpegProc went null; 0 = healthy
 
 function rtspUrl(stream) {
   const profile = stream === "main" ? "h264Preview_01_main" : "h264Preview_01_sub";
@@ -471,8 +479,10 @@ function rtspUrl(stream) {
 
 function startFFmpeg(quality) {
   if (ffmpegProc) {
-    ffmpegProc.kill("SIGTERM");
-    ffmpegProc = null;
+    try { ffmpegProc.kill("SIGTERM"); } catch (e) {}
+    // Do NOT null ffmpegProc here — the old exit handler will only act if its
+    // own generation tag still matches the global one. We bump the global gen
+    // below so the old handler treats itself as stale and bails out.
   }
   try {
     fs.readdirSync(HLS_DIR).forEach(f => fs.unlinkSync(path.join(HLS_DIR, f)));
@@ -480,6 +490,8 @@ function startFFmpeg(quality) {
 
   ffmpegQuality = quality || ffmpegQuality;
   ffmpegStartTime = Date.now();
+  ffmpegDeadSince = 0;
+  const myGen = ++ffmpegGen;
   const useHD = ffmpegQuality === "hd";
 
   const args = [
@@ -538,26 +550,48 @@ function startFFmpeg(quality) {
     }
   });
 
-  ffmpegProc.on("exit", (code) => {
-    console.log(`ffmpeg exited with code ${code}`);
+  ffmpegProc.on("exit", (code, signal) => {
+    console.log(`ffmpeg exited with code ${code} signal ${signal} (gen ${myGen}, current ${ffmpegGen})`);
+    // Only this generation's handler should mutate global state. If a newer
+    // startFFmpeg has run, myGen < ffmpegGen and we silently bail out — the
+    // newer process is responsible for itself.
+    if (myGen !== ffmpegGen) return;
     ffmpegProc = null;
-    if (code !== 0) {
-      ffmpegRestarts++;
-      // Infinite retry: camera may be offline for hours; auto-recover when it returns
-      const delay = Math.min(3000 + ffmpegRestarts * 2000, 30000);
-      console.log(`ffmpeg auto-restart #${ffmpegRestarts} in ${delay/1000}s...`);
-      setTimeout(() => startFFmpeg(ffmpegQuality), delay);
-    }
+    ffmpegDeadSince = Date.now();
+    // ALWAYS restart, even on clean (code 0) exit. ffmpeg shouldn't ever
+    // cleanly exit while we want a live stream — and on the rare occasion it
+    // does (e.g. RTSP EOF, stream EOF), leaving things dead means the TV
+    // shows nothing or stale data until someone notices. Past incident: HLS
+    // dir went stale for days because a clean exit was treated as "fine".
+    ffmpegRestarts++;
+    const delay = Math.min(3000 + ffmpegRestarts * 2000, 30000);
+    console.log(`ffmpeg auto-restart #${ffmpegRestarts} in ${delay/1000}s...`);
+    setTimeout(() => {
+      // Only restart if no newer startFFmpeg has fired in the meantime.
+      if (myGen === ffmpegGen) startFFmpeg(ffmpegQuality);
+    }, delay);
   });
 
   setTimeout(() => { ffmpegRestarts = Math.max(0, ffmpegRestarts - 1); }, 120000);
 }
 
-// Watchdog: kill ffmpeg if it stops writing fresh segments. Two failure modes:
+// Watchdog: kill ffmpeg if it stops writing fresh segments. Three failure modes:
 //   (a) startup never produces segments (no .ts after 20s)
 //   (b) running process hangs mid-stream — playlist mtime stops advancing (seen Apr 29: 18h stale)
+//   (c) ffmpeg is dead AND no restart got scheduled (defensive safety net so
+//       the stream can't stay dark for days even if the exit-handler chain
+//       above is somehow broken — this was the root TV-stale-stream bug)
 setInterval(() => {
-  if (!ffmpegProc) return;
+  // (c) Process is gone. Try to revive it — but give the normal exit-handler
+  // restart 60s to do its job before we step in.
+  if (!ffmpegProc) {
+    if (ffmpegDeadSince && Date.now() - ffmpegDeadSince > 60000) {
+      console.log("ffmpeg watchdog: process dead >60s with no restart, forcing one");
+      ffmpegDeadSince = 0;
+      try { startFFmpeg(ffmpegQuality); } catch (e) { console.error("watchdog restart failed:", e.message); }
+    }
+    return;
+  }
   const uptime = Date.now() - ffmpegStartTime;
   if (uptime < 20000) return;
   let segs = 0, playlistAge = Infinity;
@@ -1477,42 +1511,43 @@ app.get("/api/birds/botd", (req, res) => {
   }
 });
 
-// Detailed bird info via Claude. Pass ?force=1 to bypass cache.
-app.get("/api/birds/detail/:name", async (req, res) => {
-  const name = req.params.name;
-  const sci = req.query.sci || "";
-  const force = req.query.force === "1" || req.query.force === "true";
+// Ensure a translation exists for this bird (cached → return immediately,
+// otherwise call Claude). Returns the translation row or null on failure.
+// Used by both the on-demand /api/birds/detail route and the background
+// warmup loop so they share one code path.
+async function ensureTranslation(name, sci) {
+  const existing = birdTranslations[name];
+  if (existing?.cn_name) return existing;
+  if (!sci) return null;
+  const fresh = await translateBird(name, sci);
+  if (!fresh?.cn_name) return null;
+  const py = await generatePinyin(fresh.cn_name);
+  birdTranslations[name] = {
+    cn_name: fresh.cn_name,
+    cn_name_pinyin: py,
+    cn_desc: fresh.cn_desc,
+    call_desc: fresh.call_desc || "",
+    call_desc_en: fresh.call_desc_en || "",
+    sound_url: allAboutBirdsUrl(name),
+    common_name: name,
+    scientific_name: sci,
+    translated_at: new Date().toISOString(),
+  };
+  persistTranslation(name);
+  return birdTranslations[name];
+}
 
+// Generate and cache the full field-guide detail for a bird via Claude.
+// Returns the detail object on success, null on Claude/parse failure.
+// Skips the Claude call if a cached row already exists and force is false.
+async function generateBirdDetail(name, sci, { force = false } = {}) {
   if (!force) {
     const cached = birdsDb.getDetail(name);
-    if (cached) return res.json(cached);
+    if (cached) return cached;
   }
-
-  if (!anthropic) return res.json({});
-
-  // Ensure translation exists (or is current) before generating details
-  let existingTrans = birdTranslations[name];
-  if ((!existingTrans?.cn_name || force) && sci) {
-    const freshTrans = await translateBird(name, sci);
-    if (freshTrans?.cn_name) {
-      const py = await generatePinyin(freshTrans.cn_name);
-      birdTranslations[name] = {
-        cn_name: freshTrans.cn_name,
-        cn_name_pinyin: py,
-        cn_desc: freshTrans.cn_desc,
-        call_desc: freshTrans.call_desc || "",
-        call_desc_en: freshTrans.call_desc_en || "",
-        sound_url: allAboutBirdsUrl(name),
-        common_name: name,
-        scientific_name: sci,
-        translated_at: new Date().toISOString(),
-      };
-      existingTrans = birdTranslations[name];
-      persistTranslation(name);
-    }
-  }
-  const cnName = existingTrans?.cn_name || name;
-
+  if (!anthropic) return null;
+  const trans = await ensureTranslation(name, sci);
+  const cnName = trans?.cn_name || name;
   try {
     const msg = await anthropic.messages.create({
       model: "claude-opus-4-7",
@@ -1559,18 +1594,86 @@ Return a JSON object with these keys. All "_cn" / "_en" fields must be in the na
     let text = msg.content[0].text.trim();
     text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return res.json({});
+    if (!match) return null;
     const detail = JSON.parse(match[0]);
     detail.common_name = name;
     detail.scientific_name = sci;
     detail.generated_at = new Date().toISOString();
     birdsDb.upsertDetail(detail);
-    res.json(detail);
+    return detail;
   } catch (e) {
-    console.error("Bird detail error:", e.message);
-    res.json({});
+    console.error(`Bird detail error (${name}):`, e.message);
+    return null;
   }
+}
+
+// Detailed bird info via Claude. Pass ?force=1 to bypass cache.
+app.get("/api/birds/detail/:name", async (req, res) => {
+  const name = req.params.name;
+  const sci = req.query.sci || "";
+  const force = req.query.force === "1" || req.query.force === "true";
+  const detail = await generateBirdDetail(name, sci, { force });
+  res.json(detail || {});
 });
+
+// Background warmup: pre-generate translations + field-guide details for every
+// species ever detected, so /api/birds/detail clicks always hit the cache and
+// open instantly instead of waiting on Claude (3–10s).
+// - Runs once at boot, then every 5 minutes to pick up newly-detected species.
+// - Throttled (3s between Claude calls) to stay under rate limits and not
+//   crowd out the on-demand path.
+// - Single flight: a long warmup can't overlap with itself.
+// - Skips anything already in bird_details / bird_translations.
+let warmupBirdDetailsRunning = false;
+async function warmupBirdDetails() {
+  if (warmupBirdDetailsRunning) return;
+  if (!anthropic) return;
+  warmupBirdDetailsRunning = true;
+  try {
+    const dailyDir = path.join(BIRD_DIR, "daily");
+    if (!fs.existsSync(dailyDir)) return;
+    const seen = new Map(); // common_name → scientific_name (latest wins)
+    for (const f of fs.readdirSync(dailyDir)) {
+      if (!f.endsWith(".json")) continue;
+      try {
+        const arr = JSON.parse(fs.readFileSync(path.join(dailyDir, f), "utf8"));
+        for (const d of arr) {
+          if (d.common_name) seen.set(d.common_name, d.scientific_name || "");
+        }
+      } catch (e) {}
+    }
+    let filledDetail = 0, filledTrans = 0, skipped = 0;
+    for (const [name, sci] of seen) {
+      const hasDetail = !!birdsDb.getDetail(name);
+      const hasTrans = !!birdTranslations[name]?.cn_name;
+      if (hasDetail && hasTrans) { skipped++; continue; }
+      // Throttle between species — gentle on Anthropic rate limits.
+      // Only sleeps if we actually did Claude work this iteration.
+      let didWork = false;
+      if (!hasTrans && sci) {
+        const t = await ensureTranslation(name, sci);
+        if (t) { filledTrans++; didWork = true; }
+      }
+      if (!hasDetail) {
+        const det = await generateBirdDetail(name, sci);
+        if (det) { filledDetail++; didWork = true; }
+      }
+      if (didWork) await new Promise(r => setTimeout(r, 3000));
+    }
+    if (filledDetail || filledTrans) {
+      console.log(`bird detail warmup: +${filledDetail} details, +${filledTrans} translations (${skipped} already cached, ${seen.size} total species)`);
+    }
+  } catch (e) {
+    console.error("bird detail warmup:", e.message);
+  } finally {
+    warmupBirdDetailsRunning = false;
+  }
+}
+// Initial warmup 90s after boot (after image warmup at +60s, doesn't fight for tokens).
+// Then every 5 minutes so a newly-detected species is ready well before the
+// user has a chance to tap into the field guide.
+setTimeout(warmupBirdDetails, 90_000);
+setInterval(warmupBirdDetails, 5 * 60 * 1000);
 
 // ============ Motion Detection API ============
 const MOTION_DIR = path.join(DATA_DIR, "motion-events");
