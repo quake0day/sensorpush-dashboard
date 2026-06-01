@@ -225,11 +225,23 @@ async def cmd_arm(network, value):
 
 
 async def cmd_liveview(name):
+    # Call the liveview API directly so we can handle cameras that don't
+    # support it. Blink Mini ("hawk"/mini) cameras have liveview gated behind a
+    # newer app version — the API returns {"message": "An app update is
+    # required"} with no "server" URL, so blinkpy's get_liveview() KeyErrors.
+    # Surface that as a clean, recognizable error instead.
+    from blinkpy.api import request_camera_liveview
     async with ClientSession() as session:
         blink = await connect(session)
         cam = get_camera(blink, name)
-        url = await cam.get_liveview()
-        out({"ok": True, "camera": name, "url": url})
+        resp = await request_camera_liveview(
+            blink, cam.sync.network_id, cam.camera_id, camera_type=cam.camera_type
+        )
+        server = resp.get("server") if isinstance(resp, dict) else None
+        if not server:
+            msg = (resp.get("message") if isinstance(resp, dict) else None) or "no stream URL returned"
+            die(f"LIVEVIEW_UNSUPPORTED: {msg}")
+        out({"ok": True, "camera": name, "url": server})
 
 
 def main():

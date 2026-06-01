@@ -145,7 +145,8 @@
       en: { title: 'Cat Cam', subtitle: 'Blink camera — snapshots, motion clips & liveview', dash: 'Dashboard', koi: 'Koi Pond', switchLang: '中文', switchUrl: '/cn/cat',
             liveFeed: 'Live Feed', view: 'View', security: 'Security', info: 'Camera Info',
             battery: 'Battery', temp: 'Temperature', signal: 'WiFi Signal', motion: 'Motion', model: 'Model',
-            newPhoto: 'New Photo', live: 'Live', stopLive: 'Stop', clip: 'Latest Clip',
+            newPhoto: 'New Photo', live: 'Live', stopLive: 'Stop', clip: 'Latest Clip', liveNA: 'Live N/A',
+            liveUnsupported: 'Liveview not supported on this Blink Mini camera (Blink requires a newer app).',
             arm: 'Arm', disarm: 'Disarm', armed: 'ARMED', disarmed: 'DISARMED',
             connected: 'connected', error: 'error', snapping: 'Taking new photo…', clipLoading: 'Loading latest clip…', liveStarting: 'Starting liveview…',
             motionYes: 'Detected', motionNo: 'Clear', wired: 'Wired', none: '—',
@@ -154,7 +155,8 @@
       cn: { title: '猫咪摄像头', subtitle: 'Blink 摄像头 — 快照、移动片段与直播', dash: '主面板', koi: '锦鲤池', switchLang: 'EN', switchUrl: '/cat',
             liveFeed: '实时画面', view: '查看', security: '安防', info: '摄像头信息',
             battery: '电量', temp: '温度', signal: 'WiFi 信号', motion: '移动侦测', model: '型号',
-            newPhoto: '拍新照', live: '直播', stopLive: '停止', clip: '最新片段',
+            newPhoto: '拍新照', live: '直播', stopLive: '停止', clip: '最新片段', liveNA: '直播不可用',
+            liveUnsupported: '此 Blink Mini 摄像头不支持直播（Blink 要求更新版 App）。',
             arm: '布防', disarm: '撤防', armed: '已布防', disarmed: '已撤防',
             connected: '已连接', error: '错误', snapping: '正在拍摄新照片…', clipLoading: '正在加载最新片段…', liveStarting: '正在启动直播…',
             motionYes: '检测到', motionNo: '无', wired: '有线供电', none: '—',
@@ -222,6 +224,14 @@
     let liveOn = false;
     let hls = null;
     let snapRefreshTimer = null;
+    const liveUnsupported = new Set(); // camera names known to reject liveview
+
+    function refreshLiveBtn() {
+      const bad = liveUnsupported.has(current);
+      els.btnLive.disabled = bad;
+      els.btnLive.textContent = bad ? T.liveNA : (liveOn ? T.stopLive : T.live);
+      els.btnLive.classList.toggle('active', liveOn && !bad);
+    }
 
     function curCam() { return cameras.find(c => c.name === current); }
 
@@ -261,6 +271,7 @@
       localStorage.setItem('catCam', name);
       els.camSelect.value = name;
       renderInfo();
+      refreshLiveBtn();
       refreshSnapshot(false);
     }
 
@@ -322,15 +333,26 @@
     els.btnLive.addEventListener('click', () => liveOn ? stopLive() : startLive());
 
     async function startLive() {
-      if (!current) return;
+      if (!current || liveUnsupported.has(current)) return;
       toast(T.liveStarting); spin(true);
       try {
         const r = await fetch('/api/blink/liveview/' + encodeURIComponent(current), { method: 'POST' });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error || 'failed');
+        // Defensive parse: never let a non-JSON body throw "unexpected token".
+        const txt = await r.text();
+        let j = {};
+        try { j = txt ? JSON.parse(txt) : {}; } catch (_) { j = { error: txt.slice(0, 160) }; }
+        if (!r.ok) {
+          spin(false);
+          if (r.status === 501 || j.unsupported) {
+            liveUnsupported.add(current);
+            refreshLiveBtn();
+            toast(T.liveUnsupported);
+            return;
+          }
+          throw new Error(j.error || ('HTTP ' + r.status));
+        }
         liveOn = true;
-        els.btnLive.textContent = T.stopLive;
-        els.btnLive.classList.add('active');
+        refreshLiveBtn();
         els.overlayLive.style.display = 'flex';
         els.img.style.display = 'none';
         els.video.style.display = 'block';
@@ -353,8 +375,7 @@
       if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
       if (liveOn) { fetch('/api/blink/liveview/stop', { method: 'POST' }).catch(() => {}); }
       liveOn = false;
-      els.btnLive.textContent = T.live;
-      els.btnLive.classList.remove('active');
+      refreshLiveBtn();
       els.overlayLive.style.display = 'none';
       els.video.pause(); els.video.removeAttribute('src'); els.video.load();
       els.video.style.display = 'none';

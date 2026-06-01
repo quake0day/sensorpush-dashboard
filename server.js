@@ -846,8 +846,11 @@ app.post("/api/blink/liveview/:name", async (req, res) => {
     setTimeout(() => { if (blinkLiveProc === myProc) stopBlinkLive(); }, 90000);
     res.json({ ok: true, camera: name, hls: "/blink-hls/stream.m3u8" });
   } catch (err) {
+    // Blink Mini cameras can't do liveview via blinkpy (Blink gates it behind a
+    // newer app version). Report that distinctly so the UI can disable the button.
+    const unsupported = /LIVEVIEW_UNSUPPORTED|KeyError|app update/i.test(err.message);
     console.error("blink liveview error:", err.message);
-    res.status(502).json({ error: err.message });
+    res.status(unsupported ? 501 : 502).json({ error: err.message, unsupported });
   }
 });
 

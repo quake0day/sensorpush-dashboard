@@ -104,6 +104,7 @@
             refresh: 'Refresh', snap: 'New Photo', clip: 'Latest Clip', liveBtn: 'Live', stopLive: 'Stop',
             arm: 'Arm', disarm: 'Disarm', armed: 'ARMED', disarmed: 'DISARMED', network: 'System',
             snapping: 'Taking new photo…', clipLoading: 'Loading latest clip…', liveStarting: 'Starting liveview…',
+            liveUnsupported: 'Liveview not supported on this Blink Mini camera (Blink requires a newer app).',
             empty: 'No Blink cameras found.<br>Run the one-time login on the server:<br><code>python3 blink_client.py setup</code>',
             errMsg: 'Could not reach Blink. Has setup been run? Check server logs.' },
       cn: { title: 'Blink 摄像头', subtitle: 'Amazon Blink — 云端快照与移动片段', dash: '主面板', switchLang: 'EN', switchUrl: '/blink',
@@ -112,6 +113,7 @@
             refresh: '刷新', snap: '拍新照', clip: '最新片段', liveBtn: '直播', stopLive: '停止',
             arm: '布防', disarm: '撤防', armed: '已布防', disarmed: '已撤防', network: '系统',
             snapping: '正在拍摄新照片…', clipLoading: '正在加载最新片段…', liveStarting: '正在启动直播…',
+            liveUnsupported: '此 Blink Mini 摄像头不支持直播（Blink 要求更新版 App）。',
             empty: '未找到 Blink 摄像头。<br>请在服务器上完成一次性登录：<br><code>python3 blink_client.py setup</code>',
             errMsg: '无法连接 Blink。是否已运行 setup？请查看服务器日志。' },
     }[LANG];
@@ -255,8 +257,14 @@
       toast(T.liveStarting);
       try {
         const r = await fetch('/api/blink/liveview/' + encodeURIComponent(name), { method: 'POST' });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error || 'failed');
+        // Defensive parse: never let a non-JSON body throw "unexpected token".
+        const txt = await r.text();
+        let j = {};
+        try { j = txt ? JSON.parse(txt) : {}; } catch (_) { j = { error: txt.slice(0, 160) }; }
+        if (!r.ok) {
+          if (r.status === 501 || j.unsupported) { toast(T.liveUnsupported); return; }
+          throw new Error(j.error || ('HTTP ' + r.status));
+        }
         const card = grid.querySelector(`.cam[data-name="${CSS.escape(name)}"]`);
         const img = card.querySelector('img');
         const video = card.querySelector('video');
