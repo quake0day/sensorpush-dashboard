@@ -1,0 +1,11 @@
+# Python deps for the detector + camera helper scripts.
+# Install:  pip3 install -r requirements.txt
+
+# Bird / motion / water detectors (already in use)
+opencv-python-headless
+numpy
+pypinyin
+
+# Blink cameras — cloud-only API client (blink_client.py)
+blinkpy>=0.25.5
+aiohttp

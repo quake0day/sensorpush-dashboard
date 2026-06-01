@@ -11,6 +11,7 @@ Single Express server on port 3088 with these integrations:
 - **SensorPush**: Temperature, humidity, pressure, VPD via OAuth API
 - **Tuya**: Water sensor (pond alarm), Smart Dual Water Timer (2 valves), CO alarm
 - **Reolink**: RTSP → FFmpeg → HLS streaming, PTZ control, snapshots
+- **Blink**: Cloud-only cameras (no RTSP) via `blinkpy` — snapshots, motion clips, arm/disarm, best-effort liveview
 - **NWS**: National Weather Service forecast + sunrise/sunset
 - **BirdNET**: Bird detection via local Python scripts + Claude API for descriptions
 - **Water Level**: Camera-based CV water level detection
@@ -22,6 +23,7 @@ Single Express server on port 3088 with these integrations:
 | `tv.html` | 1080p TV display | Fixed 1920x1080, large fonts, no emoji (Linux/RPi5) |
 | `koi.html` | Koi pond camera | HLS stream, PTZ controls, valve controls, motion events |
 | `bird.html` | Bird detection | Leaderboard, BOTD, field guide with swipe gestures |
+| `blink.html` | Blink cameras | Snapshot grid, battery/temp, arm/disarm, motion clips, liveview |
 | `water.html` | Water level calibration | ROI selection tool |
 | `edit.html` | Garden editor | 3D sprite editor (dev tool) |
 | `garden.js` | Shared garden renderer | Animated canvas used by index.html and tv.html |
@@ -39,6 +41,21 @@ Single Express server on port 3088 with these integrations:
 - API: `GET /api/timer/status`, `POST /api/timer/valve {valve, on, countdown}`
 - Dashboard uses reference image (`water-timer-bg.png`) with SVG animation overlay
 - Pin tool at `/water-pin.html` for coordinate calibration (800x436 reference)
+
+### Blink Camera Notes
+Blink cameras are **cloud-only** — no RTSP/ONVIF/local stream, no official API.
+Integration goes through `blink_client.py` (the community `blinkpy` library),
+which `server.js` spawns once per request (same pattern as the pinyin helper).
+
+- **One-time setup (interactive 2FA):** `python3 blink_client.py setup`
+  Reads `BLINK_USERNAME`/`BLINK_PASSWORD` from `.env`, prompts for the emailed
+  2FA PIN, then persists the session to `$DATA_DIR/blink_creds.json`. After
+  that, no PIN is needed — every call refreshes + re-saves the token.
+- **Endpoints:** `GET /api/blink/cameras` (60s cached), `GET /api/blink/thumbnail/:name` (`?snap=1` forces a fresh photo), `POST /api/blink/snap/:name`, `GET /api/blink/clip/:name` (latest motion mp4), `POST /api/blink/arm {network, armed}`, `POST /api/blink/liveview/:name` → HLS at `/blink-hls/stream.m3u8`, `POST /api/blink/liveview/stop`.
+- **Liveview is best-effort:** Blink liveviews are short-lived (~30–90s) and
+  drain the battery — NOT a 24/7 stream like the koi camera. One at a time.
+- **Reusing AI detection:** the motion-clip mp4 can be fed to the existing
+  `motion_detector.py` / `bird_detector.py` if you want detection on Blink feeds.
 
 ## Development
 

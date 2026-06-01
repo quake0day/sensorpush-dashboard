@@ -699,6 +699,160 @@ app.get("/api/camera/info", async (req, res) => {
   }
 });
 
+// ============ Blink Cameras (cloud-only, via blinkpy) ============
+// Blink cameras have NO RTSP/ONVIF/local stream, so unlike the Reolink koi
+// camera (RTSP -> ffmpeg -> HLS) we cannot pull frames directly. Everything
+// goes through Amazon's Blink cloud via blink_client.py (the blinkpy library).
+// Each call spawns the python helper once; it persists/refreshes the session
+// token in DATA_DIR/blink_creds.json (one-time 2FA setup required).
+const { execFile: execFileBlink } = require("child_process");
+const BLINK_SCRIPT = path.join(__dirname, "blink_client.py");
+const BLINK_DIR = path.join(DATA_DIR, "blink");
+if (!fs.existsSync(BLINK_DIR)) fs.mkdirSync(BLINK_DIR, { recursive: true });
+
+// Run a blink_client.py command; resolve parsed JSON or reject with stderr.
+function blinkCmd(args, { timeout = 30000 } = {}) {
+  return new Promise((resolve, reject) => {
+    execFileBlink("python3", [BLINK_SCRIPT, ...args], {
+      cwd: __dirname,
+      timeout,
+      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+      maxBuffer: 8 * 1024 * 1024,
+    }, (err, stdout, stderr) => {
+      if (err) return reject(new Error((stderr || err.message).toString().trim()));
+      try { resolve(JSON.parse((stdout || "").trim() || "{}")); }
+      catch (e) { reject(new Error("Bad JSON from blink_client: " + (stdout || "").slice(0, 200))); }
+    });
+  });
+}
+
+// In-process cache so dashboard polling doesn't hammer Blink's cloud (which
+// would also drain the battery cameras). Camera list cached for 60s.
+let blinkCamCache = { ts: 0, data: null };
+
+app.get("/api/blink/cameras", async (req, res) => {
+  try {
+    const fresh = req.query.fresh === "1";
+    if (!fresh && blinkCamCache.data && Date.now() - blinkCamCache.ts < 60000) {
+      return res.json({ ...blinkCamCache.data, cached: true });
+    }
+    const data = await blinkCmd(["cameras"]);
+    blinkCamCache = { ts: Date.now(), data };
+    res.json(data);
+  } catch (err) {
+    console.error("blink cameras error:", err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Thumbnail JPEG for a camera. Downloads to DATA_DIR/blink/<name>.jpg and
+// serves it. ?snap=1 first asks the camera to take a fresh photo (slower,
+// uses battery); otherwise serves the most recent cloud thumbnail.
+app.get("/api/blink/thumbnail/:name", async (req, res) => {
+  const name = req.params.name;
+  const safe = name.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const outfile = path.join(BLINK_DIR, `${safe}.jpg`);
+  try {
+    if (req.query.snap === "1") await blinkCmd(["snap", name], { timeout: 45000 });
+    await blinkCmd(["thumbnail", name, outfile], { timeout: 30000 });
+    res.set("Cache-Control", "no-cache, no-store");
+    res.sendFile(outfile);
+  } catch (err) {
+    console.error("blink thumbnail error:", err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Trigger a fresh snapshot (returns JSON; image fetched via thumbnail route)
+app.post("/api/blink/snap/:name", async (req, res) => {
+  try {
+    blinkCamCache.ts = 0;
+    res.json(await blinkCmd(["snap", req.params.name], { timeout: 45000 }));
+  } catch (err) {
+    console.error("blink snap error:", err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Latest motion clip (mp4) for a camera. Can be fed to motion/bird detectors.
+app.get("/api/blink/clip/:name", async (req, res) => {
+  const name = req.params.name;
+  const safe = name.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const outfile = path.join(BLINK_DIR, `${safe}.mp4`);
+  try {
+    await blinkCmd(["clip", name, outfile], { timeout: 45000 });
+    res.set("Cache-Control", "no-cache, no-store");
+    res.sendFile(outfile);
+  } catch (err) {
+    console.error("blink clip error:", err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Arm / disarm a sync module (network). body: { network, armed: bool }
+app.post("/api/blink/arm", async (req, res) => {
+  const { network, armed } = req.body;
+  if (!network) return res.status(400).json({ error: "network required" });
+  try {
+    blinkCamCache.ts = 0; // force a fresh poll after state change
+    res.json(await blinkCmd([armed ? "arm" : "disarm", network]));
+  } catch (err) {
+    console.error("blink arm error:", err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// ---- On-demand liveview -> HLS --------------------------------------------
+// Best-effort only: Blink liveviews are short-lived (~30-90s) and drain the
+// battery, so this is NOT a 24/7 stream like the koi camera. One active
+// liveview at a time, transcoded into DATA_DIR/blink-hls/stream.m3u8.
+const BLINK_HLS_DIR = path.join(DATA_DIR, "blink-hls");
+if (!fs.existsSync(BLINK_HLS_DIR)) fs.mkdirSync(BLINK_HLS_DIR, { recursive: true });
+app.use("/blink-hls", (req, res, next) => {
+  res.set("Cache-Control", "no-cache, no-store");
+  next();
+}, express.static(BLINK_HLS_DIR));
+
+let blinkLiveProc = null;
+let blinkLiveName = null;
+
+function stopBlinkLive() {
+  if (blinkLiveProc) { try { blinkLiveProc.kill("SIGKILL"); } catch (e) {} blinkLiveProc = null; }
+  blinkLiveName = null;
+}
+
+app.post("/api/blink/liveview/:name", async (req, res) => {
+  const name = req.params.name;
+  try {
+    const { url } = await blinkCmd(["liveview", name], { timeout: 20000 });
+    if (!url) throw new Error("No liveview URL returned");
+    stopBlinkLive();
+    try { fs.readdirSync(BLINK_HLS_DIR).forEach(f => fs.unlinkSync(path.join(BLINK_HLS_DIR, f))); } catch (e) {}
+    const args = [
+      "-rtsp_transport", "tcp",
+      "-i", url,
+      "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency", "-pix_fmt", "yuv420p",
+      "-c:a", "aac",
+      "-f", "hls", "-hls_time", "1", "-hls_list_size", "4",
+      "-hls_flags", "delete_segments+append_list+independent_segments",
+      "-hls_segment_filename", path.join(BLINK_HLS_DIR, "seg%03d.ts"),
+      path.join(BLINK_HLS_DIR, "stream.m3u8"),
+    ];
+    blinkLiveProc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
+    blinkLiveName = name;
+    const myProc = blinkLiveProc;
+    blinkLiveProc.stderr.on("data", () => {}); // drain stderr
+    blinkLiveProc.on("exit", () => { if (blinkLiveProc === myProc) { blinkLiveProc = null; blinkLiveName = null; } });
+    setTimeout(() => { if (blinkLiveProc === myProc) stopBlinkLive(); }, 90000);
+    res.json({ ok: true, camera: name, hls: "/blink-hls/stream.m3u8" });
+  } catch (err) {
+    console.error("blink liveview error:", err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.post("/api/blink/liveview/stop", (req, res) => { stopBlinkLive(); res.json({ ok: true }); });
+
 // ============ Bird Detection API ============
 const BIRD_DIR = path.join(DATA_DIR, "bird-detections");
 const BIRD_CLIPS = path.join(BIRD_DIR, "clips");
@@ -1781,6 +1935,13 @@ app.get("/water", (req, res) => {
 });
 app.get("/cn/water", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "water.html"));
+});
+
+app.get("/blink", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "blink.html"));
+});
+app.get("/cn/blink", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "blink.html"));
 });
 
 const PORT = process.env.PORT || 3000;
