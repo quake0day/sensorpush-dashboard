@@ -71,6 +71,14 @@
     .info-card .info-value { font-size: 17px; font-weight: 600; }
     .batt.ok { color: var(--green); } .batt.low { color: var(--amber); } .batt.crit { color: var(--red); }
 
+    .motion-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    .motion-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; transition: border-color 0.15s; }
+    .motion-item:hover { border-color: var(--accent); }
+    .motion-item video { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #000; display: block; }
+    .motion-item .mi-meta { padding: 8px 10px; font-size: 12px; }
+    .motion-item .mi-time { font-weight: 600; }
+    .motion-item .mi-cam { color: var(--text3); font-size: 11px; margin-top: 2px; word-break: break-all; }
+    .motion-empty { color: var(--text3); font-size: 13px; padding: 16px 2px; line-height: 1.7; }
     .empty { text-align: center; color: var(--text3); padding: 60px 20px; font-size: 14px; line-height: 1.7; }
     .empty code { background: var(--surface2); padding: 2px 8px; border-radius: 4px; color: var(--accent); }
     .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px 20px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 50; }
@@ -133,6 +141,15 @@
           <div class="info-card"><div class="info-label" id="lblType">Model</div><div class="info-value" id="valType">--</div></div>
         </div>
       </div>
+
+      <div class="section">
+        <div class="section-head">
+          <span id="motionLabel">Motion Events</span>
+          <span id="motionHint" style="font-size:11px;color:var(--text3);text-transform:none;letter-spacing:0"></span>
+        </div>
+        <div id="motionGrid" class="motion-grid"></div>
+        <div id="motionEmpty" class="motion-empty"></div>
+      </div>
     </div>
 
     <div class="empty" id="empty" style="display:none;"></div>
@@ -150,6 +167,9 @@
             arm: 'Arm', disarm: 'Disarm', armed: 'ARMED', disarmed: 'DISARMED',
             connected: 'connected', error: 'error', snapping: 'Taking new photo…', clipLoading: 'Loading latest clip…', liveStarting: 'Starting liveview…',
             motionYes: 'Detected', motionNo: 'Clear', wired: 'Wired', none: '—',
+            motionEvents: 'Motion Events', watching: 'auto-capturing',
+            noEventsArmed: 'No motion clips yet — Blink auto-records when an armed camera sees motion.',
+            noEventsDisarmed: '⚠ Arm the camera (button above) so Blink records motion clips.',
             empty: 'No Blink cameras found.<br>Run the one-time login on the server:<br><code>python3 blink_client.py setup</code>',
             errMsg: 'Could not reach Blink. Has setup been run? Check server logs.' },
       cn: { title: '猫咪摄像头', subtitle: 'Blink 摄像头 — 快照、移动片段与直播', dash: '主面板', koi: '锦鲤池', switchLang: 'EN', switchUrl: '/cat',
@@ -160,6 +180,9 @@
             arm: '布防', disarm: '撤防', armed: '已布防', disarmed: '已撤防',
             connected: '已连接', error: '错误', snapping: '正在拍摄新照片…', clipLoading: '正在加载最新片段…', liveStarting: '正在启动直播…',
             motionYes: '检测到', motionNo: '无', wired: '有线供电', none: '—',
+            motionEvents: '移动事件', watching: '自动录制中',
+            noEventsArmed: '暂无移动片段 —— 布防后 Blink 侦测到移动会自动录制。',
+            noEventsDisarmed: '⚠ 请先布防（上方按钮），Blink 才会录制移动片段。',
             empty: '未找到 Blink 摄像头。<br>请在服务器上完成一次性登录：<br><code>python3 blink_client.py setup</code>',
             errMsg: '无法连接 Blink。是否已运行 setup？请查看服务器日志。' },
     }[LANG];
@@ -181,6 +204,7 @@
     document.getElementById('lblSignal').textContent = T.signal;
     document.getElementById('lblMotion').textContent = T.motion;
     document.getElementById('lblType').textContent = T.model;
+    document.getElementById('motionLabel').textContent = T.motionEvents;
     document.getElementById('btnSnap').textContent = T.newPhoto;
     document.getElementById('btnLive').textContent = T.live;
     document.getElementById('btnClip').textContent = T.clip;
@@ -206,6 +230,9 @@
       valSignal: document.getElementById('valSignal'),
       valMotion: document.getElementById('valMotion'),
       valType: document.getElementById('valType'),
+      motionGrid: document.getElementById('motionGrid'),
+      motionEmpty: document.getElementById('motionEmpty'),
+      motionHint: document.getElementById('motionHint'),
     };
 
     let toastTimer = null;
@@ -401,10 +428,55 @@
       els.btnArm.disabled = false;
     });
 
+    function fmtTime(ts) {
+      const d = new Date(ts);
+      const today = new Date();
+      const sameDay = d.toDateString() === today.toDateString();
+      return sameDay ? d.toLocaleTimeString() : d.toLocaleString();
+    }
+
+    async function loadMotion() {
+      try {
+        const r = await fetch('/api/blink/motion/events?limit=40');
+        const j = await r.json();
+        const events = j.events || [];
+        // hint reflects whether ANY camera is armed (Blink only records when armed)
+        const anyArmed = Object.values(networks).some(Boolean);
+        els.motionHint.textContent = j.running ? (anyArmed ? T.watching : '') : '';
+        if (!events.length) {
+          els.motionGrid.innerHTML = '';
+          els.motionEmpty.textContent = anyArmed ? T.noEventsArmed : T.noEventsDisarmed;
+          els.motionEmpty.style.display = 'block';
+          return;
+        }
+        els.motionEmpty.style.display = 'none';
+        els.motionGrid.innerHTML = events.map(e => `
+          <div class="motion-item" onclick="playClip('${e.file}')">
+            <video src="/api/blink/motion/clip/${encodeURIComponent(e.file)}#t=0.5" preload="metadata" muted playsinline></video>
+            <div class="mi-meta">
+              <div class="mi-time">${fmtTime(e.timestamp)}</div>
+              <div class="mi-cam">${e.camera || ''}</div>
+            </div>
+          </div>`).join('');
+      } catch (e) { /* leave previous state */ }
+    }
+
+    function playClip(file) {
+      stopLive();
+      els.img.style.display = 'none';
+      els.video.style.display = 'block';
+      els.video.controls = true; els.video.muted = false; els.video.loop = true;
+      els.video.src = '/api/blink/motion/clip/' + encodeURIComponent(file);
+      els.video.play().catch(() => {});
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
     load();
+    loadMotion();
     // Periodic metadata refresh (uses 60s server cache). Also auto-refresh the
     // snapshot when not in liveview so the still image stays reasonably current.
     setInterval(load, 60000);
+    setInterval(loadMotion, 30000);
     snapRefreshTimer = setInterval(() => refreshSnapshot(false), 45000);
     window.addEventListener('beforeunload', stopLive);
   </script>

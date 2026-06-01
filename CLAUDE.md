@@ -53,10 +53,17 @@ which `server.js` spawns once per request (same pattern as the pinyin helper).
   2FA PIN, then persists the session to `$DATA_DIR/blink_creds.json`. After
   that, no PIN is needed — every call refreshes + re-saves the token.
 - **Endpoints:** `GET /api/blink/cameras` (60s cached), `GET /api/blink/thumbnail/:name` (`?snap=1` forces a fresh photo), `POST /api/blink/snap/:name`, `GET /api/blink/clip/:name` (latest motion mp4), `POST /api/blink/arm {network, armed}`, `POST /api/blink/liveview/:name` → HLS at `/blink-hls/stream.m3u8`, `POST /api/blink/liveview/stop`.
-- **Liveview is best-effort:** Blink liveviews are short-lived (~30–90s) and
-  drain the battery — NOT a 24/7 stream like the koi camera. One at a time.
+- **Liveview is NOT supported on Blink Mini ("hawk"/mini) cameras** — Blink
+  gates it behind a newer app version and returns `{"message":"An app update
+  is required"}`. The UI detects this (HTTP 501 `unsupported:true`), shows a
+  clear message, and disables the Live button. Snapshots/clips are unaffected.
+- **Auto-capture on motion:** `blink_motion.py` (a daemon spawned by server.js
+  like `motion_detector.py`) polls Blink and downloads the clips Blink records
+  on motion into `$DATA_DIR/blink-motion/clips/`, with a feed at
+  `GET /api/blink/motion/events` shown on the `/cat` page. **Cameras must be
+  ARMED** — Blink only records motion when armed (use the Arm button).
 - **Reusing AI detection:** the motion-clip mp4 can be fed to the existing
-  `motion_detector.py` / `bird_detector.py` if you want detection on Blink feeds.
+  `bird_detector.py` if you want detection on Blink feeds.
 
 ## Development
 

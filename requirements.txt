@@ -6,6 +6,8 @@ opencv-python-headless
 numpy
 pypinyin
 
-# Blink cameras — cloud-only API client (blink_client.py)
+# Blink cameras — cloud-only API client (blink_client.py, blink_motion.py)
 blinkpy>=0.25.5
 aiohttp
+python-dateutil
+python-slugify

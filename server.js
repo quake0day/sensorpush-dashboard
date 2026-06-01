@@ -856,6 +856,58 @@ app.post("/api/blink/liveview/:name", async (req, res) => {
 
 app.post("/api/blink/liveview/stop", (req, res) => { stopBlinkLive(); res.json({ ok: true }); });
 
+// ---- Blink motion watcher (auto-capture clips when armed) -----------------
+// blink_motion.py polls Blink's cloud and downloads motion clips that Blink
+// records whenever an ARMED camera sees motion. Clips land in
+// DATA_DIR/blink-motion/clips and the feed is in events.json.
+const BLINK_MOTION_DIR = path.join(DATA_DIR, "blink-motion");
+const BLINK_MOTION_CLIPS = path.join(BLINK_MOTION_DIR, "clips");
+const BLINK_MOTION_EVENTS = path.join(BLINK_MOTION_DIR, "events.json");
+if (!fs.existsSync(BLINK_MOTION_CLIPS)) fs.mkdirSync(BLINK_MOTION_CLIPS, { recursive: true });
+app.use("/api/blink/motion/clip", express.static(BLINK_MOTION_CLIPS));
+
+let blinkMotionProc = null;
+
+app.get("/api/blink/motion/events", (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  try {
+    if (!fs.existsSync(BLINK_MOTION_EVENTS)) return res.json({ events: [], running: !!blinkMotionProc });
+    const all = JSON.parse(fs.readFileSync(BLINK_MOTION_EVENTS, "utf8"));
+    res.json({ events: all.slice(0, limit), running: !!blinkMotionProc });
+  } catch (e) {
+    res.json({ events: [], running: !!blinkMotionProc });
+  }
+});
+
+function startBlinkMotion() {
+  if (blinkMotionProc) return;
+  const script = path.join(__dirname, "blink_motion.py");
+  if (!fs.existsSync(script)) return;
+  // Don't start until Blink is set up — otherwise it just exits immediately.
+  if (!fs.existsSync(path.join(DATA_DIR, "blink_creds.json"))) {
+    setTimeout(startBlinkMotion, 300000); // re-check in 5 min
+    return;
+  }
+  console.log("Starting Blink motion watcher...");
+  blinkMotionProc = spawn("python3", ["-u", script], {
+    cwd: __dirname,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, PYTHONUNBUFFERED: "1" },
+  });
+  blinkMotionProc.stdout.on("data", d => { const l = d.toString().trim(); if (l) console.log("blink-motion:", l); });
+  blinkMotionProc.stderr.on("data", d => { const l = d.toString().trim(); if (l && !l.startsWith("INFO:")) console.error("blink-motion-err:", l); });
+  blinkMotionProc.on("exit", (code) => {
+    console.log(`Blink motion watcher exited (code ${code})`);
+    blinkMotionProc = null;
+    setTimeout(startBlinkMotion, 60000);
+  });
+}
+setTimeout(startBlinkMotion, 25000);
+
+app.get("/api/blink/motion/status", (req, res) => {
+  res.json({ running: !!blinkMotionProc });
+});
+
 // ============ Bird Detection API ============
 const BIRD_DIR = path.join(DATA_DIR, "bird-detections");
 const BIRD_CLIPS = path.join(BIRD_DIR, "clips");
