@@ -23,7 +23,8 @@ Single Express server on port 3088 with these integrations:
 | `tv.html` | 1080p TV display | Fixed 1920x1080, large fonts, no emoji (Linux/RPi5) |
 | `koi.html` | Koi pond camera | HLS stream, PTZ controls, valve controls, motion events |
 | `bird.html` | Bird detection | Leaderboard, BOTD, field guide with swipe gestures |
-| `blink.html` | Blink cameras | Snapshot grid, battery/temp, arm/disarm, motion clips, liveview |
+| `blink.html` | Blink cameras (all) | Snapshot grid, battery/temp, arm/disarm, motion clips, liveview |
+| `cat.html` | Cat cam (single Blink cam) | Big auto-refresh snapshot, liveview, latest clip, arm/disarm; cross-links with `/koi` |
 | `water.html` | Water level calibration | ROI selection tool |
 | `edit.html` | Garden editor | 3D sprite editor (dev tool) |
 | `garden.js` | Shared garden renderer | Animated canvas used by index.html and tv.html |

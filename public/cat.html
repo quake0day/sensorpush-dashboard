@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cat Cam</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    :root {
+      --bg: #150f1f;
+      --surface: #201733;
+      --surface2: #2c2046;
+      --border: #3a2c58;
+      --text: #f0eaf7;
+      --text2: #ad9ccb;
+      --text3: #7a6a98;
+      --accent: #c084fc;
+      --orange: #fb923c;
+      --red: #ef4444;
+      --green: #22c55e;
+      --amber: #fbbf24;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .header-left h1 { font-size: 22px; font-weight: 700; }
+    .header-left h1 .cat { color: var(--accent); }
+    .header-left .subtitle { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .nav-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; text-decoration: none; transition: all 0.15s; }
+    .nav-btn:hover { background: var(--border); color: var(--text); }
+    .status { font-size: 12px; color: var(--text3); display: flex; align-items: center; gap: 5px; }
+    .status .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+    .status .dot.on { background: var(--green); }
+    .status .dot.off { background: var(--red); }
+    .status .dot.wait { background: var(--orange); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+
+    .section { margin-bottom: 24px; }
+    .section-head { font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .cam-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+
+    .cam-wrapper { display: flex; justify-content: center; }
+    .cam-frame { border: 3px solid var(--border); border-radius: 16px; overflow: hidden; background: #000; box-shadow: 0 4px 40px rgba(192,132,252,0.10); max-width: 960px; width: 100%; position: relative; aspect-ratio: 16 / 9; }
+    .cam-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .cam-frame video { display: none; width: 100%; height: 100%; object-fit: contain; background: #000; }
+    .cam-frame .overlay-time { position: absolute; top: 12px; right: 14px; background: rgba(0,0,0,0.6); color: #fff; font-size: 12px; padding: 3px 10px; border-radius: 4px; font-family: monospace; pointer-events: none; }
+    .cam-frame .overlay-live { position: absolute; top: 12px; left: 14px; background: rgba(220,38,38,0.85); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 4px; letter-spacing: 1px; display: none; align-items: center; gap: 5px; pointer-events: none; }
+    .cam-frame .overlay-live .rec-dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; animation: pulse 1s infinite; }
+    .cam-frame .overlay-motion { position: absolute; bottom: 12px; left: 14px; background: rgba(251,146,60,0.9); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 4px; letter-spacing: 1px; display: none; }
+    .cam-frame .spinner { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: var(--text3); font-size: 13px; background: rgba(0,0,0,0.5); }
+    .cam-frame .spinner.show { display: flex; }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; justify-content: center; }
+    .ctrl-group { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; }
+    .ctrl-group .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+    .ctrl-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; transition: all 0.15s; }
+    .ctrl-btn:hover { background: var(--border); color: var(--text); }
+    .ctrl-btn:active { background: var(--accent); color: var(--bg); }
+    .ctrl-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+    .ctrl-btn.armed { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
+    .ctrl-btn.disarmed { background: var(--green); border-color: var(--green); color: #04210f; font-weight: 600; }
+    .ctrl-btn:disabled { opacity: 0.5; cursor: default; }
+
+    .info-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    .info-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; }
+    .info-card .info-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .info-card .info-value { font-size: 17px; font-weight: 600; }
+    .batt.ok { color: var(--green); } .batt.low { color: var(--amber); } .batt.crit { color: var(--red); }
+
+    .empty { text-align: center; color: var(--text3); padding: 60px 20px; font-size: 14px; line-height: 1.7; }
+    .empty code { background: var(--surface2); padding: 2px 8px; border-radius: 4px; color: var(--accent); }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px 20px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 50; }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <h1><span class="cat">&#x1F431;</span> <span id="title">Cat Cam</span></h1>
+      <div class="subtitle" id="subtitle">Blink camera — snapshots, motion clips & liveview</div>
+    </div>
+    <div class="header-right">
+      <span class="status"><span class="dot wait" id="statusDot"></span><span id="statusText">connecting…</span></span>
+      <a class="nav-btn" id="koiBtn" href="/koi">Koi Pond</a>
+      <a class="nav-btn" id="langBtn" href="/cn/cat">中文</a>
+      <a class="nav-btn" id="dashBtn" href="/">Dashboard</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <div id="main" style="display:none;">
+      <div class="section">
+        <div class="section-head">
+          <span id="liveFeedLabel">Live Feed</span>
+          <select class="cam-select" id="camSelect"></select>
+        </div>
+        <div class="cam-wrapper">
+          <div class="cam-frame" id="camFrame">
+            <img id="camImg" alt="cat camera">
+            <video id="camVideo" muted playsinline></video>
+            <div class="overlay-live" id="overlayLive"><span class="rec-dot"></span> LIVE</div>
+            <div class="overlay-time" id="overlayTime">--:--:--</div>
+            <div class="overlay-motion" id="overlayMotion">MOTION</div>
+            <div class="spinner" id="spinner">…</div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="ctrl-group">
+            <span class="label" id="viewLabel">View</span>
+            <button class="ctrl-btn" id="btnSnap">New Photo</button>
+            <button class="ctrl-btn" id="btnLive">Live</button>
+            <button class="ctrl-btn" id="btnClip">Latest Clip</button>
+          </div>
+          <div class="ctrl-group">
+            <span class="label" id="securityLabel">Security</span>
+            <button class="ctrl-btn" id="btnArm">--</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head" id="infoLabel">Camera Info</div>
+        <div class="info-panel">
+          <div class="info-card"><div class="info-label" id="lblBatt">Battery</div><div class="info-value batt" id="valBatt">--</div></div>
+          <div class="info-card"><div class="info-label" id="lblTemp">Temperature</div><div class="info-value" id="valTemp">--</div></div>
+          <div class="info-card"><div class="info-label" id="lblSignal">WiFi Signal</div><div class="info-value" id="valSignal">--</div></div>
+          <div class="info-card"><div class="info-label" id="lblMotion">Motion</div><div class="info-value" id="valMotion">--</div></div>
+          <div class="info-card"><div class="info-label" id="lblType">Model</div><div class="info-value" id="valType">--</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="empty" id="empty" style="display:none;"></div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const LANG = window.location.pathname.startsWith('/cn') ? 'cn' : 'en';
+    const T = {
+      en: { title: 'Cat Cam', subtitle: 'Blink camera — snapshots, motion clips & liveview', dash: 'Dashboard', koi: 'Koi Pond', switchLang: '中文', switchUrl: '/cn/cat',
+            liveFeed: 'Live Feed', view: 'View', security: 'Security', info: 'Camera Info',
+            battery: 'Battery', temp: 'Temperature', signal: 'WiFi Signal', motion: 'Motion', model: 'Model',
+            newPhoto: 'New Photo', live: 'Live', stopLive: 'Stop', clip: 'Latest Clip',
+            arm: 'Arm', disarm: 'Disarm', armed: 'ARMED', disarmed: 'DISARMED',
+            connected: 'connected', error: 'error', snapping: 'Taking new photo…', clipLoading: 'Loading latest clip…', liveStarting: 'Starting liveview…',
+            motionYes: 'Detected', motionNo: 'Clear', wired: 'Wired', none: '—',
+            empty: 'No Blink cameras found.<br>Run the one-time login on the server:<br><code>python3 blink_client.py setup</code>',
+            errMsg: 'Could not reach Blink. Has setup been run? Check server logs.' },
+      cn: { title: '猫咪摄像头', subtitle: 'Blink 摄像头 — 快照、移动片段与直播', dash: '主面板', koi: '锦鲤池', switchLang: 'EN', switchUrl: '/cat',
+            liveFeed: '实时画面', view: '查看', security: '安防', info: '摄像头信息',
+            battery: '电量', temp: '温度', signal: 'WiFi 信号', motion: '移动侦测', model: '型号',
+            newPhoto: '拍新照', live: '直播', stopLive: '停止', clip: '最新片段',
+            arm: '布防', disarm: '撤防', armed: '已布防', disarmed: '已撤防',
+            connected: '已连接', error: '错误', snapping: '正在拍摄新照片…', clipLoading: '正在加载最新片段…', liveStarting: '正在启动直播…',
+            motionYes: '检测到', motionNo: '无', wired: '有线供电', none: '—',
+            empty: '未找到 Blink 摄像头。<br>请在服务器上完成一次性登录：<br><code>python3 blink_client.py setup</code>',
+            errMsg: '无法连接 Blink。是否已运行 setup？请查看服务器日志。' },
+    }[LANG];
+
+    document.getElementById('title').textContent = T.title;
+    document.getElementById('subtitle').textContent = T.subtitle;
+    document.getElementById('langBtn').textContent = T.switchLang;
+    document.getElementById('langBtn').href = T.switchUrl;
+    document.getElementById('dashBtn').textContent = T.dash;
+    document.getElementById('dashBtn').href = LANG === 'cn' ? '/cn' : '/';
+    document.getElementById('koiBtn').textContent = T.koi;
+    document.getElementById('koiBtn').href = LANG === 'cn' ? '/cn/koi' : '/koi';
+    document.getElementById('liveFeedLabel').textContent = T.liveFeed;
+    document.getElementById('viewLabel').textContent = T.view;
+    document.getElementById('securityLabel').textContent = T.security;
+    document.getElementById('infoLabel').textContent = T.info;
+    document.getElementById('lblBatt').textContent = T.battery;
+    document.getElementById('lblTemp').textContent = T.temp;
+    document.getElementById('lblSignal').textContent = T.signal;
+    document.getElementById('lblMotion').textContent = T.motion;
+    document.getElementById('lblType').textContent = T.model;
+    document.getElementById('btnSnap').textContent = T.newPhoto;
+    document.getElementById('btnLive').textContent = T.live;
+    document.getElementById('btnClip').textContent = T.clip;
+
+    const els = {
+      main: document.getElementById('main'),
+      empty: document.getElementById('empty'),
+      statusDot: document.getElementById('statusDot'),
+      statusText: document.getElementById('statusText'),
+      camSelect: document.getElementById('camSelect'),
+      img: document.getElementById('camImg'),
+      video: document.getElementById('camVideo'),
+      overlayLive: document.getElementById('overlayLive'),
+      overlayTime: document.getElementById('overlayTime'),
+      overlayMotion: document.getElementById('overlayMotion'),
+      spinner: document.getElementById('spinner'),
+      btnSnap: document.getElementById('btnSnap'),
+      btnLive: document.getElementById('btnLive'),
+      btnClip: document.getElementById('btnClip'),
+      btnArm: document.getElementById('btnArm'),
+      valBatt: document.getElementById('valBatt'),
+      valTemp: document.getElementById('valTemp'),
+      valSignal: document.getElementById('valSignal'),
+      valMotion: document.getElementById('valMotion'),
+      valType: document.getElementById('valType'),
+    };
+
+    let toastTimer = null;
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg; el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+    }
+    function setStatus(state, text) { els.statusDot.className = 'dot ' + state; els.statusText.textContent = text; }
+    function spin(on) { els.spinner.classList.toggle('show', on); }
+
+    let cameras = [];
+    let networks = {};
+    let current = localStorage.getItem('catCam') || null;
+    let liveOn = false;
+    let hls = null;
+    let snapRefreshTimer = null;
+
+    function curCam() { return cameras.find(c => c.name === current); }
+
+    function battClass(level) {
+      if (level === null || level === undefined) return '';
+      if (level >= 60) return 'ok'; if (level >= 25) return 'low'; return 'crit';
+    }
+
+    function refreshSnapshot(force) {
+      if (liveOn || !current) return;
+      spin(true);
+      const url = '/api/blink/thumbnail/' + encodeURIComponent(current) + (force ? '?snap=1&t=' : '?t=') + Date.now();
+      els.img.onload = () => { spin(false); els.overlayTime.textContent = new Date().toLocaleTimeString(); };
+      els.img.onerror = () => spin(false);
+      els.img.src = url;
+    }
+
+    function renderInfo() {
+      const c = curCam(); if (!c) return;
+      const lvl = c.battery_level;
+      els.valBatt.className = 'info-value batt ' + battClass(lvl);
+      els.valBatt.textContent = (lvl !== null && lvl !== undefined) ? lvl + '%' : (c.battery || T.wired);
+      els.valTemp.textContent = (c.temperature !== null && c.temperature !== undefined) ? c.temperature + '°F' : T.none;
+      els.valSignal.textContent = (c.wifi_strength !== null && c.wifi_strength !== undefined) ? c.wifi_strength : T.none;
+      els.valMotion.textContent = c.motion_detected ? T.motionYes : T.motionNo;
+      els.valType.textContent = c.type || T.none;
+      els.overlayMotion.style.display = c.motion_detected ? 'block' : 'none';
+      // arm button reflects this camera's network
+      const armed = !!networks[c.network_id] || !!networks[c.sync_module];
+      els.btnArm.textContent = armed ? T.armed : T.disarmed;
+      els.btnArm.className = 'ctrl-btn ' + (armed ? 'armed' : 'disarmed');
+    }
+
+    function selectCam(name) {
+      stopLive();
+      current = name;
+      localStorage.setItem('catCam', name);
+      els.camSelect.value = name;
+      renderInfo();
+      refreshSnapshot(false);
+    }
+
+    async function load() {
+      try {
+        const r = await fetch('/api/blink/cameras');
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'failed');
+        cameras = j.cameras || [];
+        networks = j.networks || {};
+        if (!cameras.length) {
+          els.main.style.display = 'none';
+          els.empty.style.display = 'block';
+          els.empty.innerHTML = T.empty;
+          setStatus('off', T.error);
+          return;
+        }
+        els.empty.style.display = 'none';
+        els.main.style.display = 'block';
+        setStatus('on', T.connected);
+        // populate selector
+        els.camSelect.innerHTML = cameras.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        if (!current || !curCam()) current = cameras[0].name;
+        els.camSelect.value = current;
+        renderInfo();
+        if (!liveOn && !els.img.src) refreshSnapshot(false);
+      } catch (e) {
+        setStatus('off', T.error);
+        els.main.style.display = 'none';
+        els.empty.style.display = 'block';
+        els.empty.innerHTML = T.errMsg;
+      }
+    }
+
+    els.camSelect.addEventListener('change', e => selectCam(e.target.value));
+
+    els.btnSnap.addEventListener('click', async () => {
+      if (!current) return;
+      toast(T.snapping); spin(true);
+      try {
+        const r = await fetch('/api/blink/snap/' + encodeURIComponent(current), { method: 'POST' });
+        if (!r.ok) throw new Error((await r.json()).error || 'failed');
+        stopLive();
+        refreshSnapshot(false);
+      } catch (e) { spin(false); toast(T.error + ': ' + e.message); }
+    });
+
+    els.btnClip.addEventListener('click', () => {
+      if (!current) return;
+      stopLive();
+      toast(T.clipLoading);
+      els.img.style.display = 'none';
+      els.video.style.display = 'block';
+      els.video.controls = true; els.video.muted = false; els.video.loop = true;
+      els.video.src = '/api/blink/clip/' + encodeURIComponent(current) + '?t=' + Date.now();
+      els.video.play().catch(() => {});
+    });
+
+    els.btnLive.addEventListener('click', () => liveOn ? stopLive() : startLive());
+
+    async function startLive() {
+      if (!current) return;
+      toast(T.liveStarting); spin(true);
+      try {
+        const r = await fetch('/api/blink/liveview/' + encodeURIComponent(current), { method: 'POST' });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'failed');
+        liveOn = true;
+        els.btnLive.textContent = T.stopLive;
+        els.btnLive.classList.add('active');
+        els.overlayLive.style.display = 'flex';
+        els.img.style.display = 'none';
+        els.video.style.display = 'block';
+        els.video.controls = false; els.video.muted = true; els.video.loop = false;
+        if (window.Hls && Hls.isSupported()) {
+          hls = new Hls({ liveSyncDuration: 2, lowLatencyMode: true });
+          hls.loadSource(j.hls + '?t=' + Date.now());
+          hls.attachMedia(els.video);
+          hls.on(Hls.Events.MANIFEST_PARSED, () => { spin(false); els.video.play().catch(() => {}); });
+          hls.on(Hls.Events.ERROR, (_, d) => { if (d.fatal) { spin(false); } });
+        } else {
+          els.video.src = j.hls;
+          els.video.play().catch(() => {});
+          spin(false);
+        }
+      } catch (e) { spin(false); toast(T.error + ': ' + e.message); }
+    }
+
+    function stopLive() {
+      if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+      if (liveOn) { fetch('/api/blink/liveview/stop', { method: 'POST' }).catch(() => {}); }
+      liveOn = false;
+      els.btnLive.textContent = T.live;
+      els.btnLive.classList.remove('active');
+      els.overlayLive.style.display = 'none';
+      els.video.pause(); els.video.removeAttribute('src'); els.video.load();
+      els.video.style.display = 'none';
+      els.img.style.display = 'block';
+    }
+
+    els.btnArm.addEventListener('click', async () => {
+      const c = curCam(); if (!c) return;
+      const net = c.network_id && networks[c.network_id] !== undefined ? c.network_id : c.sync_module;
+      const armed = !(!!networks[net]);
+      els.btnArm.disabled = true;
+      try {
+        const r = await fetch('/api/blink/arm', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ network: net, armed }),
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'failed');
+        networks[net] = j.armed;
+        toast(j.armed ? T.armed : T.disarmed);
+        renderInfo();
+      } catch (e) { toast(T.error + ': ' + e.message); }
+      els.btnArm.disabled = false;
+    });
+
+    load();
+    // Periodic metadata refresh (uses 60s server cache). Also auto-refresh the
+    // snapshot when not in liveview so the still image stays reasonably current.
+    setInterval(load, 60000);
+    snapRefreshTimer = setInterval(() => refreshSnapshot(false), 45000);
+    window.addEventListener('beforeunload', stopLive);
+  </script>
+</body>
+</html>

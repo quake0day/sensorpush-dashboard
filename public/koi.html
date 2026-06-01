@@ -149,6 +149,7 @@
         <span class="dot wait" id="statusDot"></span>
         <span id="statusText">Connecting...</span>
       </div>
+      <a class="nav-btn" id="catBtn" href="/cat">Cat Cam</a>
       <a class="nav-btn" id="langBtn" href="#" style="cursor:pointer">中文</a>
       <a href="/" class="nav-btn" id="dashBtn">Dashboard</a>
     </div>
@@ -330,6 +331,8 @@
     document.getElementById('langBtn').href = KT.switchUrl;
     document.getElementById('dashBtn').textContent = KT.dash;
     document.getElementById('dashBtn').href = LANG === 'cn' ? '/cn' : '/';
+    document.getElementById('catBtn').textContent = LANG === 'cn' ? '猫咪' : 'Cat Cam';
+    document.getElementById('catBtn').href = LANG === 'cn' ? '/cn/cat' : '/cat';
     // Update static labels
     document.querySelectorAll('.label').forEach(el => {
       const t = el.textContent.trim();

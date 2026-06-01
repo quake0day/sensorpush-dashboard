@@ -1944,6 +1944,13 @@ app.get("/cn/blink", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "blink.html"));
 });
 
+app.get("/cat", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "cat.html"));
+});
+app.get("/cn/cat", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "cat.html"));
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Smart Garden Dashboard running at http://localhost:${PORT}`);
