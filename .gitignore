@@ -11,3 +11,8 @@ data/
 hls-cam/
 pond-alarm-log.json
 sensorpush-data/
+
+# Local-only files
+.claude/*.lock
+# Source image for public/water-timer-bg.png (identical copy already committed)
+Gemini_Generated_Image_*.png
