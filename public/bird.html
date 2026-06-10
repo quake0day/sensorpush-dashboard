@@ -433,18 +433,26 @@ function renderHourlyChart(hourly) {
   });
 }
 
-async function getBirdImage(name, sci) {
+const imgInflight = {};
+function getBirdImage(name, sci) {
   const key = name + (sci || '');
   // Only honor cache when we have an image — null is a transient miss, not a permanent answer.
-  if (imgCache[key]?.image) return imgCache[key];
-  try {
-    let url = `/api/birds/image/${encodeURIComponent(name)}`;
-    if (sci) url += `?sci=${encodeURIComponent(sci)}`;
-    const r = await fetch(url);
-    const d = await r.json();
-    if (d.image) imgCache[key] = d;
-    return d;
-  } catch { return { image: null, extract: '' }; }
+  if (imgCache[key]?.image) return Promise.resolve(imgCache[key]);
+  // Dedupe concurrent callers (timeline can request the same species dozens
+  // of times in one render) so only one request per species hits the server.
+  if (imgInflight[key]) return imgInflight[key];
+  imgInflight[key] = (async () => {
+    try {
+      let url = `/api/birds/image/${encodeURIComponent(name)}`;
+      if (sci) url += `?sci=${encodeURIComponent(sci)}`;
+      const r = await fetch(url);
+      const d = await r.json();
+      if (d.image) imgCache[key] = d;
+      return d;
+    } catch { return { image: null, extract: '' }; }
+    finally { delete imgInflight[key]; }
+  })();
+  return imgInflight[key];
 }
 
 async function renderLeaderboard(lb) {
@@ -454,12 +462,15 @@ async function renderLeaderboard(lb) {
     return;
   }
   const maxCount = lb[0].count;
+  // Warm the image cache in parallel — sequential awaits queued dozens of
+  // round-trips and delayed first paint by several seconds.
+  const wikis = await Promise.all(lb.map(s => getBirdImage(s.common_name, s.scientific_name)));
   let html = '';
   for (let i = 0; i < lb.length; i++) {
     const s = lb[i];
     const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
-    const wiki = await getBirdImage(s.common_name, s.scientific_name);
-    const img = wiki.image ? `<img class="lb-img" src="${wiki.image}" alt="${birdName(s.common_name)}" onerror="this.src='';this.style.cssText='display:flex;align-items:center;justify-content:center;font-size:24px;width:52px;height:52px';this.textContent='🐦'">` : `<div class="lb-img" style="display:flex;align-items:center;justify-content:center;font-size:24px">&#x1F426;</div>`;
+    const wiki = wikis[i];
+    const img = wiki.image ? `<img class="lb-img" src="${wiki.image}" alt="${birdName(s.common_name)}" loading="lazy" onerror="this.src='';this.style.cssText='display:flex;align-items:center;justify-content:center;font-size:24px;width:52px;height:52px';this.textContent='🐦'">` : `<div class="lb-img" style="display:flex;align-items:center;justify-content:center;font-size:24px">&#x1F426;</div>`;
     const first = new Date(s.first_seen).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
     const last = new Date(s.last_seen).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
     // Use Chinese description if available, otherwise English from Wikipedia
@@ -501,11 +512,13 @@ async function renderTimeline(detections) {
   }
   // Show newest first
   const sorted = [...detections].reverse();
+  const tlWikis = await Promise.all(sorted.map(d => getBirdImage(d.common_name, d.scientific_name)));
   let html = '';
-  for (const d of sorted) {
+  for (let ti = 0; ti < sorted.length; ti++) {
+    const d = sorted[ti];
     const time = new Date(d.time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    const wiki = await getBirdImage(d.common_name, d.scientific_name);
-    const img = wiki.image ? `<img class="tl-img" src="${wiki.image}" onerror="this.style.display='none'">` : `<div class="tl-img" style="display:flex;align-items:center;justify-content:center;font-size:16px">&#x1F426;</div>`;
+    const wiki = tlWikis[ti];
+    const img = wiki.image ? `<img class="tl-img" src="${wiki.image}" loading="lazy" onerror="this.style.display='none'">` : `<div class="tl-img" style="display:flex;align-items:center;justify-content:center;font-size:16px">&#x1F426;</div>`;
     html += `
       <div class="tl-row">
         <span class="tl-time">${time}</span>
@@ -1031,15 +1044,20 @@ async function renderDexList(list) {
   el.innerHTML = html;
 }
 
+let filterDexTimer = null;
 function filterDex() {
-  const q = document.getElementById('dexSearchInput').value.toLowerCase();
-  const filtered = dexSpecies.filter(sp => {
-    const cn_name = birdTransCache[sp.common_name]?.cn_name || '';
-    return sp.common_name.toLowerCase().includes(q) ||
-           sp.scientific_name.toLowerCase().includes(q) ||
-           cn_name.includes(q);
-  });
-  renderDexList(filtered);
+  // Debounced: rebuilding the whole list on every keystroke thrashes the DOM
+  clearTimeout(filterDexTimer);
+  filterDexTimer = setTimeout(() => {
+    const q = document.getElementById('dexSearchInput').value.toLowerCase();
+    const filtered = dexSpecies.filter(sp => {
+      const cn_name = birdTransCache[sp.common_name]?.cn_name || '';
+      return sp.common_name.toLowerCase().includes(q) ||
+             sp.scientific_name.toLowerCase().includes(q) ||
+             cn_name.includes(q);
+    });
+    renderDexList(filtered);
+  }, 200);
 }
 
 async function showDexDetail(name, sci) {

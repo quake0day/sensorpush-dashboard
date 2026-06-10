@@ -359,8 +359,10 @@
 
     els.btnLive.addEventListener('click', () => liveOn ? stopLive() : startLive());
 
+    let liveStarting = false;
     async function startLive() {
-      if (!current || liveUnsupported.has(current)) return;
+      if (!current || liveUnsupported.has(current) || liveStarting) return;
+      liveStarting = true;
       toast(T.liveStarting); spin(true);
       try {
         const r = await fetch('/api/blink/liveview/' + encodeURIComponent(current), { method: 'POST' });
@@ -385,6 +387,7 @@
         els.video.style.display = 'block';
         els.video.controls = false; els.video.muted = true; els.video.loop = false;
         if (window.Hls && Hls.isSupported()) {
+          if (hls) { try { hls.destroy(); } catch (e) {} } // never leak a prior instance
           hls = new Hls({ liveSyncDuration: 2, lowLatencyMode: true });
           hls.loadSource(j.hls + '?t=' + Date.now());
           hls.attachMedia(els.video);
@@ -396,6 +399,7 @@
           spin(false);
         }
       } catch (e) { spin(false); toast(T.error + ': ' + e.message); }
+      finally { liveStarting = false; }
     }
 
     function stopLive() {
@@ -435,6 +439,7 @@
       return sameDay ? d.toLocaleTimeString() : d.toLocaleString();
     }
 
+    let motionSig = '';
     async function loadMotion() {
       try {
         const r = await fetch('/api/blink/motion/events?limit=40');
@@ -444,11 +449,17 @@
         const anyArmed = Object.values(networks).some(Boolean);
         els.motionHint.textContent = j.running ? (anyArmed ? T.watching : '') : '';
         if (!events.length) {
+          motionSig = '';
           els.motionGrid.innerHTML = '';
           els.motionEmpty.textContent = anyArmed ? T.noEventsArmed : T.noEventsDisarmed;
           els.motionEmpty.style.display = 'block';
           return;
         }
+        // Rebuilding the grid recreates every <video preload="metadata">,
+        // re-fetching headers for up to 40 clips — skip when nothing changed.
+        const sig = events.map(e => e.file).join('|');
+        if (sig === motionSig) return;
+        motionSig = sig;
         els.motionEmpty.style.display = 'none';
         els.motionGrid.innerHTML = events.map(e => `
           <div class="motion-item" onclick="playClip('${e.file}')">
@@ -475,9 +486,13 @@
     loadMotion();
     // Periodic metadata refresh (uses 60s server cache). Also auto-refresh the
     // snapshot when not in liveview so the still image stays reasonably current.
-    setInterval(load, 60000);
-    setInterval(loadMotion, 30000);
-    snapRefreshTimer = setInterval(() => refreshSnapshot(false), 45000);
+    // All polling pauses while the tab is hidden and resumes on return.
+    setInterval(() => { if (!document.hidden) load(); }, 60000);
+    setInterval(() => { if (!document.hidden) loadMotion(); }, 30000);
+    snapRefreshTimer = setInterval(() => { if (!document.hidden) refreshSnapshot(false); }, 45000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) { load(); loadMotion(); refreshSnapshot(false); }
+    });
     window.addEventListener('beforeunload', stopLive);
   </script>
 </body>

@@ -1617,17 +1617,18 @@ function updateChart(chart, samplesMap, valueKey, transform) {
 }
 
 async function refreshCharts() {
+  // All three charts default to the same time range — fetch each unique
+  // range once instead of issuing three identical /api/samples POSTs.
+  const byHours = {};
+  const getSamples = async (h) => (byHours[h] ??= loadSamples(h));
   try {
-    const s1 = await loadSamples(currentTempHours);
-    updateChart(tempChart, s1, "temperature", tempF2C);
+    updateChart(tempChart, await getSamples(currentTempHours), "temperature", tempF2C);
   } catch (e) { console.error("temp chart:", e); }
   try {
-    const s2 = await loadSamples(currentHumHours);
-    updateChart(humChart, s2, "humidity", null);
+    updateChart(humChart, await getSamples(currentHumHours), "humidity", null);
   } catch (e) { console.error("hum chart:", e); }
   try {
-    const s3 = await loadSamples(currentPressHours);
-    updateChart(pressChart, s3, "barometric_pressure", inHgToHPa);
+    updateChart(pressChart, await getSamples(currentPressHours), "barometric_pressure", inHgToHPa);
   } catch (e) { console.error("press chart:", e); }
 }
 
@@ -1711,21 +1712,28 @@ async function init() {
   await refreshCharts();
 
   // ---- Real-time updates ----
+  // All polling pauses while the tab is hidden (saves bandwidth/battery)
+  // and a refresh fires immediately when the tab becomes visible again.
   // Sensor + Tuya: every 30 seconds
-  setInterval(async () => {
+  async function refreshSensors() {
     try {
       sensorsData = await api("GET", "/api/sensors");
       renderSensors(sensorsData);
       loadWeather(); // also updates garden weather effects
       setStatus(true, T.connected + " - " + new Date().toLocaleTimeString(locale));
     } catch (e) { setStatus(false, "Refresh failed"); }
-  }, 30000);
+  }
+  setInterval(() => { if (!document.hidden) refreshSensors(); }, 30000);
 
   // Charts: every 5 minutes
-  setInterval(refreshCharts, 5 * 60 * 1000);
+  setInterval(() => { if (!document.hidden) refreshCharts(); }, 5 * 60 * 1000);
 
   // Weather API: every 15 minutes
-  setInterval(loadWeather, 15 * 60 * 1000);
+  setInterval(() => { if (!document.hidden) loadWeather(); }, 15 * 60 * 1000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { refreshSensors(); refreshCharts(); }
+  });
 }
 
 // ============ Background Music ============
@@ -1907,8 +1915,9 @@ async function pollBirds() {
   } catch (e) {}
 }
 
-// Poll for birds every 15 seconds
-setInterval(pollBirds, 15000);
+// Poll for birds every 15 seconds (paused while tab hidden — toasts
+// shown to nobody would just burn the 10-min species cooldown)
+setInterval(() => { if (!document.hidden) pollBirds(); }, 15000);
 setTimeout(pollBirds, 5000);
 
 // ============ Camera Water Level ============
@@ -1990,7 +1999,7 @@ async function loadCamWater() {
 }
 
 loadCamWater();
-setInterval(loadCamWater, 60000);
+setInterval(() => { if (!document.hidden) loadCamWater(); }, 60000);
 
 // ============ Water Timer Status (SVG illustration) ============
 function fmtTimerMin(m) {
@@ -2048,14 +2057,9 @@ async function loadTimerStatus() {
 }
 
 loadTimerStatus();
-setInterval(loadTimerStatus, 15000);
-// Update elapsed time display more frequently
-setInterval(() => {
-  const v1st = document.getElementById('v1StatusText');
-  const v2st = document.getElementById('v2StatusText');
-  if (v1st && v1st.getAttribute('fill') === '#22c55e') loadTimerStatus();
-  else if (v2st && v2st.getAttribute('fill') === '#22c55e') loadTimerStatus();
-}, 30000);
+// (The 15s interval already keeps the elapsed-time display fresh; a second
+// 30s interval used to duplicate the same fetch whenever a valve was on.)
+setInterval(() => { if (!document.hidden) loadTimerStatus(); }, 15000);
 
 init();
 </script>

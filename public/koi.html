@@ -468,14 +468,16 @@
         });
 
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        // Safari native HLS
+        // Safari native HLS. Property assignment (not addEventListener) so each
+        // retry replaces the previous handlers — otherwise N retries stack N
+        // error listeners and a single error fires N reconnects.
         video.src = hlsUrl;
-        video.addEventListener("loadedmetadata", () => {
+        video.onloadedmetadata = () => {
           video.play().catch(() => {});
           setStatus("on", "Live");
           audioHint.style.display = video.muted ? "block" : "none";
-        });
-        video.addEventListener("error", () => scheduleRetry());
+        };
+        video.onerror = () => scheduleRetry();
       } else {
         showError("Not Supported", "Your browser does not support HLS playback");
       }
@@ -483,6 +485,7 @@
 
     function destroyHLS() {
       if (hlsLatencyTimer) { clearInterval(hlsLatencyTimer); hlsLatencyTimer = null; }
+      if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; }
       if (hls) {
         hls.destroy();
         hls = null;
@@ -515,11 +518,13 @@
     }
 
     // ---- Quality Switch ----
+    let qualitySwitching = false;
     document.querySelectorAll(".quality-btn").forEach(btn => {
       btn.addEventListener("click", async () => {
         const q = btn.dataset.quality;
-        if (q === currentQuality) return;
-        document.querySelectorAll(".quality-btn").forEach(b => b.classList.remove("active"));
+        if (q === currentQuality || qualitySwitching) return;
+        qualitySwitching = true;
+        document.querySelectorAll(".quality-btn").forEach(b => { b.classList.remove("active"); b.disabled = true; });
         btn.classList.add("active");
         currentQuality = q;
         overlayQuality.textContent = q.toUpperCase();
@@ -535,6 +540,9 @@
           setTimeout(initHLS, 5000);
         } catch (e) {
           showError("Switch Failed", e.message);
+        } finally {
+          qualitySwitching = false;
+          document.querySelectorAll(".quality-btn").forEach(b => { b.disabled = false; });
         }
       });
     });
@@ -874,6 +882,7 @@
       btn.addEventListener('click', async () => {
         const v = parseInt(btn.dataset.valve);
         const min = parseInt(btn.dataset.min);
+        btn.disabled = true;
         btn.style.opacity = '0.5';
         try {
           // Turn on + set countdown
@@ -887,6 +896,7 @@
           valveState[v].on_since = Date.now();
           updateValveUI();
         } catch (e) {}
+        btn.disabled = false;
         btn.style.opacity = '1';
       });
     });

@@ -185,6 +185,29 @@
         </div>`;
     }
 
+    function updateCamCard(c) {
+      const card = grid.querySelector(`.cam[data-name="${CSS.escape(c.name)}"]`);
+      if (!card) return;
+      const battLvl = c.battery_level;
+      const m = card.querySelectorAll('.meta .m b');
+      if (m[0]) {
+        m[0].textContent = (battLvl !== null && battLvl !== undefined) ? battLvl + '%' : (c.battery || '—');
+        m[0].className = 'batt ' + battClass(battLvl);
+      }
+      if (m[1]) m[1].textContent = (c.temperature !== null && c.temperature !== undefined) ? c.temperature + '°F' : '—';
+      if (m[2]) m[2].textContent = (c.wifi_strength !== null && c.wifi_strength !== undefined) ? c.wifi_strength : '—';
+      const wrap = card.querySelector('.thumb-wrap');
+      const motionBadge = wrap.querySelector('.badge.motion');
+      if (c.motion_detected && !motionBadge) {
+        const div = document.createElement('div');
+        div.className = 'badge motion';
+        div.textContent = T.motion;
+        wrap.insertBefore(div, wrap.querySelector('.badge.live'));
+      } else if (!c.motion_detected && motionBadge) {
+        motionBadge.remove();
+      }
+    }
+
     function armButtons(networks) {
       toolbar.innerHTML = '';
       const names = Object.keys(networks || {});
@@ -251,9 +274,12 @@
       video.play().catch(() => {});
     }
 
+    let liveStarting = false;
     async function toggleLive(name) {
+      if (liveStarting) return; // a start is already in flight; ignore extra clicks
       if (liveCam === name) { stopLive(); return; }
       stopLive();
+      liveStarting = true;
       toast(T.liveStarting);
       try {
         const r = await fetch('/api/blink/liveview/' + encodeURIComponent(name), { method: 'POST' });
@@ -283,6 +309,7 @@
           video.play().catch(() => {});
         }
       } catch (e) { toast(T.error + ': ' + e.message); }
+      finally { liveStarting = false; }
     }
 
     function stopLive() {
@@ -316,11 +343,18 @@
           return;
         }
         emptyEl.style.display = 'none';
-        // Preserve a playing liveview/clip: only re-render if camera set changed
-        const playing = liveCam;
-        grid.innerHTML = cams.map(camCard).join('');
+        // If the camera set is unchanged, update metadata in place. A full
+        // innerHTML rebuild would re-download every thumbnail (cache-busted
+        // src) and destroy any playing clip/liveview video element.
+        const existing = [...grid.querySelectorAll('.cam')].map(el => el.dataset.name);
+        const sameSet = existing.length === cams.length && cams.every(c => existing.includes(c.name));
+        if (sameSet) {
+          cams.forEach(updateCamCard);
+        } else {
+          stopLive();
+          grid.innerHTML = cams.map(camCard).join('');
+        }
         armButtons(j.networks);
-        if (playing) liveCam = null; // card was rebuilt; drop stale ref
       } catch (e) {
         setStatus('off', T.error);
         grid.innerHTML = '';
@@ -331,7 +365,9 @@
 
     load();
     // Refresh metadata periodically (uses the 60s server cache, so cheap).
-    setInterval(() => { if (!liveCam) load(); }, 60000);
+    // Skip while live or when the tab is hidden — no point polling unseen.
+    setInterval(() => { if (!liveCam && !document.hidden) load(); }, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && !liveCam) load(); });
     window.addEventListener('beforeunload', stopLive);
   </script>
 </body>
