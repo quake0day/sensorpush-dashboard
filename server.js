@@ -937,6 +937,13 @@ function localDateStr(d) {
 }
 
 // Daily detections by date
+// Server's current local date. The frontend uses this for its "today" view instead of
+// the browser's clock, so a viewing device whose date is off (e.g. a day ahead) doesn't
+// request a future date and see an empty page.
+app.get("/api/birds/today", (req, res) => {
+  res.json({ date: localDateStr() });
+});
+
 app.get("/api/birds/daily/:date?", (req, res) => {
   try {
     const dateStr = req.params.date || localDateStr();

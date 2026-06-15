@@ -357,7 +357,11 @@ function localDateStr(d) {
   const dd = d || new Date();
   return dd.getFullYear() + '-' + String(dd.getMonth()+1).padStart(2,'0') + '-' + String(dd.getDate()).padStart(2,'0');
 }
-let currentDate = localDateStr();
+// "Today" comes from the server (its local date), not the browser clock — a viewing
+// device with a wrong date would otherwise request a non-existent future day and look empty.
+// Seeded from the browser as a fallback; corrected from /api/birds/today at init.
+let serverToday = localDateStr();
+let currentDate = serverToday;
 let currentDays = 1;
 let hourlyChart = null;
 const imgCache = {};
@@ -636,7 +640,7 @@ document.querySelectorAll('.date-btn').forEach(btn => {
     document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentDays = parseInt(btn.dataset.days);
-    currentDate = localDateStr();
+    currentDate = serverToday;
     document.getElementById('datePicker').value = currentDate;
     loadData();
   });
@@ -653,6 +657,15 @@ document.getElementById('datePicker').addEventListener('change', (e) => {
 document.getElementById('datePicker').value = currentDate;
 applyLang();
 loadTranslations().then(async () => {
+  // Use the server's date as "today" so a wrong device clock can't make the page look empty.
+  try {
+    const td = await (await fetch('/api/birds/today')).json();
+    if (td && td.date) {
+      serverToday = td.date;
+      currentDate = serverToday;
+      document.getElementById('datePicker').value = currentDate;
+    }
+  } catch {}
   // Check if today has any data, if not switch to 7-day view
   try {
     const todayStats = await (await fetch(`/api/birds/stats?date=${currentDate}&days=1`)).json();
