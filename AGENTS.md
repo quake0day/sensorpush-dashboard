@@ -29,7 +29,7 @@ Single Express server on port 3088 with these integrations:
 ### Key Devices
 | Device | ID | Integration |
 |--------|-----|-------------|
-| Reolink RLC-811A | 192.168.68.96 | RTSP camera, koi pond |
+| Reolink RLC-811A | 192.168.1.96 | RTSP camera, koi pond |
 | Water Timer | eb42c3sv54vcakok | Tuya, valve 1=flowers, valve 2=pond |
 | Water Sensor | eb4b975ccbbe3fb9dc98n2 | Tuya, pond alarm (dual probe) |
 | SensorPush | via API | Temperature/humidity sensors |

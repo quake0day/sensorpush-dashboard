@@ -444,7 +444,7 @@ app.delete("/api/garden/:name", (req, res) => {
 
 // ============ Reolink Camera (Koi Pond) - RTSP/HLS ============
 const { spawn } = require("child_process");
-const REOLINK_IP = process.env.REOLINK_IP || "192.168.68.96";
+const REOLINK_IP = process.env.REOLINK_IP || "192.168.1.96";
 const REOLINK_USER = process.env.REOLINK_USER || "admin";
 const REOLINK_PASS = process.env.REOLINK_PASSWORD || "";
 const HLS_DIR = path.join(DATA_DIR, "hls-cam");
