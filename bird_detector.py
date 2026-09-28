@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Bird sound detector using BirdNET.
-Extracts audio from HLS stream, analyzes for bird calls,
+Streams camera audio over one RTSP session, analyzes for bird calls,
 writes detections to daily JSON logs for the Node.js server."""
 
 import json
@@ -8,26 +8,36 @@ import os
 import subprocess
 import time
 import signal
+import re
 import urllib.request
 from datetime import datetime, date
 from pathlib import Path
+from detector_config import enabled, notifications_enabled, rtsp_url
 
 # Config
-RTSP_URL = "rtsp://admin:%40Lara4chensi@192.168.68.96:554/h264Preview_01_main"
-NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "qk0d-koi-xk7m")
+# Reolink carries the same audio on both streams; the sub stream is far
+# lighter on a slow camera link.
+RTSP_URL = rtsp_url(os.environ.get("BIRD_AUDIO_STREAM", "sub"))
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "")
+SAVE_CLIPS = enabled("BIRD_SAVE_AUDIO_CLIPS")
 DATA_DIR = Path(os.environ.get("DATA_DIR") or Path.home() / "sensorpush-data")
 DETECT_DIR = DATA_DIR / "bird-detections"
 AUDIO_DIR = DETECT_DIR / "clips"
 DAILY_DIR = DETECT_DIR / "daily"
 LATEST_FILE = DETECT_DIR / "latest.json"
-LAT, LON = 39.957, -75.603
-MIN_CONFIDENCE = 0.35
+STATUS_FILE = DETECT_DIR / "status.json"
+SEGMENT_DIR = DETECT_DIR / "segments"
+LAT = float(os.environ.get("BIRD_LAT", "39.957"))
+LON = float(os.environ.get("BIRD_LON", "-75.603"))
+MIN_CONFIDENCE = float(os.environ.get("BIRD_MIN_CONFIDENCE", "0.35"))
 CHUNK_SECONDS = 9  # longer chunks = better detection
-POLL_INTERVAL = 10
+POLL_INTERVAL = max(1, int(os.environ.get("BIRD_POLL_INTERVAL", "10")))  # error backoff
+STALL_SECONDS = 45  # restart the stream when no segment arrives for this long
+MAX_BACKLOG = 3  # finished segments kept while analysis catches up
 MAX_LATEST = 50
 
 # Ensure dirs
-for d in [DETECT_DIR, AUDIO_DIR, DAILY_DIR]:
+for d in [DETECT_DIR, AUDIO_DIR, DAILY_DIR, SEGMENT_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 # Load latest detections (for real-time notifications)
@@ -65,47 +75,101 @@ def load_daily(d=None):
 
 def save_daily(entries, d=None):
     """Save a day's detections."""
-    daily_file(d).write_text(json.dumps(entries, indent=2))
+    save_json(daily_file(d), entries)
 
 
-def extract_audio(output_path):
-    """Extract audio directly from RTSP with noise filtering for bird detection."""
-    proc = None
-    try:
-        audio_filter = (
-            "highpass=f=500,"
-            "lowpass=f=12000,"
-            "volume=8.0"
-        )
-        proc = subprocess.Popen([
-            "ffmpeg", "-y",
+def save_json(file, entries):
+    # The metadata sync service can read while analysis is running.
+    temp = file.with_suffix(".json.tmp")
+    temp.write_text(json.dumps(entries, indent=2))
+    temp.replace(file)
+
+
+def pause(seconds):
+    deadline = time.monotonic() + seconds
+    while running and time.monotonic() < deadline:
+        time.sleep(min(0.25, max(0, deadline - time.monotonic())))
+
+
+def detection_id_for(now, name, index):
+    # BirdNET can find the same species in several segments in one chunk.
+    # Fractional seconds and the segment index prevent silent ID collisions.
+    slug = re.sub(r"[^a-zA-Z0-9_-]", "_", name)[:80]
+    return now.strftime("%Y%m%d_%H%M%S_%f") + f"_{index}_{slug}"
+
+
+class AudioStream:
+    """One long-lived RTSP session cut into fixed-length wav segments.
+
+    Opening an RTSP session per chunk costs several seconds on a slow camera
+    link, which pushed each 9s chunk past its timeout. A persistent session
+    pays that cost once and buffers through short network stalls.
+    """
+
+    def __init__(self):
+        self.proc = None
+        self.started_at = 0.0
+        self.last_segment_at = 0.0
+        self.seen = set()
+
+    def _clear(self):
+        for f in SEGMENT_DIR.glob("*.wav"):
+            f.unlink(missing_ok=True)
+        self.seen.clear()
+
+    def start(self):
+        self._clear()
+        self.proc = subprocess.Popen([
+            "ffmpeg", "-y", "-loglevel", "error",
             "-rtsp_transport", "tcp",
+            "-allowed_media_types", "audio",
+            "-timeout", str(STALL_SECONDS * 1_000_000),
             "-i", RTSP_URL,
-            "-t", str(CHUNK_SECONDS),
             "-vn",
-            "-af", audio_filter,
+            "-af", "highpass=f=500,lowpass=f=12000,volume=8.0",
             "-acodec", "pcm_s16le",
             "-ar", "48000", "-ac", "1",
-            output_path
+            "-f", "segment", "-segment_time", str(CHUNK_SECONDS),
+            "-reset_timestamps", "1",
+            str(SEGMENT_DIR / "chunk_%06d.wav"),
         ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        proc.wait(timeout=CHUNK_SECONDS + 10)
-        return proc.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 1000
-    except subprocess.TimeoutExpired:
-        if proc:
-            proc.kill()
-            proc.wait()
-        print("Audio extraction timed out (ffmpeg killed)")
-        return False
-    except Exception as e:
-        if proc and proc.poll() is None:
-            proc.kill()
-            proc.wait()
-        print(f"Audio extraction error: {e}")
-        return False
+        self.started_at = self.last_segment_at = time.monotonic()
+
+    def stop(self):
+        if self.proc and self.proc.poll() is None:
+            self.proc.kill()
+            self.proc.wait()
+        self.proc = None
+        self._clear()
+
+    def healthy(self):
+        """False when ffmpeg died or produced nothing for STALL_SECONDS."""
+        if self.proc is None or self.proc.poll() is not None:
+            return False
+        return time.monotonic() - self.last_segment_at < STALL_SECONDS
+
+    def next_segment(self):
+        """Oldest finished segment, or None. ffmpeg is still writing the newest one."""
+        files = sorted(SEGMENT_DIR.glob("chunk_*.wav"))
+        names = {f.name for f in files}
+        if names - self.seen:
+            self.last_segment_at = time.monotonic()
+        self.seen = names
+        done = files[:-1] if self.proc and self.proc.poll() is None else files
+        # Keep up with live audio rather than fall ever further behind.
+        while len(done) > MAX_BACKLOG:
+            done.pop(0).unlink(missing_ok=True)
+        for f in done:
+            if f.stat().st_size > 1000:
+                return f
+            f.unlink(missing_ok=True)
+        return None
 
 
 def save_clip(wav_path, detection_id):
-    """Save audio clip with aggressive noise/speech removal for privacy."""
+    """Optionally retain filtered audio locally; filtering cannot guarantee privacy."""
+    if not SAVE_CLIPS:
+        return False
     clip_path = str(AUDIO_DIR / f"{detection_id}.mp3")
     try:
         # Filter chain to remove background noise and human speech:
@@ -150,17 +214,20 @@ def analyze_audio(wav_path):
 
 def main():
     global latest
-    print(f"Bird detector started. Polling every {POLL_INTERVAL}s, min_conf={MIN_CONFIDENCE}")
+    print(f"Bird detector started. {CHUNK_SECONDS}s segments, min_conf={MIN_CONFIDENCE}")
     print(f"Location: {LAT}, {LON}")
 
     get_analyzer()
+    status = {"last_audio_at": None, "last_analysis_at": None}
+    save_json(STATUS_FILE, status)
 
-    wav_path = str(DETECT_DIR / "current_chunk.wav")
-    consecutive_errors = 0
+    stream = AudioStream()
+    restarts = 0
     today_str = date.today().isoformat()
     today_detections = load_daily(today_str)
 
     while running:
+        wav_path = None
         try:
             # Check if day rolled over
             now_day = date.today().isoformat()
@@ -169,25 +236,38 @@ def main():
                 today_str = now_day
                 today_detections = load_daily(today_str)
 
-            if not extract_audio(wav_path):
-                consecutive_errors += 1
-                if consecutive_errors > 5:
-                    print("HLS stream not available, waiting 30s...")
-                    time.sleep(30)
-                    consecutive_errors = 0
-                else:
-                    time.sleep(POLL_INTERVAL)
-                continue
+            if not stream.healthy():
+                if stream.proc is not None:
+                    restarts += 1
+                    print("Camera audio stream stalled, reconnecting")
+                    stream.stop()
+                    if restarts > 5:
+                        print("Camera audio not available, waiting 30s...")
+                        pause(30)
+                        restarts = 0
+                    else:
+                        pause(POLL_INTERVAL)
+                stream.start()
 
-            consecutive_errors = 0
+            segment = stream.next_segment()
+            if segment is None:
+                pause(0.5)
+                continue
+            wav_path = str(segment)
+
+            restarts = 0
+            status["last_audio_at"] = int(time.time() * 1000)
+            save_json(STATUS_FILE, status)
             results = analyze_audio(wav_path)
+            status["last_analysis_at"] = int(time.time() * 1000)
+            save_json(STATUS_FILE, status)
 
             if results:
-                for det in results:
+                for index, det in enumerate(results):
                     now = datetime.now()
-                    detection_id = now.strftime("%Y%m%d_%H%M%S") + f"_{det['common_name'].replace(' ', '_')}"
+                    detection_id = detection_id_for(now, det["common_name"], index)
 
-                    # Save cleaned audio clip (speech/noise removed) for /bird page
+                    # Retention is opt-in. The VM profile keeps metadata only.
                     has_clip = save_clip(wav_path, detection_id)
 
                     entry = {
@@ -203,7 +283,7 @@ def main():
                     # Add to latest (for real-time notifications)
                     latest.append(entry)
                     latest = latest[-MAX_LATEST:]
-                    LATEST_FILE.write_text(json.dumps(latest, indent=2))
+                    save_json(LATEST_FILE, latest)
 
                     # Add to daily log (persistent)
                     today_detections.append(entry)
@@ -212,6 +292,8 @@ def main():
                     print(f"BIRD: {det['common_name']} ({det['scientific_name']}) conf={det['confidence']:.2f}")
 
                     # Push notification
+                    if not notifications_enabled():
+                        continue
                     try:
                         msg = f"{det['common_name']} ({det['scientific_name']}) - {det['confidence']:.0%} confidence"
                         req = urllib.request.Request(
@@ -224,14 +306,18 @@ def main():
                     except Exception as ne:
                         print(f"Notify error: {ne}")
 
-            time.sleep(POLL_INTERVAL)
+            # The next iteration needs no previous audio, even when no bird was found.
+            Path(wav_path).unlink(missing_ok=True)
 
         except KeyboardInterrupt:
             break
         except Exception as e:
             print(f"Error: {e}")
-            time.sleep(POLL_INTERVAL)
+            if wav_path:
+                Path(wav_path).unlink(missing_ok=True)
+            pause(POLL_INTERVAL)
 
+    stream.stop()
     print("Bird detector stopped.")
 
 if __name__ == "__main__":
